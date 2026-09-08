@@ -4,8 +4,8 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import seekfactory.axoraa.dto.response.product.ProductResponse;
-import seekfactory.axoraa.dto.response.reel.ReelResponse;
+import seekfactory.axoraa.dto.Response.product.ProductResponse;
+import seekfactory.axoraa.dto.Response.reel.ReelResponse;
 
 import java.util.List;
 

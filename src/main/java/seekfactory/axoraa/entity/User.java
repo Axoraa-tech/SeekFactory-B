@@ -37,7 +37,7 @@ public class User extends BaseEntity{
     private String passwordHash;
 
     @Enumerated(EnumType.STRING)
-    @Column(name= "name", length = 32, nullable = false)
+    @Column(name= "role", length = 32, nullable = false)
     private UserRole role;
 
     @Enumerated(EnumType.STRING)

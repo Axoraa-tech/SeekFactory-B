@@ -5,6 +5,7 @@ import jakarta.persistence.*;
 import lombok.*;
 import seekfactory.axoraa.entity.BaseEntity;
 import seekfactory.axoraa.entity.Category;
+import seekfactory.axoraa.entity.User;
 import seekfactory.axoraa.enums.Currency;
 import seekfactory.axoraa.enums.Incoterm;
 import seekfactory.axoraa.enums.RfqStatus;
@@ -79,10 +80,15 @@ public class Rfq extends BaseEntity {
     private RfqStatus status = RfqStatus.SUBMITTED;
 
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
+
+
 
     // ─── Quotes from Suppliers
 
     @OneToMany(mappedBy = "rfq", cascade = CascadeType.ALL)
     @Builder.Default
-    private List<Rfq> quotes = new ArrayList<>();
+    private List<RfqQuote> quotes = new ArrayList<>();
 }

@@ -17,12 +17,15 @@ All backend implementation code is split across 4 guide documents. Frontend rese
 | **Part 3** | [`part3_service_implementations.md`](./part3_service_implementations.md) | 9 remaining ServiceImpl classes: UserServiceImpl, ManufacturerServiceImpl, ProductServiceImpl, ReelServiceImpl, CategoryServiceImpl, CommentServiceImpl, RfqServiceImpl, ConversationServiceImpl, NotificationServiceImpl |
 | **Part 4** | [`part4_controllers.md`](./part4_controllers.md) | ManufacturerUpdateRequest DTO, 11 Controller classes: AuthController, FeedController, CategoryController, ManufacturerController, ProductController, CommentController, RfqController, ConversationController, NotificationController, UserController, AdminController |
 
-### Frontend Research
+### Frontend Research & AI Proposal
 
 | Doc | File | Contents |
 |-----|------|----------|
 | **Web** | [`web_frontend_research.md`](./web_frontend_research.md) | Next.js 15.5 architecture, all routes/pages, component inventory, API contract, auth flow, entity types, feature list |
 | **App** | [`app_frontend_research.md`](./app_frontend_research.md) | Expo SDK 57 architecture, all screens/navigation, component inventory, API contract, session management, assets, EAS build config |
+| **AI Strategy** | [`ai_integration_proposal.md`](./ai_integration_proposal.md) · [**Overview PDF**](./SeekFactory_AI_Integration_Proposal.pdf) | Architectural analysis, China–India GFW compliance, cloud API vs. GPU server |
+| **AI Plans (90k/160k/200k)** | [`ai_integration_plans_90k_160k_200k.md`](./ai_integration_plans_90k_160k_200k.md) · [**Commercial PDF**](./SeekFactory_AI_Integration_Plans_90k_160k_200k.pdf) | **Client 3-Tier Proposal**: Plan 1 (₹90k), Plan 2 (₹160k), Plan 3 (₹200k) across all 8 features |
+| **AI Features (Client Ready)** | [`ai_features_simplified.md`](./ai_features_simplified.md) · [**Clean 2-Page PDF**](./SeekFactory_AI_Features_Simplified.pdf) | **Short & Crisp**: Problem, Solution & Examples with Level tags (no prices/jargon) |
 
 ---
 

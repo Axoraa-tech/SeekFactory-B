@@ -10,7 +10,7 @@ import seekfactory.axoraa.entity.User;
  * Tracks a user's "like" on a reel. Unique constraint prevents double-liking.
  */
 @Entity
-@Table(name = "reel_like", uniqueConstraints = {@UniqueConstraint(columnNames = {"reel_id", "user_id"})})
+@Table(name = "reel_likes", uniqueConstraints = {@UniqueConstraint(columnNames = {"reel_id", "user_id"})})
 @Getter
 @Setter
 @NoArgsConstructor

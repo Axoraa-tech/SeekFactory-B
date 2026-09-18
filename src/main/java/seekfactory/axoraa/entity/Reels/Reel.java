@@ -84,8 +84,11 @@ public class Reel extends BaseEntity {
     // ─── Hashtags (ElementCollection)
 
     @ElementCollection
-    @CollectionTable(name = "reel_hashtags", joinColumns = @JoinColumn(name = "reel_id"))
-    @Column(name = "hashtags")
+    @CollectionTable(
+            name = "reel_hashtags",
+            joinColumns = @JoinColumn(name = "reel_id")
+    )
+    @Column(name = "hashtag", nullable = false, length = 100)
     @Builder.Default
     private Set<String> hashtags = new HashSet<>();
 

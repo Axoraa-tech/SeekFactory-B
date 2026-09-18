@@ -2,20 +2,67 @@ spring:
   application:
     name: axoraa
 
-  datasource:
-    url: jdbc:postgresql://localhost:5432/seekfactory
-    username: postgres
-    password: root
-    driver-class-name: org.postgresql.Driver
 
-
+  # ─── JPA / Hibernate ───────────────────────────────────────
   jpa:
     hibernate:
-      ddl-auto: update
-    show-sql: true
+      ddl-auto: validate            # IMPORTANT: Flyway manages schema, Hibernate only validates
+    show-sql: false                  # Set true only during development
+    open-in-view: false              # Enterprise best practice: disable OSIV
     properties:
       hibernate:
         format_sql: true
+        default_batch_fetch_size: 16
+        jdbc:
+          batch_size: 25
+        order_inserts: true
+        order_updates: true
 
+  # ─── Flyway ─────────────────────────────────────────────────
   flyway:
     enabled: true
+    baseline-on-migrate: true
+    locations: classpath:db/migration
+
+  # ─── Jackson ─────────────────────────────────────────────────
+  jackson:
+    serialization:
+    default-property-inclusion: non_null
+    property-naming-strategy: SNAKE_CASE
+
+# ─── Application Custom Properties ────────────────────────────
+app:
+  jwt:
+    secret: ${JWT_SECRET}
+    access-token-expiry: 86400000          # 24 hours in milliseconds
+    refresh-token-expiry: 604800000        # 7 days in milliseconds
+    issuer: seekfactory-axoraa
+
+  google:
+    client-id: ${GOOGLE_CLIENT_ID}
+
+# ─── Actuator ─────────────────────────────────────────────────
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: when_authorized
+
+# ─── OpenAPI / Swagger ────────────────────────────────────────
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+
+# ─── Server ───────────────────────────────────────────────────
+server:
+  port: 8080
+  error:
+    include-message: always
+    include-binding-errors: always

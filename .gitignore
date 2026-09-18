@@ -37,3 +37,4 @@ build/
 !.env.example
 
 application-dev.yaml
+application-prod.yaml

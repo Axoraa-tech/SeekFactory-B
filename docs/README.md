@@ -27,7 +27,25 @@ All backend implementation code is split across 4 guide documents. Frontend rese
 | **AI Plans (90k/160k/200k)** | [`ai_integration_plans_90k_160k_200k.md`](./ai_integration_plans_90k_160k_200k.md) · [**Commercial PDF**](./SeekFactory_AI_Integration_Plans_90k_160k_200k.pdf) | **Client 3-Tier Proposal**: Plan 1 (₹90k), Plan 2 (₹160k), Plan 3 (₹200k) across all 8 features |
 | **AI Features (Client Ready)** | [`ai_features_simplified.md`](./ai_features_simplified.md) · [**Clean 2-Page PDF**](./SeekFactory_AI_Features_Simplified.pdf) | **Short & Crisp**: Problem, Solution & Examples with Level tags (no prices/jargon) |
 
----
+### Infrastructure & DevOps
+
+| Doc | File | Contents |
+|-----|------|----------|
+| **Infrastructure Guide** | [`infrastructure_guide.md`](./infrastructure_guide.md) | Supabase PostgreSQL (dev + prod), Oracle Cloud Always Free setup, Docker, Nginx, SSL, GitHub Actions CI/CD, Spring profiles, common problems & solutions |
+
+### API Testing & QA
+
+| Doc | File | Contents |
+|-----|------|----------|
+| **Postman Testing Guide** | [`postman_api_testing_guide.md`](./postman_api_testing_guide.md) | Complete Postman testing suite: all 11 controllers, 34+ endpoints, JSON payloads, auto-JWT environment scripts, and negative tests |
+| **Postman Collection (Import)** | [`SeekFactory_API_Collection.postman_collection.json`](./SeekFactory_API_Collection.postman_collection.json) | **1-Click Import**: Ready-to-use Postman collection with organized folders, pre-filled JSON payloads, and test scripts |
+| **Postman Environment (Import)** | [`SeekFactory_Environment.postman_environment.json`](./SeekFactory_Environment.postman_environment.json) | Pre-configured environment variables (`baseUrl`, `authToken`, `refreshToken`, `userId`, etc.) |
+
+### Developer Onboarding & Workflow
+
+| Doc | File | Contents |
+|-----|------|----------|
+| **Developer Setup Guide** | [`developer_setup_guide.md`](./developer_setup_guide.md) · [**Team PDF**](./SeekFactory_Developer_Setup_Guide.pdf) | Complete local setup for Web (`SeekFactory-Web-F`) & Backend (`SeekFactory-B`), Git branching from `dev`, `.env` Supabase config, Flyway verification checklist |
 
 ## File Count Summary
 

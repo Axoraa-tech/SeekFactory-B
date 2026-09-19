@@ -66,3 +66,10 @@ server:
   error:
     include-message: always
     include-binding-errors: always
+
+logging:
+  pattern:
+    console: "%clr(%d{yyyy-MM-dd HH:mm:ss.SSS}){faint} %clr(%5p) %clr(---){faint} %clr([%15.15t]){faint} %clr(%-40.40logger{39}){cyan} %clr(:){faint} %m%n"
+  level:
+    seekfactory.axoraa: DEBUG
+    org.springframework.web: INFO

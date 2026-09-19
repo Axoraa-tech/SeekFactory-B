@@ -1,5 +1,7 @@
 package seekfactory.axoraa.exceptions;
 
+import jakarta.servlet.http.HttpServletRequest;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -10,6 +12,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import seekfactory.axoraa.dto.Response.common.ErrorResponse;
+import seekfactory.axoraa.services.services.ErrorLogService;
 
 import java.util.List;
 
@@ -23,7 +26,10 @@ import java.util.List;
 
 @Slf4j
 @RestControllerAdvice
+@RequiredArgsConstructor
 public class GlobalExceptionHandler {
+
+    private final ErrorLogService errorLogService;
 
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ErrorResponse> handleNotFound(ResourceNotFoundException ex) {
@@ -80,10 +86,13 @@ public class GlobalExceptionHandler {
      * Catch-all handler for any unhandled exceptions.
      * Logs the error and returns a generic 500 response.
      */
+
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<ErrorResponse> handleGeneral(Exception ex) {
-        // In production, log this: log.error("Unhandled exception", ex);
-        log.error("Unhandled exception: ", ex);
+    public ResponseEntity<ErrorResponse> handleGeneral(Exception ex, HttpServletRequest request) {
+        log.error("💥 Unhandled exception on {} {}: ", request.getMethod(), request.getRequestURI(), ex);
+
+        // Persist to error_logs table
+        errorLogService.logError(ex, request, HttpStatus.INTERNAL_SERVER_ERROR.value());
         return buildResponse(HttpStatus.INTERNAL_SERVER_ERROR,
                 "An unexpected error occurred. Please try again later.");
     }

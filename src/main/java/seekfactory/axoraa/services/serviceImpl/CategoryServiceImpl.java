@@ -49,26 +49,26 @@ public class CategoryServiceImpl implements CategoryService {
 
     @Override
     public List<CategoryResponse> listChildren(String parentIdOrSlug) {
-        // Try by ID first, then by slug
-        List<Category> children = categoryRepository.findByParentIdOrderByNameAsc(parentIdOrSlug);
+        // Resolve parent category by ID or slug
+        Category parent = categoryRepository.findById(parentIdOrSlug)
+                .or(() -> categoryRepository.findBySlug(parentIdOrSlug))
+                .orElse(null);
 
-        if (children.isEmpty()) {
-            // Might be a slug — try finding parent by slug, then get its children
-            Category parent = categoryRepository.findBySlug(parentIdOrSlug)
-                    .orElseThrow(() -> new ResourceNotFoundException(
-                            "Category", "id or slug", parentIdOrSlug));
-            children = categoryRepository.findByParentIdOrderByNameAsc(parent.getId());
+        if (parent == null) {
+            return List.of();
         }
 
+        List<Category> children = categoryRepository.findByParentIdOrderByNameAsc(parent.getId());
         return children.stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
     }
 
     @Override
-    public CategoryResponse getBySlug(String slug) {
-        Category category = categoryRepository.findBySlug(slug)
-                .orElseThrow(() -> new ResourceNotFoundException("Category", "slug", slug));
+    public CategoryResponse getBySlug(String slugOrId) {
+        Category category = categoryRepository.findBySlug(slugOrId)
+                .or(() -> categoryRepository.findById(slugOrId))
+                .orElseThrow(() -> new ResourceNotFoundException("Category", "slug or id", slugOrId));
         return mapToResponse(category);
     }
 

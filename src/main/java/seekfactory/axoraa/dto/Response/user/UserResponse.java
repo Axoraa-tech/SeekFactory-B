@@ -19,4 +19,5 @@ public class UserResponse {
     private String companyName;
     private String industry;
     private String country;
+    private String phone;
 }

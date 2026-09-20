@@ -28,7 +28,7 @@ spring:
   jackson:
     serialization:
     default-property-inclusion: non_null
-    property-naming-strategy: SNAKE_CASE
+    property-naming-strategy: LOWER_CAMEL_CASE
 
 # ─── Application Custom Properties ────────────────────────────
 app:

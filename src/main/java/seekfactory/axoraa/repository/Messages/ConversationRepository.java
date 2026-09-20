@@ -13,5 +13,9 @@ public interface ConversationRepository extends JpaRepository<Conversation, Stri
 
     List<Conversation> findByBuyerIdOrderByLastMessageAtDesc(String buyerId);
 
+    List<Conversation> findByManufacturerUserIdOrderByLastMessageAtDesc(String userId);
+
+    List<Conversation> findByManufacturerIdOrderByLastMessageAtDesc(String manufacturerId);
+
     Optional<Conversation> findByBuyerIdAndManufacturerId(String buyerId, String manufacturerId);
 }

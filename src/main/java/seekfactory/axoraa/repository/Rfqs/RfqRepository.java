@@ -13,6 +13,10 @@ public interface RfqRepository extends JpaRepository<Rfq, String> {
 
     List<Rfq> findByUserIdOrderByCreatedAtDesc(String userId);
 
+    List<Rfq> findByCategoryIdInOrderByCreatedAtDesc(List<String> categoryIds);
+
+    List<Rfq> findAllByOrderByCreatedAtDesc();
+
     @Query("SELECT COALESCE(MAX(CAST(SUBSTRING(r.referenceNumber, 10) AS int)), 0) FROM Rfq r WHERE r.referenceNumber LIKE :yearPrefix")
     int findMaxSequenceForYear(String yearPrefix);
 }

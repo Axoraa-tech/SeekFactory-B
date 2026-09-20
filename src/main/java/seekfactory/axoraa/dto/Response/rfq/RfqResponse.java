@@ -23,6 +23,8 @@ public class RfqResponse {
     private String companyName;
     private String details;
     private String attachmentName;
+    private String attachmentSize;
+    private String attachmentUrl;
     private String status;
     private String createdAt;
 }

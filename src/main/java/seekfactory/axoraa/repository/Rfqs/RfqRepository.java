@@ -11,6 +11,8 @@ import java.util.List;
 @Repository
 public interface RfqRepository extends JpaRepository<Rfq, String> {
 
+    long countByStatus(seekfactory.axoraa.enums.RfqStatus status);
+
     List<Rfq> findByUserIdOrderByCreatedAtDesc(String userId);
 
     @Query("SELECT COALESCE(MAX(CAST(SUBSTRING(r.referenceNumber, 10) AS int)), 0) FROM Rfq r WHERE r.referenceNumber LIKE :yearPrefix")

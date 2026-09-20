@@ -12,6 +12,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.config.Customizer;
 
 /**
  * Central security configuration.
@@ -32,6 +33,8 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
+                // Enable CORS
+                .cors(Customizer.withDefaults())
                 // Disable CSRF (stateless JWT, no cookies for auth)
                 .csrf(csrf -> csrf.disable())
 
@@ -55,6 +58,7 @@ public class SecurityConfig {
                         .requestMatchers("/actuator/health", "/actuator/info").permitAll()
 
                         // ─── ADMIN-ONLY ENDPOINTS ─────────────────────────────
+                        .requestMatchers("/api/v1/admin/auth/login", "/api/v1/admin/auth/setup-password").permitAll()
                         .requestMatchers("/api/v1/admin/**").hasAuthority("ROLE_ADMIN")
 
                         // ─── ALL OTHER ENDPOINTS REQUIRE AUTHENTICATION ───────

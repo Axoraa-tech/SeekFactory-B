@@ -1,7 +1,6 @@
 package seekfactory.axoraa.config;
 
-import lombok.RequiredArgsConstructor;
-import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.cors.CorsConfiguration;
@@ -10,24 +9,22 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.List;
 
-/**
- * CORS configuration allowing requests from both the Next.js web app
- * and Expo mobile app development servers, plus production domains.
- */
 @Configuration
-@RequiredArgsConstructor
 public class CorsConfig {
+
+    @Value("${app.cors.allowed-origins:http://localhost:3000,http://localhost:8081}")
+    private List<String> allowedOrigins;
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
 
-        // Allowed origins (web + app dev servers + production)
-        config.setAllowedOrigins(List.of(
-                "http://localhost:3000",        // Next.js dev
-                "http://localhost:8081",        // Expo dev
-                "https://seekfactory.com",
-                "https://www.seekfactory.com"
+        // Dynamically configured origins + standard production patterns
+        config.setAllowedOriginPatterns(List.of(
+                "http://localhost:[*]",               // Any local dev port
+                "https://*.vercel.app",               // Any Vercel deployment preview
+                "https://seekfactory.com",           // Production domain
+                "https://*.seekfactory.com"
         ));
 
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
@@ -41,10 +38,10 @@ public class CorsConfig {
         ));
         config.setExposedHeaders(List.of("Authorization"));
         config.setAllowCredentials(true);
-        config.setMaxAge(3600L);    // Cache preflight for 1 hour
+        config.setMaxAge(3600L);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/api/**", config);
+        source.registerCorsConfiguration("/**", config);
         return source;
     }
 }

@@ -8,6 +8,7 @@ import org.springframework.transaction.annotation.Transactional;
 import seekfactory.axoraa.config.JwtConfig;
 import seekfactory.axoraa.dto.Request.auth.*;
 import seekfactory.axoraa.dto.Response.auth.AuthResponse;
+import seekfactory.axoraa.entity.Manufacturer;
 import seekfactory.axoraa.entity.User;
 import seekfactory.axoraa.enums.AuthProvider;
 import seekfactory.axoraa.enums.UserRole;
@@ -15,6 +16,7 @@ import seekfactory.axoraa.exceptions.BadRequestException;
 import seekfactory.axoraa.exceptions.DuplicateResourceException;
 import seekfactory.axoraa.exceptions.ResourceNotFoundException;
 import seekfactory.axoraa.exceptions.UnauthorizedException;
+import seekfactory.axoraa.repository.ManufacturerRepository;
 import seekfactory.axoraa.repository.UserRepository;
 import seekfactory.axoraa.services.services.AuthService;
 import seekfactory.axoraa.utils.JwtTokenProvider;
@@ -34,6 +36,7 @@ import seekfactory.axoraa.utils.JwtTokenProvider;
 public class AuthServiceImpl implements AuthService {
 
     private final UserRepository userRepository;
+    private final ManufacturerRepository manufacturerRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
     private final JwtConfig jwtConfig;
@@ -64,6 +67,30 @@ public class AuthServiceImpl implements AuthService {
         // 4. Save to database
         User savedUser = userRepository.save(user);
         log.info("New user registered: {} ({})", savedUser.getEmail(), savedUser.getRole());
+
+        // 4.1 If user is a supplier/manufacturer, automatically create their manufacturer profile
+        if (role == UserRole.ROLE_SUPPLIER) {
+            String company = savedUser.getCompanyName() != null && !savedUser.getCompanyName().isBlank()
+                    ? savedUser.getCompanyName() : savedUser.getName();
+            String slug = company.toLowerCase().replaceAll("[^a-z0-9]+", "-") + "-" + savedUser.getId().substring(0, 6);
+
+            Manufacturer m = Manufacturer.builder()
+                    .user(savedUser)
+                    .name(company)
+                    .slug(slug)
+                    .country(savedUser.getCountry() != null ? savedUser.getCountry() : "China")
+                    .location("Industrial Zone")
+                    .verified(true)
+                    .premium(false)
+                    .yearsEstablished(2015)
+                    .factorySize("25,000 sq.m")
+                    .employees("200+ Specialists")
+                    .description("Certified industrial manufacturing and custom precision components fabrication.")
+                    .build();
+
+            manufacturerRepository.save(m);
+            log.info("Initialized manufacturer profile for supplier: {}", savedUser.getEmail());
+        }
 
         // 5. Generate JWT tokens and return
         return buildAuthResponse(savedUser);

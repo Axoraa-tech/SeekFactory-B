@@ -9,16 +9,13 @@ import seekfactory.axoraa.dto.Response.common.ApiResponse;
 import seekfactory.axoraa.dto.Response.reel.FeedItemResponse;
 import seekfactory.axoraa.enums.FeedTab;
 import seekfactory.axoraa.services.services.ReelService;
+import seekfactory.axoraa.utils.SecurityUtils;
 
 import java.util.List;
+import java.util.Map;
 
 /**
- * Video reels feed — PUBLIC access.
- *
- * Returns a list of FeedItems (reel + manufacturer + primary product slug)
- * filtered by the active feed tab ("for-you" or "following").
- *
- * Both web and mobile frontends call: GET /api/v1/feed?tab=for-you
+ * Video reels feed — PUBLIC discovery & authenticated interactions.
  */
 @RestController
 @RequestMapping("/api/v1/feed")
@@ -33,7 +30,6 @@ public class FeedController {
     public ResponseEntity<ApiResponse<List<FeedItemResponse>>> getFeed(
             @RequestParam(defaultValue = "for-you") String tab) {
 
-        // Map frontend tab string to enum
         FeedTab feedTab = switch (tab.toLowerCase()) {
             case "following" -> FeedTab.FOLLOWING;
             default -> FeedTab.FOR_YOU;
@@ -41,5 +37,19 @@ public class FeedController {
 
         List<FeedItemResponse> feed = reelService.getFeed(feedTab);
         return ResponseEntity.ok(ApiResponse.of(feed));
+    }
+
+    @PostMapping("/{id}/like")
+    @Operation(summary = "Toggle like on a reel")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> toggleLike(@PathVariable String id) {
+        String userId = SecurityUtils.getCurrentUserId();
+        return ResponseEntity.ok(ApiResponse.of(reelService.toggleLike(id, userId)));
+    }
+
+    @PostMapping("/{id}/save")
+    @Operation(summary = "Toggle save/bookmark on a reel")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> toggleSave(@PathVariable String id) {
+        String userId = SecurityUtils.getCurrentUserId();
+        return ResponseEntity.ok(ApiResponse.of(reelService.toggleSave(id, userId)));
     }
 }

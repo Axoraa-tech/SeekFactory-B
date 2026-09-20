@@ -32,6 +32,7 @@ All backend implementation code is split across 4 guide documents. Frontend rese
 | Doc | File | Contents |
 |-----|------|----------|
 | **Infrastructure Guide** | [`infrastructure_guide.md`](./infrastructure_guide.md) | Supabase PostgreSQL (dev + prod), Oracle Cloud Always Free setup, Docker, Nginx, SSL, GitHub Actions CI/CD, Spring profiles, common problems & solutions |
+| **Full-Stack Connection Guide** | [`frontend_backend_connection_guide.md`](./frontend_backend_connection_guide.md) | Seamless connection between Next.js & Spring Boot, dev vs cloud production URL switching (zero code changes), and complete `http-api.ts` adapter |
 
 ### API Testing & QA
 

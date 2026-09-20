@@ -66,6 +66,13 @@ public class User extends BaseEntity{
     @Builder.Default
     private Boolean isActive = true;
 
+    @Column(name = "totp_secret", length = 255)
+    private String totpSecret;
+
+    @Column(name = "is_totp_enabled")
+    @Builder.Default
+    private Boolean isTotpEnabled = false;
+
     // ─── Relationships
 
     @OneToOne(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.LAZY)

@@ -92,5 +92,8 @@ public class Manufacturer extends BaseEntity{
 
     // ─── Products
 
-
+    // ─── Subscription Plan
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "subscription_id")
+    private SubscriptionPlan subscriptionPlan;
 }

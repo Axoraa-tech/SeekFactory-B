@@ -11,6 +11,8 @@ import java.util.List;
 @Repository
 public interface RfqRepository extends JpaRepository<Rfq, String> {
 
+    long countByStatus(seekfactory.axoraa.enums.RfqStatus status);
+
     List<Rfq> findByUserIdOrderByCreatedAtDesc(String userId);
 
     List<Rfq> findByCategoryIdInOrderByCreatedAtDesc(List<String> categoryIds);

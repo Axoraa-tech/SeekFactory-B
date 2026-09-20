@@ -14,6 +14,8 @@ public interface ManufacturerRepository extends JpaRepository<Manufacturer, Stri
 
     Optional<Manufacturer> findByUserId(String userId);
 
+    long countByVerifiedTrue();
+
     List<Manufacturer> findByVerifiedTrueOrderByFollowerCountDesc();
 
     List<Manufacturer> findByPremiumTrue();

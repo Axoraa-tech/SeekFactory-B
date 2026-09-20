@@ -32,6 +32,7 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
+                .cors(org.springframework.security.config.Customizer.withDefaults()) // MUST BE ENABLED
                 // Disable CSRF (stateless JWT, no cookies for auth)
                 .csrf(csrf -> csrf.disable())
 

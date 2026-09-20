@@ -14,10 +14,6 @@ import java.util.stream.Collectors;
 
 /**
  * Manages user notifications.
- *
- * Notifications are created by other services (RfqService, ConversationService)
- * when events occur (new quote received, new message, new follower).
- * This service handles retrieval and read-status management.
  */
 @Slf4j
 @Service
@@ -47,6 +43,27 @@ public class NotificationServiceImpl implements NotificationService {
         log.info("Marked all notifications as read for user: {}", userId);
     }
 
+    @Override
+    public void markAsRead(String id, String userId) {
+        notificationRepository.findById(id).ifPresent(n -> {
+            if (n.getUser() != null && n.getUser().getId().equals(userId)) {
+                n.setIsRead(true);
+                notificationRepository.save(n);
+                log.info("Marked notification {} as read for user: {}", id, userId);
+            }
+        });
+    }
+
+    @Override
+    public void deleteNotification(String id, String userId) {
+        notificationRepository.findById(id).ifPresent(n -> {
+            if (n.getUser() != null && n.getUser().getId().equals(userId)) {
+                notificationRepository.delete(n);
+                log.info("Deleted notification {} for user: {}", id, userId);
+            }
+        });
+    }
+
     // ─── Private Helpers ──────────────────────────────────────
 
     private NotificationResponse mapToResponse(Notification notification) {
@@ -54,7 +71,7 @@ public class NotificationServiceImpl implements NotificationService {
                 .id(notification.getId())
                 .title(notification.getTitle())
                 .body(notification.getBody())
-                .createdAt(notification.getCreatedAt().toString())
+                .createdAt(notification.getCreatedAt() != null ? notification.getCreatedAt().toString() : "")
                 .read(notification.getIsRead())
                 .build();
     }

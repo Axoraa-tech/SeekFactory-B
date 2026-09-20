@@ -15,11 +15,6 @@ import java.util.Map;
 
 /**
  * User notifications — AUTHENTICATED only.
- *
- * Supports:
- * - Listing all notifications (sorted by most recent)
- * - Getting unread count (for badge rendering)
- * - Marking all as read
  */
 @RestController
 @RequestMapping("/api/v1/notifications")
@@ -50,5 +45,21 @@ public class NotificationController {
         String userId = SecurityUtils.getCurrentUserId();
         notificationService.markAllAsRead(userId);
         return ResponseEntity.ok(ApiResponse.ok("All notifications marked as read"));
+    }
+
+    @PutMapping("/{id}/read")
+    @Operation(summary = "Mark single notification as read")
+    public ResponseEntity<ApiResponse<Void>> markAsRead(@PathVariable String id) {
+        String userId = SecurityUtils.getCurrentUserId();
+        notificationService.markAsRead(id, userId);
+        return ResponseEntity.ok(ApiResponse.ok("Notification marked as read"));
+    }
+
+    @DeleteMapping("/{id}")
+    @Operation(summary = "Delete single notification")
+    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable String id) {
+        String userId = SecurityUtils.getCurrentUserId();
+        notificationService.deleteNotification(id, userId);
+        return ResponseEntity.ok(ApiResponse.ok("Notification deleted"));
     }
 }

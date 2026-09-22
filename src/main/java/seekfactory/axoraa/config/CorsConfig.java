@@ -12,29 +12,18 @@ import java.util.List;
 @Configuration
 public class CorsConfig {
 
-    @Value("${app.cors.allowed-origins:http://localhost:3000,http://localhost:8081}")
-    private List<String> allowedOrigins;
+    @Value("${app.cors.allowed-origin-patterns}")
+    private List<String> allowedOriginPatterns;
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
 
-        // Dynamically configured origins + standard production patterns
-        config.setAllowedOriginPatterns(List.of(
-                "http://localhost:[*]",               // Any local dev port
-                "https://*.vercel.app",               // Any Vercel deployment preview
-                "https://seekfactory.com",           // Production domain
-                "https://*.seekfactory.com"
-        ));
+        config.setAllowedOriginPatterns(allowedOriginPatterns);
 
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        // Explicit headers required when allowCredentials=true (wildcard * is not allowed)
         config.setAllowedHeaders(List.of(
-                "Authorization",
-                "Content-Type",
-                "Accept",
-                "X-Requested-With",
-                "Origin"
+                "Authorization", "Content-Type", "Accept", "X-Requested-With", "Origin"
         ));
         config.setExposedHeaders(List.of("Authorization"));
         config.setAllowCredentials(true);

@@ -1,6 +1,6 @@
 -- V4__admin_invitations.sql
 
-CREATE TABLE admin_invitations (
+CREATE TABLE IF NOT EXISTS admin_invitations (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     email VARCHAR(255) NOT NULL,
     token VARCHAR(255) NOT NULL UNIQUE,
@@ -15,5 +15,6 @@ CREATE TABLE admin_invitations (
 -- Pre-seed an invitation for the root admin
 -- Token is fixed: 00000000-0000-0000-0000-000000000000
 -- Expires far in the future so the user has time to set it up.
-INSERT INTO admin_invitations (email, token, expires_at)
-VALUES ('info.axoraa@gmail.com', '00000000-0000-0000-0000-000000000000', CURRENT_TIMESTAMP + INTERVAL '30 days');
+INSERT INTO admin_invitations (id, email, token, expires_at, is_used, created_at)
+VALUES (gen_random_uuid(), 'info.axoraa@gmail.com', '00000000-0000-0000-0000-000000000000', CURRENT_TIMESTAMP + INTERVAL '30 days', FALSE, CURRENT_TIMESTAMP)
+ON CONFLICT (token) DO NOTHING;

@@ -162,6 +162,14 @@
 			<artifactId>google-api-client</artifactId>
 			<version>2.8.1</version>
 		</dependency>
+
+		<!-- TOTP Two-Factor Authentication & QR Code Generation -->
+		<dependency>
+			<groupId>dev.samstevens.totp</groupId>
+			<artifactId>totp</artifactId>
+			<version>1.7.1</version>
+		</dependency>
+
 	</dependencies>
 
 	<build>

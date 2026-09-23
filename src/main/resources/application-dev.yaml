@@ -1,0 +1,27 @@
+spring:
+  datasource:
+    url: ${DEV_DB_URL:${DB_URL:${DATABASE_URL:${PROD_DB_URL:}}}}
+    username: ${DEV_DB_USERNAME:${DB_USERNAME:${PROD_DB_USERNAME:}}}
+    password: ${DEV_DB_PASSWORD:${DB_PASSWORD:${PROD_DB_PASSWORD:}}}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 5
+      minimum-idle: 1
+      idle-timeout: 30000
+      connection-timeout: 15000
+      max-lifetime: 60000
+      keepalive-time: 15000
+      connection-test-query: "SELECT 1"
+      data-source-properties:
+        prepareThreshold: 0
+        tcpKeepAlive: true
+        socketTimeout: 30
+
+  jpa:
+    show-sql: false
+
+app:
+  cors:
+    allowed-origin-patterns:
+      - http://localhost:3000
+      - http://localhost:8081

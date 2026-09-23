@@ -16,5 +16,5 @@ public interface NotificationRepository extends JpaRepository<Notification, Stri
 
     @Modifying
     @Query("UPDATE Notification n SET n.isRead = true WHERE n.user.id = :userId")
-    void markAllAsReadForUser(String userId);
+    void markAllAsReadForUser(@org.springframework.data.repository.query.Param("userId") String userId);
 }

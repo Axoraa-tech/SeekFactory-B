@@ -72,7 +72,7 @@ public class NotificationServiceImpl implements NotificationService {
                 .title(notification.getTitle())
                 .body(notification.getBody())
                 .createdAt(notification.getCreatedAt() != null ? notification.getCreatedAt().toString() : "")
-                .read(notification.getIsRead())
+                .read(notification.getIsRead() != null ? notification.getIsRead() : false)
                 .build();
     }
 }

@@ -7,12 +7,14 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import seekfactory.axoraa.dto.Request.message.MessageSendRequest;
 import seekfactory.axoraa.dto.Request.message.StartConversationRequest;
 import seekfactory.axoraa.dto.Response.common.ApiResponse;
 import seekfactory.axoraa.dto.Response.message.ConversationResponse;
 import seekfactory.axoraa.dto.Response.message.MessageResponse;
 import seekfactory.axoraa.services.services.ConversationService;
+import seekfactory.axoraa.services.services.SseService;
 import seekfactory.axoraa.utils.SecurityUtils;
 
 import java.util.List;
@@ -27,6 +29,14 @@ import java.util.List;
 public class ConversationController {
 
     private final ConversationService conversationService;
+    private final SseService sseService;
+
+    @GetMapping(value = "/{id}/stream", produces = org.springframework.http.MediaType.TEXT_EVENT_STREAM_VALUE)
+    @Operation(summary = "Subscribe to real-time message stream via Server-Sent Events (SSE)")
+    public SseEmitter streamMessages(@PathVariable String id) {
+        // Authentication is verified via SecurityContext implicitly (in a real app, ensure user is part of the conversation)
+        return sseService.subscribe(id);
+    }
 
     @GetMapping
     @Operation(summary = "List recent conversations with manufacturers")

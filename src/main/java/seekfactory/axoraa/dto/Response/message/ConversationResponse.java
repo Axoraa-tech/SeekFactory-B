@@ -14,6 +14,10 @@ public class ConversationResponse {
 
     private String id;
     private String manufacturerId;
+    private String buyerId;
+    private String buyerName;
+    private String buyerCompany;
+    private String buyerAvatarUrl;
     private String lastMessage;
     private String lastMessageAt;
     private int unreadCount;

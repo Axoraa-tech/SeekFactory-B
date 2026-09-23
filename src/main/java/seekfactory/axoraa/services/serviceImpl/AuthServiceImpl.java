@@ -213,23 +213,28 @@ public class AuthServiceImpl implements AuthService {
      * Maps frontend role strings ("Buyer", "Supplier") to backend UserRole enum.
      */
     private UserRole mapRole(String role) {
-        return switch (role.toLowerCase()) {
-            case "buyer" -> UserRole.ROLE_BUYER;
-            case "supplier", "manufacturer" -> UserRole.ROLE_SUPPLIER;
-            case "admin" -> UserRole.ROLE_ADMIN;
-            default -> throw new BadRequestException("Invalid role: " + role +
-                    ". Must be 'Buyer' or 'Supplier'");
-        };
+        String lowerRole = role.toLowerCase();
+        if ("buyer".equals(lowerRole)) {
+            return UserRole.ROLE_BUYER;
+        } else if ("supplier".equals(lowerRole) || "manufacturer".equals(lowerRole)) {
+            return UserRole.ROLE_SUPPLIER;
+        } else if ("admin".equals(lowerRole)) {
+            return UserRole.ROLE_ADMIN;
+        }
+        throw new BadRequestException("Invalid role: " + role + ". Must be 'Buyer' or 'Supplier'");
     }
 
     /**
      * Maps backend UserRole enum to frontend-friendly strings.
      */
     private String mapRoleToFrontend(UserRole role) {
-        return switch (role) {
-            case ROLE_BUYER -> "Buyer";
-            case ROLE_SUPPLIER -> "Supplier";
-            case ROLE_ADMIN -> "Admin";
-        };
+        if (role == UserRole.ROLE_BUYER) {
+            return "Buyer";
+        } else if (role == UserRole.ROLE_SUPPLIER) {
+            return "Supplier";
+        } else if (role == UserRole.ROLE_ADMIN) {
+            return "Admin";
+        }
+        return "Unknown";
     }
 }

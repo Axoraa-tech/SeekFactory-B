@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.data.domain.PageRequest;
 import seekfactory.axoraa.dto.Response.manufacturer.ManufacturerResponse;
 import seekfactory.axoraa.dto.Response.reel.FeedItemResponse;
 import seekfactory.axoraa.dto.Response.reel.ReelResponse;
@@ -47,7 +48,8 @@ public class ReelServiceImpl implements ReelService {
 
     @Override
     public List<FeedItemResponse> getFeed(FeedTab tab) {
-        List<Reel> reels = reelRepository.findByFeedTabOrderByCreatedAtDesc(tab);
+        // Limit feed to top 50 items to prevent massive payloads and frontend overload
+        List<Reel> reels = reelRepository.findByFeedTabOrderByCreatedAtDesc(tab, PageRequest.of(0, 50));
 
         return reels.stream()
                 .map(this::mapToFeedItem)

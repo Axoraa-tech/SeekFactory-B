@@ -64,6 +64,11 @@ app:
   google:
     client-id: ${GOOGLE_CLIENT_ID:seekfactory-google-client-id}
 
+  cors:
+    allowed-origin-patterns:
+      - "http://localhost:[*]"
+      - "http://127.0.0.1:[*]"
+
 # ─── Actuator ─────────────────────────────────────────────────
 management:
   endpoints:

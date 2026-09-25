@@ -1,8 +1,11 @@
 package seekfactory.axoraa.utils;
 
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import seekfactory.axoraa.exceptions.UnauthorizedException;
+
+import java.util.Optional;
 
 /**
  * Utility to extract the current authenticated user's info from the SecurityContext.
@@ -22,6 +25,22 @@ public final class SecurityUtils {
             throw new UnauthorizedException("User is not authenticated");
         }
         return (String) authentication.getPrincipal();
+    }
+
+    /**
+     * Returns the signed-in user's ID, or empty for guests on public endpoints.
+     * (Spring marks anonymous requests "authenticated" with principal "anonymousUser",
+     * so getCurrentUserId() cannot be used to detect guests.)
+     */
+    public static Optional<String> findCurrentUserId() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null
+                || !authentication.isAuthenticated()
+                || authentication instanceof AnonymousAuthenticationToken
+                || !(authentication.getPrincipal() instanceof String userId)) {
+            return Optional.empty();
+        }
+        return Optional.of(userId);
     }
 
     /**

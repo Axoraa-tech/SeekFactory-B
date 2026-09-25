@@ -9,6 +9,10 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.FieldError;
 
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.MultipartException;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import seekfactory.axoraa.dto.Response.common.ErrorResponse;
@@ -54,6 +58,17 @@ public class GlobalExceptionHandler {
     @ExceptionHandler({BadRequestException.class, IllegalArgumentException.class})
     public ResponseEntity<ErrorResponse> handleBadRequest(RuntimeException ex) {
         return buildResponse(HttpStatus.BAD_REQUEST, ex.getMessage());
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ErrorResponse> handleUploadTooLarge(MaxUploadSizeExceededException ex) {
+        return buildResponse(HttpStatus.CONTENT_TOO_LARGE, "Upload exceeds the maximum allowed size");
+    }
+
+    @ExceptionHandler({MultipartException.class, MissingServletRequestPartException.class,
+            MissingServletRequestParameterException.class})
+    public ResponseEntity<ErrorResponse> handleBadMultipart(Exception ex) {
+        return buildResponse(HttpStatus.BAD_REQUEST, "Invalid upload: send multipart form fields 'file' and 'kind'");
     }
 
     @ExceptionHandler(AccessDeniedException.class)

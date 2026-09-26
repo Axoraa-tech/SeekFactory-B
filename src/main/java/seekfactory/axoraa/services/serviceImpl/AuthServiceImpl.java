@@ -12,6 +12,7 @@ import seekfactory.axoraa.entity.Manufacturer;
 import seekfactory.axoraa.entity.User;
 import seekfactory.axoraa.enums.AuthProvider;
 import seekfactory.axoraa.enums.UserRole;
+import seekfactory.axoraa.enums.VerificationStatus;
 import seekfactory.axoraa.exceptions.BadRequestException;
 import seekfactory.axoraa.exceptions.DuplicateResourceException;
 import seekfactory.axoraa.exceptions.ResourceNotFoundException;
@@ -79,17 +80,17 @@ public class AuthServiceImpl implements AuthService {
                     .name(company)
                     .slug(slug)
                     .country(savedUser.getCountry() != null ? savedUser.getCountry() : "China")
-                    .location("Industrial Zone")
-                    .verified(true)
+                    .location("")
+                    // New factories start unverified and hidden from buyers until an
+                    // admin reviews them. Profile details are supplied by the factory
+                    // rather than invented here, so an admin reviews real data.
+                    .verified(false)
+                    .verificationStatus(VerificationStatus.PENDING)
                     .premium(false)
-                    .yearsEstablished(2015)
-                    .factorySize("25,000 sq.m")
-                    .employees("200+ Specialists")
-                    .description("Certified industrial manufacturing and custom precision components fabrication.")
                     .build();
 
             manufacturerRepository.save(m);
-            log.info("Initialized manufacturer profile for supplier: {}", savedUser.getEmail());
+            log.info("Registered manufacturer {} as PENDING admin review", savedUser.getEmail());
         }
 
         // 5. Generate JWT tokens and return

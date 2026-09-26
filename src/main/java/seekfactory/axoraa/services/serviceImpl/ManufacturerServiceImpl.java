@@ -62,6 +62,11 @@ public class ManufacturerServiceImpl implements ManufacturerService {
         Manufacturer manufacturer = manufacturerRepository.findBySlug(slug)
                 .orElseThrow(() -> new ResourceNotFoundException("Manufacturer", "slug", slug));
 
+        // An unapproved factory has no public profile
+        if (!Boolean.TRUE.equals(manufacturer.getVerified())) {
+            throw new ResourceNotFoundException("Manufacturer", "slug", slug);
+        }
+
         // Fetch related products and reels
         List<Product> products = productRepository
                 .findByManufacturerIdAndIsActiveTrue(manufacturer.getId());
@@ -81,7 +86,9 @@ public class ManufacturerServiceImpl implements ManufacturerService {
 
     @Override
     public List<ManufacturerResponse> listAll() {
+        // Buyer-facing: only factories an admin has approved
         return manufacturerRepository.findAll().stream()
+                .filter(m -> Boolean.TRUE.equals(m.getVerified()))
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
     }

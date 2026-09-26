@@ -19,4 +19,6 @@ public class FeedItemResponse {
     private ReelResponse reel;
     private ManufacturerResponse manufacturer;
     private String primaryProductSlug;
+    /** Products featured in the reel, used for the seek photo panel. */
+    private java.util.List<seekfactory.axoraa.dto.Response.product.ProductResponse> products;
 }

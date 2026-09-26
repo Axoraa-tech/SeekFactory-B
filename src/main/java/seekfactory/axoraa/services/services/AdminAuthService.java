@@ -16,9 +16,10 @@ public interface AdminAuthService {
      */
     AuthResponse login(AdminAuthRequest request);
     /**
-     * Invite a new admin. Generates an invitation token and "sends" it via email.
+     * Invite a new admin. Generates and returns a one-time invitation token.
+     * Email is not configured yet, so the inviting admin shares the setup link themselves.
      */
-    void inviteAdmin(String email, String inviterId);
+    String inviteAdmin(String email, String inviterId);
 
     /**
      * Completes the admin setup by validating the UUID token, checking the email, and setting the initial password.

@@ -5,6 +5,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.FieldError;
 
@@ -54,6 +55,12 @@ public class GlobalExceptionHandler {
     @ExceptionHandler({BadRequestException.class, IllegalArgumentException.class})
     public ResponseEntity<ErrorResponse> handleBadRequest(RuntimeException ex) {
         return buildResponse(HttpStatus.BAD_REQUEST, ex.getMessage());
+    }
+
+    /** Malformed JSON, unknown enum values or missing required primitives in a request body. */
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ErrorResponse> handleUnreadableBody(HttpMessageNotReadableException ex) {
+        return buildResponse(HttpStatus.BAD_REQUEST, "Request body is missing, malformed or contains invalid values");
     }
 
     @ExceptionHandler(AccessDeniedException.class)

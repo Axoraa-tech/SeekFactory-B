@@ -15,6 +15,7 @@ import dev.samstevens.totp.time.TimeProvider;
 import dev.samstevens.totp.util.Utils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -49,6 +50,11 @@ public class AdminAuthServiceImpl implements AdminAuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
     private final JwtConfig jwtConfig;
+
+    private static final String ROOT_INVITE_TOKEN = "00000000-0000-0000-0000-000000000000";
+
+    @Value("${app.admin.allow-root-reset:false}")
+    private boolean allowRootReset;
 
     @Override
     public AdminSetupResponse setupTotp(String adminEmail) {
@@ -131,18 +137,8 @@ public class AdminAuthServiceImpl implements AdminAuthService {
         boolean isCodeValid = verifier.isValidCode(admin.getTotpSecret(), request.getCode());
         
         if (!isCodeValid) {
-            log.warn("Invalid TOTP attempt. Secret: {}, Received code: {}, Current time: {}", 
-                admin.getTotpSecret(), request.getCode(), Instant.now());
-            
-            // Generate valid codes for the last 2 and next 2 periods for debugging
-            long currentBucket = Math.floorDiv(timeProvider.getTime(), 30);
-            for (int i = -2; i <= 2; i++) {
-                try {
-                    String validCode = codeGenerator.generate(admin.getTotpSecret(), currentBucket + i);
-                    log.warn("Expected code at offset {}: {}", i, validCode);
-                } catch (Exception e) {}
-            }
-            
+            // Never log the TOTP secret or valid codes: anyone with log access could log in as this admin
+            log.warn("Invalid TOTP attempt for admin {} at {}", admin.getEmail(), Instant.now());
             throw new UnauthorizedException("Invalid TOTP code");
         }
 
@@ -168,7 +164,7 @@ public class AdminAuthServiceImpl implements AdminAuthService {
     }
 
     @Override
-    public void inviteAdmin(String email, String inviterId) {
+    public String inviteAdmin(String email, String inviterId) {
         if (userRepository.existsByEmail(email)) {
             throw new DuplicateResourceException("User", "email", email);
         }
@@ -190,10 +186,10 @@ public class AdminAuthServiceImpl implements AdminAuthService {
                 
         adminInvitationRepository.save(invitation);
         
-        // Output to console since email is not configured
-        log.warn("=== ADMIN INVITATION CREATED ===");
-        log.warn("Send this link to the admin: http://localhost:3000/admin/setup?token={}", invitation.getToken());
-        log.warn("================================");
+        // The token is returned to the inviting admin only; it is not logged, since anyone
+        // with log access could otherwise use it to take the invitation
+        log.info("Admin invitation created for {} by {}", email, inviterId);
+        return invitation.getToken();
     }
 
     @Override
@@ -201,7 +197,9 @@ public class AdminAuthServiceImpl implements AdminAuthService {
         AdminInvitation invitation = adminInvitationRepository.findByToken(token)
                 .orElseThrow(() -> new IllegalArgumentException("Invalid or expired setup token."));
 
-        boolean isRootToken = "00000000-0000-0000-0000-000000000000".equals(token);
+        // The fixed root token is public (it is in the V4 migration), so its bypasses are only
+        // honoured when explicitly enabled for a one-off local recovery via app.admin.allow-root-reset
+        boolean isRootToken = allowRootReset && ROOT_INVITE_TOKEN.equals(token);
 
         if (invitation.getIsUsed() && !isRootToken) {
             throw new IllegalArgumentException("This invitation has already been used.");
@@ -219,7 +217,7 @@ public class AdminAuthServiceImpl implements AdminAuthService {
         User adminUser = userRepository.findByEmail(email).orElse(null);
         
         if (adminUser != null) {
-            if (!isRootToken) {
+            if (!isRootToken || adminUser.getRole() != UserRole.ROLE_ADMIN) {
                 throw new DuplicateResourceException("User", "email", email);
             }
             // Reset existing user's password and TOTP for dev testing

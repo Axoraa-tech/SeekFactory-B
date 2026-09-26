@@ -52,6 +52,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/v1/manufacturers/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/products/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/reels/*/comments").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/settings/**").permitAll()
 
                         // Swagger / OpenAPI / Actuator
                         .requestMatchers("/swagger-ui/**", "/api-docs/**", "/v3/api-docs/**").permitAll()

@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.data.domain.PageRequest;
 import seekfactory.axoraa.dto.Response.manufacturer.ManufacturerResponse;
+import seekfactory.axoraa.dto.Response.product.ProductResponse;
 import seekfactory.axoraa.dto.Response.reel.FeedItemResponse;
 import seekfactory.axoraa.dto.Response.reel.ReelResponse;
 import seekfactory.axoraa.entity.Manufacturer;
@@ -49,9 +50,13 @@ public class ReelServiceImpl implements ReelService {
     @Override
     public List<FeedItemResponse> getFeed(FeedTab tab) {
         // Limit feed to top 50 items to prevent massive payloads and frontend overload
-        List<Reel> reels = reelRepository.findByFeedTabOrderByCreatedAtDesc(tab, PageRequest.of(0, 50));
+        // Over-fetch, then drop seeks whose factory is not approved: a pending or
+        // rejected manufacturer must not reach buyers.
+        List<Reel> reels = reelRepository.findByFeedTabOrderByCreatedAtDesc(tab, PageRequest.of(0, 120));
 
         return reels.stream()
+                .filter(r -> r.getManufacturer() != null && Boolean.TRUE.equals(r.getManufacturer().getVerified()))
+                .limit(50)
                 .map(this::mapToFeedItem)
                 .collect(Collectors.toList());
     }
@@ -150,10 +155,26 @@ public class ReelServiceImpl implements ReelService {
                 .map(p -> p.getSlug())
                 .orElse(null);
 
+        // Lightweight product cards for the seek's photo panel (no specs, active products only)
+        List<ProductResponse> products = reel.getProducts().stream()
+                .filter(p -> !Boolean.FALSE.equals(p.getIsActive()))
+                .map(p -> ProductResponse.builder()
+                        .id(p.getId())
+                        .slug(p.getSlug())
+                        .manufacturerId(manufacturer.getId())
+                        .name(p.getName())
+                        .imageUrl(p.getImageUrl())
+                        .priceInr(p.getPriceInr())
+                        .unit(p.getUnit())
+                        .moq(p.getMoq())
+                        .build())
+                .collect(Collectors.toList());
+
         return FeedItemResponse.builder()
                 .reel(reelResponse)
                 .manufacturer(mfgResponse)
                 .primaryProductSlug(primaryProductSlug)
+                .products(products)
                 .build();
     }
 }

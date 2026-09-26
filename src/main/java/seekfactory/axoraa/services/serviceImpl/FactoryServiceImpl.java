@@ -17,6 +17,7 @@ import seekfactory.axoraa.dto.Response.rfq.RfqResponse;
 import seekfactory.axoraa.entity.Category;
 import seekfactory.axoraa.entity.Manufacturer;
 import seekfactory.axoraa.entity.Product;
+import seekfactory.axoraa.exceptions.BadRequestException;
 import seekfactory.axoraa.entity.Reels.Reel;
 import seekfactory.axoraa.entity.Rfqs.Rfq;
 import seekfactory.axoraa.entity.Rfqs.RfqQuote;
@@ -24,6 +25,8 @@ import seekfactory.axoraa.entity.User;
 import seekfactory.axoraa.enums.Currency;
 import seekfactory.axoraa.enums.FeedTab;
 import seekfactory.axoraa.enums.QuoteStatus;
+import seekfactory.axoraa.enums.RfqStatus;
+import seekfactory.axoraa.enums.ViewEntityType;
 import seekfactory.axoraa.exceptions.ForbiddenException;
 import seekfactory.axoraa.exceptions.ResourceNotFoundException;
 import seekfactory.axoraa.repository.CategoryRepository;
@@ -33,8 +36,11 @@ import seekfactory.axoraa.repository.Reels.ReelRepository;
 import seekfactory.axoraa.repository.Rfqs.RfqQuoteRepository;
 import seekfactory.axoraa.repository.Rfqs.RfqRepository;
 import seekfactory.axoraa.repository.UserRepository;
+import seekfactory.axoraa.repository.ViewEventRepository;
 import seekfactory.axoraa.services.services.FactoryService;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -51,7 +57,16 @@ public class FactoryServiceImpl implements FactoryService {
     private final RfqQuoteRepository rfqQuoteRepository;
     private final UserRepository userRepository;
     private final CategoryRepository categoryRepository;
+    private final ViewEventRepository viewEventRepository;
     private final ModelMapper modelMapper;
+
+    /** View KPIs cover this window; change % compares with the window before it. */
+    private static final Duration STATS_PERIOD = Duration.ofDays(30);
+    /** Response rate / speed consider RFQs received in this window. */
+    private static final Duration RESPONSE_WINDOW = Duration.ofDays(90);
+    /** RFQs still open for quoting. */
+    private static final Set<RfqStatus> ACTIVE_RFQ_STATUSES =
+            EnumSet.of(RfqStatus.SUBMITTED, RfqStatus.REVIEWING, RfqStatus.QUOTING, RfqStatus.QUOTED);
 
     @Override
     public ManufacturerResponse getProfile(String userId) {
@@ -82,31 +97,86 @@ public class FactoryServiceImpl implements FactoryService {
     @Override
     public FactoryStatsResponse getStats(String userId) {
         Manufacturer manufacturer = getOrCreateManufacturer(userId);
+        String mfrId = manufacturer.getId();
 
-        List<Product> products = productRepository.findByManufacturerIdAndIsActiveTrue(manufacturer.getId());
-        List<Reel> seeks = reelRepository.findByManufacturerIdOrderByCreatedAtDesc(manufacturer.getId());
-        List<RfqQuote> myQuotes = rfqQuoteRepository.findByManufacturerIdOrderByCreatedAtDesc(manufacturer.getId());
+        List<Product> products = productRepository.findByManufacturerIdAndIsActiveTrue(mfrId);
+        List<Reel> seeks = reelRepository.findByManufacturerIdOrderByCreatedAtDesc(mfrId);
 
-        long totalViews = seeks.stream().mapToLong(Reel::getViewsCount).sum();
-        if (totalViews == 0) totalViews = 1420L;
+        // ── Views: current window vs the window before it ──
+        Instant now = Instant.now();
+        Instant periodStart = now.minus(STATS_PERIOD);
+        Instant previousStart = periodStart.minus(STATS_PERIOD);
+        long reelViews = countViews(mfrId, ViewEntityType.REEL, periodStart, now);
+        long reelViewsBefore = countViews(mfrId, ViewEntityType.REEL, previousStart, periodStart);
+        long productViews = countViews(mfrId, ViewEntityType.PRODUCT, periodStart, now);
+        long productViewsBefore = countViews(mfrId, ViewEntityType.PRODUCT, previousStart, periodStart);
 
-        List<RfqResponse> rfqs = getRfqs(userId);
+        // ── RFQs: same matching rule as the seller's RFQ list ──
+        List<Rfq> matched = findMatchedRfqs(manufacturer);
+
+        // Earliest quote this factory sent per RFQ
+        Map<String, Instant> firstQuoteAt = new HashMap<>();
+        for (RfqQuote quote : rfqQuoteRepository.findByManufacturerIdOrderByCreatedAtDesc(mfrId)) {
+            firstQuoteAt.merge(quote.getRfq().getId(), quote.getCreatedAt(),
+                    (a, b) -> a.isBefore(b) ? a : b);
+        }
+
+        List<Rfq> active = matched.stream()
+                .filter(r -> r.getStatus() != null && ACTIVE_RFQ_STATUSES.contains(r.getStatus()))
+                .collect(Collectors.toList());
+        long awaitingQuote = active.stream().filter(r -> !firstQuoteAt.containsKey(r.getId())).count();
+
+        // ── Responsiveness over RFQs received in the response window ──
+        Instant responseSince = now.minus(RESPONSE_WINDOW);
+        List<Rfq> received = matched.stream()
+                .filter(r -> r.getCreatedAt() != null && r.getCreatedAt().isAfter(responseSince))
+                .filter(r -> r.getStatus() != RfqStatus.CANCELLED || firstQuoteAt.containsKey(r.getId()))
+                .collect(Collectors.toList());
+        List<Rfq> answered = received.stream()
+                .filter(r -> firstQuoteAt.containsKey(r.getId()))
+                .collect(Collectors.toList());
+
+        Double responseRate = received.isEmpty() ? null
+                : round1(100.0 * answered.size() / received.size());
+        Double avgResponseHours = answered.isEmpty() ? null
+                : round1(answered.stream()
+                        .mapToLong(r -> Math.max(0, Duration.between(r.getCreatedAt(), firstQuoteAt.get(r.getId())).toMinutes()))
+                        .average()
+                        .orElse(0) / 60.0);
 
         return FactoryStatsResponse.builder()
-                .totalProductViews(totalViews * 2)
-                .productViewsChange(14.8)
-                .factoryProfileVisits(totalViews / 3 + 120)
-                .profileVisitsChange(11.2)
-                .videoSeekPlays(totalViews)
-                .videoPlaysChange(28.4)
-                .activeRfqsCount(rfqs.size())
-                .pendingRfqsCount(Math.max(0, rfqs.size() - myQuotes.size()))
-                .responseRatePercent(98.5)
-                .avgResponseTimeHours(1.5)
-                .followerCount(manufacturer.getFollowerCount() != null ? manufacturer.getFollowerCount() : 350)
+                .periodDays((int) STATS_PERIOD.toDays())
+                .videoSeekPlays(reelViews)
+                .videoPlaysChange(percentChange(reelViews, reelViewsBefore))
+                .totalProductViews(productViews)
+                .productViewsChange(percentChange(productViews, productViewsBefore))
+                .factoryProfileVisits(0)
+                .profileVisitsChange(null)
+                .activeRfqsCount(active.size())
+                .pendingRfqsCount((int) awaitingQuote)
+                .responseRatePercent(responseRate)
+                .avgResponseTimeHours(avgResponseHours)
+                .responseWindowDays((int) RESPONSE_WINDOW.toDays())
+                .followerCount(manufacturer.getFollowerCount() != null ? manufacturer.getFollowerCount() : 0)
                 .totalProductsCount(products.size())
                 .totalSeeksCount(seeks.size())
                 .build();
+    }
+
+    private long countViews(String manufacturerId, ViewEntityType type, Instant from, Instant to) {
+        return viewEventRepository
+                .countByManufacturerIdAndEntityTypeAndCreatedAtGreaterThanEqualAndCreatedAtLessThan(
+                        manufacturerId, type, from, to);
+    }
+
+    /** % change vs the previous period; null when there is no baseline to compare with. */
+    private static Double percentChange(long current, long previous) {
+        if (previous == 0) return null;
+        return round1(100.0 * (current - previous) / previous);
+    }
+
+    private static double round1(double value) {
+        return Math.round(value * 10.0) / 10.0;
     }
 
     @Override
@@ -124,7 +194,8 @@ public class FactoryServiceImpl implements FactoryService {
         Manufacturer manufacturer = getOrCreateManufacturer(userId);
 
         Category category = categoryRepository.findById(request.getCategoryId())
-                .orElseGet(() -> categoryRepository.findAll().stream().findFirst().orElse(null));
+                .orElseThrow(() -> new BadRequestException("Unknown category: " + request.getCategoryId()));
+        requireMediaUrl(request.getImageUrl(), "imageUrl");
 
         String baseSlug = request.getName().toLowerCase().replaceAll("[^a-z0-9]+", "-");
         String uniqueSlug = baseSlug + "-" + (System.currentTimeMillis() % 100000);
@@ -174,6 +245,26 @@ public class FactoryServiceImpl implements FactoryService {
     @Override
     public ReelResponse addSeek(String userId, ReelCreateRequest request) {
         Manufacturer manufacturer = getOrCreateManufacturer(userId);
+        requireMediaUrl(request.getPosterUrl(), "posterUrl");
+        if (request.getVideoUrl() != null && !request.getVideoUrl().isBlank()) {
+            requireMediaUrl(request.getVideoUrl(), "videoUrl");
+        }
+
+        // Tagged products must be this factory's own, still-listed products
+        Set<Product> taggedProducts = new HashSet<>();
+        if (request.getProductIds() != null && !request.getProductIds().isEmpty()) {
+            List<Product> found = productRepository.findAllById(request.getProductIds());
+            for (Product product : found) {
+                if (!product.getManufacturer().getId().equals(manufacturer.getId())
+                        || !Boolean.TRUE.equals(product.getIsActive())) {
+                    throw new BadRequestException("Product " + product.getId() + " cannot be tagged on this seek");
+                }
+            }
+            if (found.size() != new HashSet<>(request.getProductIds()).size()) {
+                throw new BadRequestException("One or more tagged products do not exist");
+            }
+            taggedProducts.addAll(found);
+        }
 
         Set<String> tags = request.getHashtags() != null ? new HashSet<>(request.getHashtags()) : new HashSet<>();
         tags.add("#manufacturing");
@@ -194,6 +285,7 @@ public class FactoryServiceImpl implements FactoryService {
                 .savesCount(0)
                 .feedTab(FeedTab.FOR_YOU)
                 .hashtags(tags)
+                .products(taggedProducts)
                 .build();
 
         Reel saved = reelRepository.save(reel);
@@ -217,21 +309,22 @@ public class FactoryServiceImpl implements FactoryService {
     @Transactional(readOnly = true)
     public List<RfqResponse> getRfqs(String userId) {
         Manufacturer manufacturer = getOrCreateManufacturer(userId);
+        return findMatchedRfqs(manufacturer).stream()
+                .map(this::mapToRfqResponse)
+                .collect(Collectors.toList());
+    }
 
+    /**
+     * RFQs routed to a factory: those in its categories, or every RFQ if it has no categories.
+     * Shared by the RFQ list and the dashboard stats so the two always agree.
+     */
+    private List<Rfq> findMatchedRfqs(Manufacturer manufacturer) {
         List<String> categoryIds = manufacturer.getCategories().stream()
                 .map(Category::getId)
                 .collect(Collectors.toList());
-
-        List<Rfq> rfqs;
-        if (!categoryIds.isEmpty()) {
-            rfqs = rfqRepository.findByCategoryIdInOrderByCreatedAtDesc(categoryIds);
-        } else {
-            rfqs = rfqRepository.findAllByOrderByCreatedAtDesc();
-        }
-
-        return rfqs.stream()
-                .map(this::mapToRfqResponse)
-                .collect(Collectors.toList());
+        return categoryIds.isEmpty()
+                ? rfqRepository.findAllByOrderByCreatedAtDesc()
+                : rfqRepository.findByCategoryIdInOrderByCreatedAtDesc(categoryIds);
     }
 
     @Override
@@ -260,6 +353,16 @@ public class FactoryServiceImpl implements FactoryService {
     }
 
     // ─── Helpers ──────────────────────────────────────────────
+
+    /**
+     * Media references must be http(s) URLs or server-relative paths (e.g. /api/v1/media/...),
+     * never javascript:/data: URIs that would be rendered into buyer pages.
+     */
+    private static void requireMediaUrl(String url, String field) {
+        if (url == null || !(url.startsWith("/") || url.matches("(?i)^https?://\\S+$")) || url.startsWith("//")) {
+            throw new BadRequestException(field + " must be an http(s) URL or an uploaded media path");
+        }
+    }
 
     private Manufacturer getOrCreateManufacturer(String userId) {
         return manufacturerRepository.findByUserId(userId)
@@ -303,11 +406,30 @@ public class FactoryServiceImpl implements FactoryService {
         return res;
     }
 
+    // Explicit mapping: entity counters are named viewsCount/likesCount/... while the response
+    // uses views/likes/..., which ModelMapper silently skipped (seller table showed 0 views).
     private ReelResponse mapToReelResponse(Reel r) {
-        ReelResponse res = modelMapper.map(r, ReelResponse.class);
-        res.setManufacturerId(r.getManufacturer().getId());
-        res.setHashtags(new ArrayList<>(r.getHashtags()));
-        return res;
+        return ReelResponse.builder()
+                .id(r.getId())
+                .manufacturerId(r.getManufacturer().getId())
+                .title(r.getTitle())
+                .description(r.getDescription())
+                .hashtags(new ArrayList<>(r.getHashtags()))
+                .posterUrl(r.getPosterUrl())
+                .videoUrl(r.getVideoUrl())
+                .durationSec(r.getDurationSec())
+                .startSec(r.getStartSec())
+                .views(r.getViewsCount())
+                .likes(r.getLikesCount())
+                .comments(r.getCommentsCount())
+                .shares(r.getSharesCount())
+                .saves(r.getSavesCount())
+                .tab(r.getFeedTab().name().toLowerCase().replace("_", "-"))
+                .productIds(r.getProducts().stream()
+                        .filter(p -> Boolean.TRUE.equals(p.getIsActive()))
+                        .map(Product::getId)
+                        .collect(Collectors.toList()))
+                .build();
     }
 
     private RfqResponse mapToRfqResponse(Rfq r) {

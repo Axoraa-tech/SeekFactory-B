@@ -6,6 +6,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import seekfactory.axoraa.dto.Request.manufacturer.ManufacturerUpdateRequest;
 import seekfactory.axoraa.dto.Request.product.ProductCreateRequest;
@@ -23,11 +24,13 @@ import seekfactory.axoraa.utils.SecurityUtils;
 import java.util.List;
 
 /**
- * Manufacturer / Factory Workspace — AUTHENTICATED only.
+ * Manufacturer / Factory Workspace — ROLE_SUPPLIER only.
+ * SecurityConfig enforces the same rule; @PreAuthorize is defense-in-depth.
  */
 @RestController
 @RequestMapping("/api/v1/factory")
 @RequiredArgsConstructor
+@PreAuthorize("hasAuthority('ROLE_SUPPLIER')")
 @Tag(name = "Factory Hub", description = "Manufacturer seller portal operations")
 public class FactoryController {
 

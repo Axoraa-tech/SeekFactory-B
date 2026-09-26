@@ -37,3 +37,6 @@ build/
 !.env.example
 
 application-prod.yaml
+
+### Local media uploads (LocalMediaStorageService) ###
+uploads/

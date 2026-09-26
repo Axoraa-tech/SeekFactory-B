@@ -50,14 +50,19 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     public ProductDetailResponse getBySlug(String slug) {
+        // Deleted products are soft-deleted (isActive=false) and must not be publicly reachable
         Product product = productRepository.findBySlug(slug)
+                .filter(p -> Boolean.TRUE.equals(p.getIsActive()))
                 .orElseThrow(() -> new ResourceNotFoundException("Product", "slug", slug));
 
         Manufacturer manufacturer = product.getManufacturer();
 
-        // Get related products from the same manufacturer, excluding current
+        // Get related active products from the same manufacturer, excluding current
         List<Product> related = productRepository
-                .findByManufacturerIdAndIdNot(manufacturer.getId(), product.getId());
+                .findByManufacturerIdAndIdNot(manufacturer.getId(), product.getId())
+                .stream()
+                .filter(p -> Boolean.TRUE.equals(p.getIsActive()))
+                .collect(Collectors.toList());
 
         // Limit related to 6
         if (related.size() > 6) {

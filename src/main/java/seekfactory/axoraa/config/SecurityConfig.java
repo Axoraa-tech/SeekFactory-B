@@ -53,6 +53,9 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/v1/products/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/reels/*/comments").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/settings/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/media/**").permitAll()
+                        // View tracking counts guests too (deduped server-side)
+                        .requestMatchers(HttpMethod.POST, "/api/v1/feed/*/view", "/api/v1/products/*/view").permitAll()
 
                         // Swagger / OpenAPI / Actuator
                         .requestMatchers("/swagger-ui/**", "/api-docs/**", "/v3/api-docs/**").permitAll()
@@ -61,6 +64,11 @@ public class SecurityConfig {
                         // ─── ADMIN-ONLY ENDPOINTS ─────────────────────────────
                         .requestMatchers("/api/v1/admin/auth/login", "/api/v1/admin/auth/setup-password").permitAll()
                         .requestMatchers("/api/v1/admin/**").hasAuthority("ROLE_ADMIN")
+
+                        // ─── SUPPLIER-ONLY ENDPOINTS ──────────────────────────
+                        // Without this, any logged-in buyer hitting /factory/** was
+                        // auto-provisioned a manufacturer profile.
+                        .requestMatchers("/api/v1/factory/**").hasAuthority("ROLE_SUPPLIER")
 
                         // ─── ALL OTHER ENDPOINTS REQUIRE AUTHENTICATION ───────
                         .anyRequest().authenticated()

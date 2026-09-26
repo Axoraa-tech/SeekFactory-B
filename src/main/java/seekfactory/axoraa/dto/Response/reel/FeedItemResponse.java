@@ -5,6 +5,9 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import seekfactory.axoraa.dto.Response.manufacturer.ManufacturerResponse;
+import seekfactory.axoraa.dto.Response.product.ProductResponse;
+
+import java.util.List;
 
 /**
  * A feed item = reel + its manufacturer info + optional primary product slug.
@@ -19,6 +22,6 @@ public class FeedItemResponse {
     private ReelResponse reel;
     private ManufacturerResponse manufacturer;
     private String primaryProductSlug;
-    /** Products featured in the reel, used for the seek photo panel. */
-    private java.util.List<seekfactory.axoraa.dto.Response.product.ProductResponse> products;
+    /** Active products tagged on the reel: powers the "View Products" strip and the seek photo panel. */
+    private List<ProductResponse> products;
 }

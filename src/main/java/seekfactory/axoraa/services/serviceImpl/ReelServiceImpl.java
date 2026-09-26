@@ -8,6 +8,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.data.domain.PageRequest;
 import seekfactory.axoraa.dto.Response.manufacturer.ManufacturerResponse;
 import seekfactory.axoraa.dto.Response.product.ProductResponse;
+import seekfactory.axoraa.entity.Product;
 import seekfactory.axoraa.dto.Response.reel.FeedItemResponse;
 import seekfactory.axoraa.dto.Response.reel.ReelResponse;
 import seekfactory.axoraa.entity.Manufacturer;
@@ -120,6 +121,11 @@ public class ReelServiceImpl implements ReelService {
     private FeedItemResponse mapToFeedItem(Reel reel) {
         Manufacturer manufacturer = reel.getManufacturer();
 
+        // Only surface products that are still listed (deleted products are soft-deleted)
+        List<Product> activeProducts = reel.getProducts().stream()
+                .filter(p -> Boolean.TRUE.equals(p.getIsActive()))
+                .collect(Collectors.toList());
+
         // Map reel to response
         ReelResponse reelResponse = ReelResponse.builder()
                 .id(reel.getId())
@@ -137,7 +143,7 @@ public class ReelServiceImpl implements ReelService {
                 .shares(reel.getSharesCount())
                 .saves(reel.getSavesCount())
                 .tab(reel.getFeedTab().name().toLowerCase().replace("_", "-"))
-                .productIds(reel.getProducts().stream()
+                .productIds(activeProducts.stream()
                         .map(p -> p.getId())
                         .collect(Collectors.toList()))
                 .build();
@@ -150,31 +156,26 @@ public class ReelServiceImpl implements ReelService {
                 .collect(Collectors.toList()));
 
         // Determine primary product slug (first featured product, if any)
-        String primaryProductSlug = reel.getProducts().stream()
+        String primaryProductSlug = activeProducts.stream()
                 .findFirst()
                 .map(p -> p.getSlug())
                 .orElse(null);
-
-        // Lightweight product cards for the seek's photo panel (no specs, active products only)
-        List<ProductResponse> products = reel.getProducts().stream()
-                .filter(p -> !Boolean.FALSE.equals(p.getIsActive()))
-                .map(p -> ProductResponse.builder()
-                        .id(p.getId())
-                        .slug(p.getSlug())
-                        .manufacturerId(manufacturer.getId())
-                        .name(p.getName())
-                        .imageUrl(p.getImageUrl())
-                        .priceInr(p.getPriceInr())
-                        .unit(p.getUnit())
-                        .moq(p.getMoq())
-                        .build())
-                .collect(Collectors.toList());
 
         return FeedItemResponse.builder()
                 .reel(reelResponse)
                 .manufacturer(mfgResponse)
                 .primaryProductSlug(primaryProductSlug)
-                .products(products)
+                // Active products only: powers both the "View Products" strip and the photo panel
+                .products(activeProducts.stream()
+                        .map(this::mapToProductResponse)
+                        .collect(Collectors.toList()))
                 .build();
+    }
+
+    private ProductResponse mapToProductResponse(Product product) {
+        ProductResponse response = modelMapper.map(product, ProductResponse.class);
+        response.setManufacturerId(product.getManufacturer().getId());
+        response.setCategoryId(product.getCategory() != null ? product.getCategory().getId() : null);
+        return response;
     }
 }

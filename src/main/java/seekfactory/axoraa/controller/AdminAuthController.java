@@ -29,10 +29,10 @@ public class AdminAuthController {
     @PostMapping("/invite")
     @PreAuthorize("hasAuthority('ROLE_ADMIN')")
     @Operation(summary = "Invite a new Admin via Email")
-    public ResponseEntity<ApiResponse<Void>> inviteAdmin(@Valid @RequestBody AdminInviteRequest request) {
+    public ResponseEntity<ApiResponse<java.util.Map<String, String>>> inviteAdmin(@Valid @RequestBody AdminInviteRequest request) {
         String currentAdminId = SecurityUtils.getCurrentUserId();
-        adminAuthService.inviteAdmin(request.getEmail(), currentAdminId);
-        return ResponseEntity.ok(ApiResponse.ok("Invitation sent successfully. Link printed in console."));
+        String token = adminAuthService.inviteAdmin(request.getEmail(), currentAdminId);
+        return ResponseEntity.ok(ApiResponse.of(java.util.Map.of("token", token), "Invitation created. Share the setup link with the new admin."));
     }
 
     @PostMapping("/setup-password")

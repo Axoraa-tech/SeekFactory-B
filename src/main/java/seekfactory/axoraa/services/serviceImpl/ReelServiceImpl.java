@@ -51,9 +51,13 @@ public class ReelServiceImpl implements ReelService {
     @Override
     public List<FeedItemResponse> getFeed(FeedTab tab) {
         // Limit feed to top 50 items to prevent massive payloads and frontend overload
-        List<Reel> reels = reelRepository.findByFeedTabOrderByCreatedAtDesc(tab, PageRequest.of(0, 50));
+        // Over-fetch, then drop seeks whose factory is not approved: a pending or
+        // rejected manufacturer must not reach buyers.
+        List<Reel> reels = reelRepository.findByFeedTabOrderByCreatedAtDesc(tab, PageRequest.of(0, 120));
 
         return reels.stream()
+                .filter(r -> r.getManufacturer() != null && Boolean.TRUE.equals(r.getManufacturer().getVerified()))
+                .limit(50)
                 .map(this::mapToFeedItem)
                 .collect(Collectors.toList());
     }
@@ -161,6 +165,7 @@ public class ReelServiceImpl implements ReelService {
                 .reel(reelResponse)
                 .manufacturer(mfgResponse)
                 .primaryProductSlug(primaryProductSlug)
+                // Active products only: powers both the "View Products" strip and the photo panel
                 .products(activeProducts.stream()
                         .map(this::mapToProductResponse)
                         .collect(Collectors.toList()))

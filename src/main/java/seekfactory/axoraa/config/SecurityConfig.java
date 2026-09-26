@@ -52,6 +52,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/v1/manufacturers/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/products/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/reels/*/comments").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/settings/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/media/**").permitAll()
                         // View tracking counts guests too (deduped server-side)
                         .requestMatchers(HttpMethod.POST, "/api/v1/feed/*/view", "/api/v1/products/*/view").permitAll()

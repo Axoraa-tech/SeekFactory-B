@@ -22,6 +22,6 @@ public class FeedItemResponse {
     private ReelResponse reel;
     private ManufacturerResponse manufacturer;
     private String primaryProductSlug;
-    /** Active products tagged on the reel (powers the buyer "View Products" strip and feed filters). */
+    /** Active products tagged on the reel: powers the "View Products" strip and the seek photo panel. */
     private List<ProductResponse> products;
 }

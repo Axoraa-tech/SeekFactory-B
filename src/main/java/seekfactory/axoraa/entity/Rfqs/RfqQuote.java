@@ -46,6 +46,10 @@ public class RfqQuote extends BaseEntity {
     @Column(name = "notes", columnDefinition = "TEXT")
     private String notes;
 
+    /** Trade terms quoted (FOB, CIF, EXW, DDP); added in V10. */
+    @Column(name = "incoterm", length = 32)
+    private String incoterm;
+
     @Column(name = "attachment_url", columnDefinition = "TEXT")
     private String attachmentUrl;
 

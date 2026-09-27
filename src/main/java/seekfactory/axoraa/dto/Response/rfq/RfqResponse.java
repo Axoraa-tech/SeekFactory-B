@@ -5,6 +5,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
+
 @Data
 @Builder
 @NoArgsConstructor
@@ -27,4 +29,17 @@ public class RfqResponse {
     private String attachmentUrl;
     private String status;
     private String createdAt;
+
+    // ── Seller view only (GET /api/v1/factory/rfqs); omitted elsewhere ──
+    /** Buyer who posted the RFQ. */
+    private String buyerName;
+    private String buyerCountry;
+    private String buyerAvatarUrl;
+    /** This factory's current quotation, if it has quoted. */
+    private BigDecimal myQuotePrice;
+    private String myQuoteCurrency;
+    private Integer myQuoteLeadTimeDays;
+    private String myQuoteIncoterm;
+    private String myQuoteNotes;
+    private String myQuotedAt;
 }

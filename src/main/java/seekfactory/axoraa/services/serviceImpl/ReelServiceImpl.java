@@ -51,13 +51,12 @@ public class ReelServiceImpl implements ReelService {
     @Override
     public List<FeedItemResponse> getFeed(FeedTab tab) {
         // Limit feed to top 50 items to prevent massive payloads and frontend overload
-        // Over-fetch, then drop seeks whose factory is not approved: a pending or
-        // rejected manufacturer must not reach buyers.
-        List<Reel> reels = reelRepository.findByFeedTabOrderByCreatedAtDesc(tab, PageRequest.of(0, 120));
+        // Approval is filtered in SQL and the manufacturer is joined in, so the feed
+        // costs one query instead of one per reel and never over-fetches rows it
+        // is about to discard.
+        List<Reel> reels = reelRepository.findApprovedByFeedTab(tab, PageRequest.of(0, 50));
 
         return reels.stream()
-                .filter(r -> r.getManufacturer() != null && Boolean.TRUE.equals(r.getManufacturer().getVerified()))
-                .limit(50)
                 .map(this::mapToFeedItem)
                 .collect(Collectors.toList());
     }

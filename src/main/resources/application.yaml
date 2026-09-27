@@ -12,8 +12,11 @@ spring:
     password: ${DB_PASSWORD:${DEV_DB_PASSWORD:${PROD_DB_PASSWORD:}}}
     driver-class-name: org.postgresql.Driver
     hikari:
-      maximum-pool-size: 5
-      minimum-idle: 1
+      # Throughput ceiling = pool size / time-in-DB per request, so 5 capped the
+      # feed at roughly 4 req/s. Override with DB_POOL_SIZE per environment; keep
+      # it inside whatever the database (or its pooler) allows.
+      maximum-pool-size: ${DB_POOL_SIZE:20}
+      minimum-idle: 2
       idle-timeout: 30000
       connection-timeout: 15000
       max-lifetime: 60000

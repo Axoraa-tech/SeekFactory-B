@@ -5,6 +5,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
+
 /**
  * Seller dashboard KPIs, all computed from real data (see FactoryServiceImpl#getStats).
  * Nullable (boxed) fields are omitted from JSON when there is not enough data yet,
@@ -40,4 +42,18 @@ public class FactoryStatsResponse {
     private int followerCount;
     private int totalProductsCount;
     private int totalSeeksCount;
+
+    /** Weekly activity, oldest first (weeks start Monday, UTC). */
+    private List<TrendPoint> weeklyTrend;
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class TrendPoint {
+        private String weekStart;     // ISO date of the Monday
+        private long seekViews;
+        private long productViews;
+        private long rfqs;            // RFQs routed to this factory, by creation date
+    }
 }

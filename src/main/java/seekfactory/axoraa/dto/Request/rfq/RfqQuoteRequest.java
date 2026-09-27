@@ -26,5 +26,8 @@ public class RfqQuoteRequest {
     private Integer leadTimeDays;
 
     private String notes;
+
+    /** Trade terms: FOB, CIF, EXW or DDP (optional). */
+    private String incoterm;
     private String attachmentUrl;
 }

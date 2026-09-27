@@ -69,6 +69,10 @@ public class User extends BaseEntity{
     @Column(name = "totp_secret", length = 255)
     private String totpSecret;
 
+    @Column(name = "email_verified", nullable = false)
+    @Builder.Default
+    private Boolean emailVerified = false;
+
     @Column(name = "is_totp_enabled")
     @Builder.Default
     private Boolean isTotpEnabled = false;

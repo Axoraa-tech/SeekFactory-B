@@ -18,7 +18,12 @@ public interface ProductRepository extends JpaRepository<Product, String> {
 
     List<Product> findByCategoryIdAndIsActiveTrue(String categoryId);
 
-    @Query("SELECT p FROM Product p WHERE p.isActive = true ORDER BY p.createdAt DESC")
+    /** Buyer-facing: not deleted and not paused by the seller. */
+    List<Product> findByManufacturerIdAndIsActiveTrueAndListedTrue(String manufacturerId);
+
+    List<Product> findByCategoryIdAndIsActiveTrueAndListedTrue(String categoryId);
+
+    @Query("SELECT p FROM Product p WHERE p.isActive = true AND p.listed = true ORDER BY p.createdAt DESC")
     List<Product> findTrending(Pageable pageable);
 
     List<Product> findByManufacturerIdAndIdNot(String manufacturerId, String excludeId);

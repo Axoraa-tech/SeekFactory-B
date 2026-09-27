@@ -6,6 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Map;
 
 @Data
@@ -25,4 +26,10 @@ public class ProductResponse {
     private String moq;
     private String categoryId;
     private Map<String, String> specs;
+    /** Gallery in display order (first = imageUrl). */
+    private List<String> imageUrls;
+    private String datasheetUrl;
+    private String datasheetName;
+    /** false when the seller has paused the listing. */
+    private Boolean listed;
 }

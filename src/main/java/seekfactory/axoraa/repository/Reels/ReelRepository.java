@@ -20,6 +20,11 @@ public interface ReelRepository extends JpaRepository<Reel, String> {
 
     List<Reel> findByManufacturerIdOrderByCreatedAtDesc(String manufacturerId);
 
+    /** Buyer-facing: seeks the seller has not paused. */
+    List<Reel> findByFeedTabAndListedTrueOrderByCreatedAtDesc(FeedTab feedTab, Pageable pageable);
+
+    List<Reel> findByManufacturerIdAndListedTrueOrderByCreatedAtDesc(String manufacturerId);
+
     /** Atomic counter bump so concurrent views never lose updates. */
     @Modifying
     @Query("UPDATE Reel r SET r.viewsCount = r.viewsCount + 1 WHERE r.id = :reelId")

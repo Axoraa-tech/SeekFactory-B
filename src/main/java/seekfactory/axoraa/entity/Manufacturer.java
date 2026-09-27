@@ -4,9 +4,13 @@ package seekfactory.axoraa.entity;
 import jakarta.persistence.*;
 import lombok.*;
 
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+import seekfactory.axoraa.dto.common.FactoryCertificate;
 import seekfactory.axoraa.enums.VerificationStatus;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -78,6 +82,22 @@ public class Manufacturer extends BaseEntity{
 
     @Column(name = "chairman_name")
     private String chairmanName;
+
+    @Column(name = "website_url", columnDefinition = "TEXT")
+    private String websiteUrl;
+
+    /** Free-form range as the seller states it, e.g. "USD 5-10 Million". */
+    @Column(name = "annual_turnover", length = 64)
+    private String annualTurnover;
+
+    @Column(name = "production_lines")
+    private Integer productionLines;
+
+    /** Certificate documents shown on the profile (V14). */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "certificates", columnDefinition = "jsonb", nullable = false)
+    @Builder.Default
+    private List<FactoryCertificate> certificates = new ArrayList<>();
 
     // ─── Admin review
     //

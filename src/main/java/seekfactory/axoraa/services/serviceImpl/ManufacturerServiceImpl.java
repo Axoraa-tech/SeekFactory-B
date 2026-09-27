@@ -69,14 +69,20 @@ public class ManufacturerServiceImpl implements ManufacturerService {
 
         // Fetch related products and reels
         List<Product> products = productRepository
-                .findByManufacturerIdAndIsActiveTrue(manufacturer.getId());
+                .findByManufacturerIdAndIsActiveTrueAndListedTrue(manufacturer.getId());
         List<Reel> reels = reelRepository
-                .findByManufacturerIdOrderByCreatedAtDesc(manufacturer.getId());
+                .findByManufacturerIdAndListedTrueOrderByCreatedAtDesc(manufacturer.getId());
 
         return ManufacturerDetailResponse.builder()
                 .manufacturer(mapToResponse(manufacturer))
                 .products(products.stream()
-                        .map(p -> modelMapper.map(p, ProductResponse.class))
+                        .map(p -> {
+                            ProductResponse res = modelMapper.map(p, ProductResponse.class);
+                            res.setManufacturerId(manufacturer.getId());
+                            res.setCategoryId(p.getCategory() != null ? p.getCategory().getId() : null);
+                            res.setImageUrls(p.gallery());
+                            return res;
+                        })
                         .collect(Collectors.toList()))
                 .reels(reels.stream()
                         .map(this::mapReelToResponse)
@@ -102,6 +108,8 @@ public class ManufacturerServiceImpl implements ManufacturerService {
         response.setCategoryIds(m.getCategories().stream()
                 .map(c -> c.getId())
                 .collect(Collectors.toList()));
+        response.setCertifications(new ArrayList<>(m.getCertifications()));
+        response.setCertificates(new ArrayList<>(m.getCertificates() != null ? m.getCertificates() : List.of()));
         return response;
     }
 
@@ -115,6 +123,7 @@ public class ManufacturerServiceImpl implements ManufacturerService {
         response.setTab(reel.getFeedTab().name().toLowerCase().replace("_", "-"));
         response.setHashtags(new ArrayList<>(reel.getHashtags()));
         response.setProductIds(reel.getProducts().stream()
+                .filter(Product::isPubliclyVisible)
                 .map(p -> p.getId())
                 .collect(Collectors.toList()));
         return response;

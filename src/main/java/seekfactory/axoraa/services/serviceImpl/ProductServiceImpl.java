@@ -50,9 +50,9 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     public ProductDetailResponse getBySlug(String slug) {
-        // Deleted products are soft-deleted (isActive=false) and must not be publicly reachable
+        // Deleted (isActive=false) and paused (listed=false) products are not publicly reachable
         Product product = productRepository.findBySlug(slug)
-                .filter(p -> Boolean.TRUE.equals(p.getIsActive()))
+                .filter(Product::isPubliclyVisible)
                 .orElseThrow(() -> new ResourceNotFoundException("Product", "slug", slug));
 
         Manufacturer manufacturer = product.getManufacturer();
@@ -61,7 +61,7 @@ public class ProductServiceImpl implements ProductService {
         List<Product> related = productRepository
                 .findByManufacturerIdAndIdNot(manufacturer.getId(), product.getId())
                 .stream()
-                .filter(p -> Boolean.TRUE.equals(p.getIsActive()))
+                .filter(Product::isPubliclyVisible)
                 .collect(Collectors.toList());
 
         // Limit related to 6
@@ -74,6 +74,8 @@ public class ProductServiceImpl implements ProductService {
         mfgResponse.setCategoryIds(manufacturer.getCategories().stream()
                 .map(c -> c.getId())
                 .collect(Collectors.toList()));
+        mfgResponse.setCertifications(new ArrayList<>(manufacturer.getCertifications()));
+        mfgResponse.setCertificates(new ArrayList<>(manufacturer.getCertificates() != null ? manufacturer.getCertificates() : List.of()));
 
         return ProductDetailResponse.builder()
                 .product(mapToResponse(product))
@@ -86,7 +88,7 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     public List<ProductResponse> listByCategory(String categoryId) {
-        return productRepository.findByCategoryIdAndIsActiveTrue(categoryId).stream()
+        return productRepository.findByCategoryIdAndIsActiveTrueAndListedTrue(categoryId).stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
     }
@@ -97,6 +99,7 @@ public class ProductServiceImpl implements ProductService {
         ProductResponse response = modelMapper.map(product, ProductResponse.class);
         response.setManufacturerId(product.getManufacturer().getId());
         response.setCategoryId(product.getCategory().getId());
+        response.setImageUrls(product.gallery());
         return response;
     }
 }

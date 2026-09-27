@@ -5,6 +5,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import seekfactory.axoraa.dto.common.FactoryCertificate;
+
 import java.util.List;
 
 @Data
@@ -30,4 +32,9 @@ public class ManufacturerResponse {
     private int followerCount;
     private List<String> categoryIds;
     private String chairmanName;
+    private String websiteUrl;
+    private String annualTurnover;
+    private Integer productionLines;
+    private List<String> certifications;
+    private List<FactoryCertificate> certificates;
 }

@@ -53,7 +53,7 @@ public class ReelServiceImpl implements ReelService {
         // Limit feed to top 50 items to prevent massive payloads and frontend overload
         // Over-fetch, then drop seeks whose factory is not approved: a pending or
         // rejected manufacturer must not reach buyers.
-        List<Reel> reels = reelRepository.findByFeedTabOrderByCreatedAtDesc(tab, PageRequest.of(0, 120));
+        List<Reel> reels = reelRepository.findByFeedTabAndListedTrueOrderByCreatedAtDesc(tab, PageRequest.of(0, 120));
 
         return reels.stream()
                 .filter(r -> r.getManufacturer() != null && Boolean.TRUE.equals(r.getManufacturer().getVerified()))
@@ -121,9 +121,9 @@ public class ReelServiceImpl implements ReelService {
     private FeedItemResponse mapToFeedItem(Reel reel) {
         Manufacturer manufacturer = reel.getManufacturer();
 
-        // Only surface products that are still listed (deleted products are soft-deleted)
+        // Only surface products buyers can open (not deleted, not paused)
         List<Product> activeProducts = reel.getProducts().stream()
-                .filter(p -> Boolean.TRUE.equals(p.getIsActive()))
+                .filter(Product::isPubliclyVisible)
                 .collect(Collectors.toList());
 
         // Map reel to response
@@ -176,6 +176,7 @@ public class ReelServiceImpl implements ReelService {
         ProductResponse response = modelMapper.map(product, ProductResponse.class);
         response.setManufacturerId(product.getManufacturer().getId());
         response.setCategoryId(product.getCategory() != null ? product.getCategory().getId() : null);
+        response.setImageUrls(product.gallery());
         return response;
     }
 }

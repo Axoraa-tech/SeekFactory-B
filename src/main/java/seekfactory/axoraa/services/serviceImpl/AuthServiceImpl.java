@@ -19,6 +19,7 @@ import seekfactory.axoraa.exceptions.ResourceNotFoundException;
 import seekfactory.axoraa.exceptions.UnauthorizedException;
 import seekfactory.axoraa.repository.ManufacturerRepository;
 import seekfactory.axoraa.repository.UserRepository;
+import seekfactory.axoraa.services.services.AccountService;
 import seekfactory.axoraa.services.services.AuthService;
 import seekfactory.axoraa.utils.JwtTokenProvider;
 
@@ -41,6 +42,7 @@ public class AuthServiceImpl implements AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
     private final JwtConfig jwtConfig;
+    private final AccountService accountService;
 
     @Override
     public AuthResponse register(RegisterRequest request) {
@@ -92,6 +94,9 @@ public class AuthServiceImpl implements AuthService {
             manufacturerRepository.save(m);
             log.info("Registered manufacturer {} as PENDING admin review", savedUser.getEmail());
         }
+
+        // 4.2 Confirm the address (best effort: signup never fails on email delivery)
+        accountService.sendEmailVerification(savedUser);
 
         // 5. Generate JWT tokens and return
         return buildAuthResponse(savedUser);

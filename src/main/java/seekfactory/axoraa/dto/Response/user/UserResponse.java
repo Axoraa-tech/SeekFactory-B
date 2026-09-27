@@ -20,4 +20,5 @@ public class UserResponse {
     private String industry;
     private String country;
     private String phone;
+    private Boolean emailVerified;
 }

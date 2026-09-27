@@ -15,6 +15,10 @@ import org.springframework.web.util.ContentCachingResponseWrapper;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 @Slf4j
 @Component
@@ -89,16 +93,46 @@ public class ApiLoggingFilter extends OncePerRequestFilter {
     private String formatJson(String rawJson) {
         if (rawJson == null || rawJson.isBlank()) return "";
         try {
-            Object jsonObject = objectMapper.readValue(rawJson, Object.class);
+            Object jsonObject = redact(objectMapper.readValue(rawJson, Object.class));
             return objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(jsonObject);
         } catch (Exception e) {
-            return rawJson; // Fallback to raw string if not valid JSON
+            // Not JSON: never echo arbitrary bodies that might carry credentials
+            return rawJson.length() > 500 ? "[non-JSON body, " + rawJson.length() + " chars omitted]" : rawJson;
         }
+    }
+
+    /** Keys whose values must never reach the logs (credentials, tokens, secrets). */
+    private static final Set<String> SENSITIVE_KEYS = Set.of(
+            "password", "newpassword", "currentpassword", "passwordhash",
+            "accesstoken", "access_token", "refreshtoken", "refresh_token", "token",
+            "idtoken", "id_token", "credential", "secret", "totpsecret", "otp", "code");
+
+    @SuppressWarnings("unchecked")
+    private Object redact(Object node) {
+        if (node instanceof Map<?, ?> map) {
+            Map<String, Object> copy = new LinkedHashMap<>();
+            ((Map<String, Object>) map).forEach((key, value) ->
+                    copy.put(key, SENSITIVE_KEYS.contains(key.toLowerCase()) ? "***" : redact(value)));
+            return copy;
+        }
+        if (node instanceof List<?> list) {
+            return list.stream().map(this::redact).toList();
+        }
+        return node;
     }
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getRequestURI();
-        return path.startsWith("/swagger-ui") || path.startsWith("/api-docs") || path.startsWith("/actuator");
+        String accept = request.getHeader("Accept");
+        String contentType = request.getContentType();
+        return path.startsWith("/swagger-ui") || path.startsWith("/api-docs") || path.startsWith("/actuator")
+                // Response caching would swallow Server-Sent Events after the first flush
+                || path.endsWith("/stream")
+                || (accept != null && accept.contains("text/event-stream"))
+                // Binary uploads/downloads: don't buffer files in memory or dump them into logs
+                || path.startsWith("/api/v1/media/")
+                || path.contains("/attachments")
+                || (contentType != null && contentType.startsWith("multipart/"));
     }
 }

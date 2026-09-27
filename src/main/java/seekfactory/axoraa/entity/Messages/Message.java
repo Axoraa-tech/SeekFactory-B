@@ -3,6 +3,7 @@ package seekfactory.axoraa.entity.Messages;
 import jakarta.persistence.*;
 import lombok.*;
 import seekfactory.axoraa.entity.BaseEntity;
+import seekfactory.axoraa.entity.OrderRequest;
 import seekfactory.axoraa.entity.User;
 import seekfactory.axoraa.enums.SenderType;
 
@@ -43,6 +44,15 @@ public class Message extends BaseEntity {
 
     @Column(name = "attachment_url", columnDefinition = "TEXT")
     private String attachmentUrl;
+
+    /** MIME type of an uploaded attachment (image/*, application/pdf); added in V11. */
+    @Column(name = "attachment_content_type", length = 100)
+    private String attachmentContentType;
+
+    /** Order this message is about, when the sender picked one as context; added in V11. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "order_id")
+    private OrderRequest order;
 
     @Column(name = "is_read", nullable = false)
     @Builder.Default

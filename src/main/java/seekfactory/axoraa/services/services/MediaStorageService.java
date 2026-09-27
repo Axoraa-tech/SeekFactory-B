@@ -23,4 +23,15 @@ public interface MediaStorageService {
 
     /** Content type to serve a stored key with (derived from its allowlisted extension). */
     String contentTypeOf(String key);
+
+    /**
+     * Store a private file (chat attachment: image or PDF) under a namespace such as a
+     * conversation id. Private files are never served by the public media endpoint.
+     *
+     * @return the generated key (e.g. {@code <uuid>.pdf})
+     */
+    String storePrivate(String namespace, MultipartFile file);
+
+    /** Load a private file; throws ResourceNotFoundException if the key is not in that namespace. */
+    Resource loadPrivate(String namespace, String key);
 }

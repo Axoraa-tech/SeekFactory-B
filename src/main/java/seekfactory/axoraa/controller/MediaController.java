@@ -30,7 +30,7 @@ public class MediaController {
 
     @PostMapping(value = "/api/v1/factory/media", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasAuthority('ROLE_SUPPLIER')")
-    @Operation(summary = "Upload a product photo or seek video (multipart: file, kind=image|video)")
+    @Operation(summary = "Upload a product photo or seek video (multipart: file, kind=image|video|document)")
     public ResponseEntity<ApiResponse<MediaUploadResponse>> upload(
             @RequestParam("file") MultipartFile file,
             @RequestParam("kind") String kind) {
@@ -50,6 +50,7 @@ public class MediaController {
                 .contentType(MediaType.parseMediaType(mediaStorageService.contentTypeOf(key)))
                 .cacheControl(CacheControl.maxAge(365, TimeUnit.DAYS).cachePublic().immutable())
                 .header("Content-Disposition", "inline")
+                .header("X-Content-Type-Options", "nosniff")
                 .body(resource);
     }
 }

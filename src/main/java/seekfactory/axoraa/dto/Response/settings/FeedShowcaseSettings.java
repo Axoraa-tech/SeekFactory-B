@@ -35,7 +35,9 @@ public record FeedShowcaseSettings(
         /** Responsive card grid of posters. */
         GRID,
         /** One hero seek above a horizontal rail of the rest. */
-        SPOTLIGHT;
+        SPOTLIGHT,
+        /** The site's left menu stays; seek in the middle, photos on the right. */
+        SIDEBAR;
 
         public static Mode parseOrDefault(String value) {
             try {

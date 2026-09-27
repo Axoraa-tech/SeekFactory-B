@@ -26,14 +26,15 @@ public interface ReelRepository extends JpaRepository<Reel, String> {
 
     List<Reel> findByManufacturerIdAndListedTrueOrderByCreatedAtDesc(String manufacturerId);
     /** "For You": every seek from an approved factory, newest first. */
-    @Query("SELECT r FROM Reel r WHERE r.manufacturer.verified = true AND r.listed = true ORDER BY r.createdAt DESC")
+    // The manufacturer is joined in: one query per page instead of one lazy load per seek
+    @Query("SELECT r FROM Reel r JOIN FETCH r.manufacturer m WHERE m.verified = true AND r.listed = true ORDER BY r.createdAt DESC")
     List<Reel> findVisibleFeed(Pageable pageable);
 
     /** "Following": seeks from approved factories the user follows. */
     @Query("""
-            SELECT r FROM Reel r
-            WHERE r.manufacturer.verified = true AND r.listed = true
-              AND r.manufacturer.id IN (SELECT f.manufacturer.id FROM ManufacturerFollow f WHERE f.user.id = :userId)
+            SELECT r FROM Reel r JOIN FETCH r.manufacturer m
+            WHERE m.verified = true AND r.listed = true
+              AND m.id IN (SELECT f.manufacturer.id FROM ManufacturerFollow f WHERE f.user.id = :userId)
             ORDER BY r.createdAt DESC
             """)
     List<Reel> findFollowingFeed(@Param("userId") String userId, Pageable pageable);

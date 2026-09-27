@@ -20,6 +20,13 @@ public interface OrderRequestRepository extends JpaRepository<OrderRequest, Stri
 
     boolean existsByReferenceNumber(String referenceNumber);
 
+    Optional<OrderRequest> findByIdAndBuyerId(String id, String buyerId);
+
+    /** The order an accepted RFQ quote turned into (unique, see V15). */
+    Optional<OrderRequest> findByRfqQuoteId(String rfqQuoteId);
+
+    boolean existsByRfqQuoteId(String rfqQuoteId);
+
     /** Double-submit guard: a matching fresh pending request from the same buyer. */
     Optional<OrderRequest> findFirstByBuyerIdAndProductIdAndStatusAndCreatedAtAfterOrderByCreatedAtDesc(
             String buyerId, String productId, OrderStatus status, Instant since);

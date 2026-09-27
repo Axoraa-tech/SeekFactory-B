@@ -14,7 +14,7 @@ public interface MediaStorageService {
     /**
      * Validate and persist an upload.
      *
-     * @param kind "image" or "video"
+     * @param kind "image", "video" or "document" (PDF / CAD / office files)
      */
     MediaUploadResponse store(MultipartFile file, String kind);
 

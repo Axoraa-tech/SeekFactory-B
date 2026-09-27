@@ -24,7 +24,6 @@ import seekfactory.axoraa.entity.Category;
 import seekfactory.axoraa.entity.Notification;
 import seekfactory.axoraa.entity.Manufacturer;
 import seekfactory.axoraa.entity.Product;
-import seekfactory.axoraa.exceptions.BadRequestException;
 import seekfactory.axoraa.entity.Reels.Reel;
 import seekfactory.axoraa.entity.Rfqs.Rfq;
 import seekfactory.axoraa.entity.Rfqs.RfqQuote;
@@ -36,6 +35,7 @@ import seekfactory.axoraa.enums.Incoterm;
 import seekfactory.axoraa.enums.QuoteStatus;
 import seekfactory.axoraa.enums.RfqStatus;
 import seekfactory.axoraa.enums.ViewEntityType;
+import seekfactory.axoraa.exceptions.BadRequestException;
 import seekfactory.axoraa.exceptions.ForbiddenException;
 import seekfactory.axoraa.exceptions.ResourceNotFoundException;
 import seekfactory.axoraa.repository.CategoryRepository;
@@ -48,6 +48,9 @@ import seekfactory.axoraa.repository.Rfqs.RfqRepository;
 import seekfactory.axoraa.repository.UserRepository;
 import seekfactory.axoraa.repository.ViewEventRepository;
 import seekfactory.axoraa.services.services.FactoryService;
+import seekfactory.axoraa.services.services.NotificationService;
+import seekfactory.axoraa.services.services.ResponseMetrics;
+import seekfactory.axoraa.utils.CategoryTree;
 
 import java.time.Duration;
 import java.time.DayOfWeek;
@@ -76,6 +79,8 @@ public class FactoryServiceImpl implements FactoryService {
     private final ViewEventRepository viewEventRepository;
     private final NotificationRepository notificationRepository;
     private final ModelMapper modelMapper;
+    private final CategoryTree categoryTree;
+    private final NotificationService notificationService;
 
     /** View KPIs cover this window; change % compares with the window before it. */
     private static final Duration STATS_PERIOD = Duration.ofDays(30);
@@ -160,35 +165,14 @@ public class FactoryServiceImpl implements FactoryService {
         // ── RFQs: same matching rule as the seller's RFQ list ──
         List<Rfq> matched = findMatchedRfqs(manufacturer);
 
-        // Earliest quote this factory sent per RFQ
-        Map<String, Instant> firstQuoteAt = new HashMap<>();
-        for (RfqQuote quote : rfqQuoteRepository.findByManufacturerIdOrderByCreatedAtDesc(mfrId)) {
-            firstQuoteAt.merge(quote.getRfq().getId(), quote.getCreatedAt(),
-                    (a, b) -> a.isBefore(b) ? a : b);
-        }
+        Map<String, Instant> firstQuoteAt = firstQuoteTimes(mfrId);
 
         List<Rfq> active = matched.stream()
                 .filter(r -> r.getStatus() != null && ACTIVE_RFQ_STATUSES.contains(r.getStatus()))
                 .collect(Collectors.toList());
         long awaitingQuote = active.stream().filter(r -> !firstQuoteAt.containsKey(r.getId())).count();
 
-        // ── Responsiveness over RFQs received in the response window ──
-        Instant responseSince = now.minus(RESPONSE_WINDOW);
-        List<Rfq> received = matched.stream()
-                .filter(r -> r.getCreatedAt() != null && r.getCreatedAt().isAfter(responseSince))
-                .filter(r -> r.getStatus() != RfqStatus.CANCELLED || firstQuoteAt.containsKey(r.getId()))
-                .collect(Collectors.toList());
-        List<Rfq> answered = received.stream()
-                .filter(r -> firstQuoteAt.containsKey(r.getId()))
-                .collect(Collectors.toList());
-
-        Double responseRate = received.isEmpty() ? null
-                : round1(100.0 * answered.size() / received.size());
-        Double avgResponseHours = answered.isEmpty() ? null
-                : round1(answered.stream()
-                        .mapToLong(r -> Math.max(0, Duration.between(r.getCreatedAt(), firstQuoteAt.get(r.getId())).toMinutes()))
-                        .average()
-                        .orElse(0) / 60.0);
+        ResponseMetrics metrics = responseMetrics(matched, firstQuoteAt, now);
 
         return FactoryStatsResponse.builder()
                 .periodDays((int) STATS_PERIOD.toDays())
@@ -200,8 +184,8 @@ public class FactoryServiceImpl implements FactoryService {
                 .profileVisitsChange(null)
                 .activeRfqsCount(active.size())
                 .pendingRfqsCount((int) awaitingQuote)
-                .responseRatePercent(responseRate)
-                .avgResponseTimeHours(avgResponseHours)
+                .responseRatePercent(metrics.responseRatePercent())
+                .avgResponseTimeHours(metrics.avgResponseTimeHours())
                 .responseWindowDays((int) RESPONSE_WINDOW.toDays())
                 .followerCount(manufacturer.getFollowerCount() != null ? manufacturer.getFollowerCount() : 0)
                 .totalProductsCount(products.size())
@@ -249,6 +233,43 @@ public class FactoryServiceImpl implements FactoryService {
         long days = ChronoUnit.DAYS.between(firstMonday, at.atZone(ZoneOffset.UTC).toLocalDate());
         int week = (int) Math.floorDiv(days, 7);
         return week >= 0 && week < TREND_WEEKS ? week : -1;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ResponseMetrics getResponseMetrics(Manufacturer manufacturer) {
+        return responseMetrics(findMatchedRfqs(manufacturer), firstQuoteTimes(manufacturer.getId()), Instant.now());
+    }
+
+    /** Earliest quote this factory sent, per RFQ id. */
+    private Map<String, Instant> firstQuoteTimes(String manufacturerId) {
+        Map<String, Instant> firstQuoteAt = new HashMap<>();
+        for (RfqQuote quote : rfqQuoteRepository.findByManufacturerIdOrderByCreatedAtDesc(manufacturerId)) {
+            firstQuoteAt.merge(quote.getRfq().getId(), quote.getCreatedAt(),
+                    (a, b) -> a.isBefore(b) ? a : b);
+        }
+        return firstQuoteAt;
+    }
+
+    /** Responsiveness over RFQs received in the response window. */
+    private static ResponseMetrics responseMetrics(List<Rfq> matched, Map<String, Instant> firstQuoteAt, Instant now) {
+        Instant responseSince = now.minus(RESPONSE_WINDOW);
+        List<Rfq> received = matched.stream()
+                .filter(r -> r.getCreatedAt() != null && r.getCreatedAt().isAfter(responseSince))
+                .filter(r -> r.getStatus() != RfqStatus.CANCELLED || firstQuoteAt.containsKey(r.getId()))
+                .collect(Collectors.toList());
+        List<Rfq> answered = received.stream()
+                .filter(r -> firstQuoteAt.containsKey(r.getId()))
+                .collect(Collectors.toList());
+
+        Double responseRate = received.isEmpty() ? null
+                : round1(100.0 * answered.size() / received.size());
+        Double avgResponseHours = answered.isEmpty() ? null
+                : round1(answered.stream()
+                        .mapToLong(r -> Math.max(0, Duration.between(r.getCreatedAt(), firstQuoteAt.get(r.getId())).toMinutes()))
+                        .average()
+                        .orElse(0) / 60.0);
+        return new ResponseMetrics(responseRate, avgResponseHours);
     }
 
     private long countViews(String manufacturerId, ViewEntityType type, Instant from, Instant to) {
@@ -607,16 +628,18 @@ public class FactoryServiceImpl implements FactoryService {
      * Shared by the RFQ list and the dashboard stats so the two always agree.
      */
     private List<Rfq> findMatchedRfqs(Manufacturer manufacturer) {
-        Set<String> categoryIds = new LinkedHashSet<>();
+        if (manufacturer.getCategories().isEmpty()) {
+            return rfqRepository.findAllByOrderByCreatedAtDesc();
+        }
+        // Buyers usually file RFQs under a top-level category while factories may list either level:
+        // match the factory's categories, their subcategories and their parents.
+        // Uncategorised RFQs go to every factory.
+        Set<String> categoryIds = new LinkedHashSet<>(categoryTree.withAncestors(manufacturer.getCategories()));
         for (Category category : manufacturer.getCategories()) {
-            categoryIds.add(category.getId());
-            // Taxonomy is two levels: a factory listed under a root also serves its subcategories
             categoryRepository.findByParentIdOrderByNameAsc(category.getId())
                     .forEach(child -> categoryIds.add(child.getId()));
         }
-        return categoryIds.isEmpty()
-                ? rfqRepository.findAllByOrderByCreatedAtDesc()
-                : rfqRepository.findByCategoryIdInOrderByCreatedAtDesc(new ArrayList<>(categoryIds));
+        return rfqRepository.findByCategoryIdInOrCategoryIsNullOrderByCreatedAtDesc(new ArrayList<>(categoryIds));
     }
 
     @Override

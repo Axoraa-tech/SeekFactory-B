@@ -37,6 +37,21 @@ public class OrderResponse {
     private String buyerNote;
     private String sellerNote;
 
+    /** DIRECT (product page), CART or RFQ_QUOTE. */
+    private String source;
+    /** RFQ the accepted quote belongs to, for RFQ_QUOTE orders. */
+    private String rfqId;
+    /** Currency of quotedTotal (listing prices are INR). */
+    private String currency;
+    /** Total the factory quoted, for RFQ_QUOTE orders. */
+    private BigDecimal quotedTotal;
+    private String contactName;
+    private String contactPhone;
+    private String deliveryAddress;
+    private String cancelReason;
+    /** Whether the buyer may still cancel (before the deal is confirmed). */
+    private Boolean cancellable;
+
     private Party manufacturer;
     private Party buyer;
 

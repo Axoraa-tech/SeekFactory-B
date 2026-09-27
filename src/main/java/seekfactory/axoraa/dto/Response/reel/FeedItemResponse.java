@@ -24,4 +24,6 @@ public class FeedItemResponse {
     private String primaryProductSlug;
     /** Active products tagged on the reel: powers the "View Products" strip and the seek photo panel. */
     private List<ProductResponse> products;
+    /** Whether the viewer follows this seek's factory; omitted for guests. */
+    private Boolean followingManufacturer;
 }

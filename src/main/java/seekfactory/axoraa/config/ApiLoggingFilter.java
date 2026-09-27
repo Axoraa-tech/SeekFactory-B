@@ -53,8 +53,10 @@ public class ApiLoggingFilter extends OncePerRequestFilter {
         String queryString = req.getQueryString() != null ? "?" + req.getQueryString() : "";
         int status = res.getStatus();
 
-        String reqBody = formatJson(getPayload(req.getContentAsByteArray()));
-        String resBody = formatJson(getPayload(res.getContentAsByteArray()));
+        // Auth calls carry passwords, OTPs and tokens: never write their bodies to the log
+        boolean sensitive = uri.contains("/auth/");
+        String reqBody = sensitive ? "" : formatJson(getPayload(req.getContentAsByteArray()));
+        String resBody = sensitive ? "" : formatJson(getPayload(res.getContentAsByteArray()));
 
         StringBuilder sb = new StringBuilder();
         sb.append("\n========================= [API CALL START] =========================");

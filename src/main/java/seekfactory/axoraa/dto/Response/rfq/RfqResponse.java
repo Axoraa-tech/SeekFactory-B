@@ -6,6 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 @Data
 @Builder
@@ -42,4 +43,7 @@ public class RfqResponse {
     private String myQuoteIncoterm;
     private String myQuoteNotes;
     private String myQuotedAt;
+    private Integer quoteCount;
+    /** Present only on the single-RFQ detail endpoint. */
+    private List<RfqQuoteResponse> quotes;
 }

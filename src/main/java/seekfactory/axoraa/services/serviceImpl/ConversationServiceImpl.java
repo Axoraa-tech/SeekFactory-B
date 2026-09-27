@@ -14,7 +14,9 @@ import seekfactory.axoraa.entity.Manufacturer;
 import seekfactory.axoraa.entity.Messages.Conversation;
 import seekfactory.axoraa.entity.Messages.Message;
 import seekfactory.axoraa.entity.User;
+import seekfactory.axoraa.enums.NotificationType;
 import seekfactory.axoraa.enums.SenderType;
+import seekfactory.axoraa.exceptions.BadRequestException;
 import seekfactory.axoraa.exceptions.ForbiddenException;
 import seekfactory.axoraa.exceptions.ResourceNotFoundException;
 import seekfactory.axoraa.repository.ManufacturerRepository;
@@ -22,6 +24,7 @@ import seekfactory.axoraa.repository.Messages.ConversationRepository;
 import seekfactory.axoraa.repository.Messages.MessageRepository;
 import seekfactory.axoraa.repository.UserRepository;
 import seekfactory.axoraa.services.services.ConversationService;
+import seekfactory.axoraa.services.services.NotificationService;
 import seekfactory.axoraa.services.services.SseService;
 import seekfactory.axoraa.services.services.MediaStorageService;
 import seekfactory.axoraa.services.services.OrderService;
@@ -61,6 +64,7 @@ public class ConversationServiceImpl implements ConversationService {
     private final OrderService orderService;
     private final MediaStorageService mediaStorageService;
     private final RfqRepository rfqRepository;
+    private final NotificationService notificationService;
 
     @Override
     @Transactional(readOnly = true)
@@ -124,6 +128,7 @@ public class ConversationServiceImpl implements ConversationService {
             conversation.setLastMessageAt(OffsetDateTime.now());
             conversation.setUnreadCountSupplier(conversation.getUnreadCountSupplier() + 1);
             conversation = conversationRepository.save(conversation);
+            notifyRecipient(conversation, buyer, SenderType.USER, message.getMessageText());
         }
 
         return mapToResponse(conversation, false);
@@ -206,6 +211,8 @@ public class ConversationServiceImpl implements ConversationService {
                 : "\uD83D\uDCCE " + (message.getAttachmentName() != null ? message.getAttachmentName() : "Attachment"));
         conversation.setLastMessageAt(OffsetDateTime.now());
         conversationRepository.save(conversation);
+
+        notifyRecipient(conversation, user, senderType, conversation.getLastMessageText());
 
         MessageResponse response = mapToMessageResponse(message);
         sseService.pushMessageToConversation(conversationId, response);
@@ -351,6 +358,17 @@ public class ConversationServiceImpl implements ConversationService {
         if (bytes < 1024) return bytes + " B";
         if (bytes < 1024 * 1024) return String.format(Locale.ROOT, "%.0f KB", bytes / 1024.0);
         return String.format(Locale.ROOT, "%.1f MB", bytes / (1024.0 * 1024.0));
+    }
+
+    /** One unread alert per conversation: further messages only bump the chat's unread count. */
+    private void notifyRecipient(Conversation conversation, User sender, SenderType senderType, String preview) {
+        User recipient = senderType == SenderType.USER
+                ? conversation.getManufacturer().getUser()
+                : conversation.getBuyer();
+        String from = senderType == SenderType.USER ? sender.getName() : conversation.getManufacturer().getName();
+        String body = preview.length() > 140 ? preview.substring(0, 137) + "..." : preview;
+        notificationService.notifyOnce(recipient, NotificationType.MESSAGE,
+                "New message from " + from, body, conversation.getId());
     }
 
     private void validateParticipant(Conversation conversation, String userId) {

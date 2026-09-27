@@ -9,15 +9,21 @@ import seekfactory.axoraa.dto.Request.comment.ReplyCreateRequest;
 import seekfactory.axoraa.dto.Response.comment.CommentReplyResponse;
 import seekfactory.axoraa.dto.Response.comment.CommentResponse;
 import seekfactory.axoraa.entity.Comments.Comment;
+import seekfactory.axoraa.entity.Comments.CommentLike;
 import seekfactory.axoraa.entity.Reels.Reel;
 import seekfactory.axoraa.entity.User;
 import seekfactory.axoraa.exceptions.ResourceNotFoundException;
+import seekfactory.axoraa.repository.Comments.CommentLikeRepository;
 import seekfactory.axoraa.repository.Comments.CommentRepository;
 import seekfactory.axoraa.repository.Reels.ReelRepository;
 import seekfactory.axoraa.repository.UserRepository;
 import seekfactory.axoraa.services.services.CommentService;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -36,18 +42,50 @@ public class CommentServiceImpl implements CommentService {
     private final CommentRepository commentRepository;
     private final ReelRepository reelRepository;
     private final UserRepository userRepository;
+    private final CommentLikeRepository commentLikeRepository;
 
     @Override
     @Transactional(readOnly = true)
-    public List<CommentResponse> listByReelId(String reelId) {
+    public List<CommentResponse> listByReelId(String reelId, String viewerId) {
         // Fetch only top-level comments (parent is null)
         // Replies are loaded via the @OneToMany relationship on Comment entity
         List<Comment> comments = commentRepository
                 .findByReelIdAndParentIsNullOrderByCreatedAtDesc(reelId);
 
-        return comments.stream()
+        List<CommentResponse> responses = comments.stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
+
+        if (viewerId != null) {
+            Set<String> liked = new HashSet<>(commentLikeRepository.findLikedCommentIdsOnReel(viewerId, reelId));
+            for (CommentResponse c : responses) {
+                c.setLikedByMe(liked.contains(c.getId()));
+                c.getReplies().forEach(r -> r.setLikedByMe(liked.contains(r.getId())));
+            }
+        }
+        return responses;
+    }
+
+    @Override
+    public Map<String, Object> toggleLike(String commentId, String userId) {
+        Comment comment = commentRepository.findById(commentId)
+                .orElseThrow(() -> new ResourceNotFoundException("Comment", "id", commentId));
+
+        Optional<CommentLike> existing = commentLikeRepository.findByCommentIdAndUserId(commentId, userId);
+        boolean liked;
+        if (existing.isPresent()) {
+            commentLikeRepository.delete(existing.get());
+            comment.setLikesCount(Math.max(0, comment.getLikesCount() - 1));
+            liked = false;
+        } else {
+            User user = userRepository.findById(userId)
+                    .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
+            commentLikeRepository.save(CommentLike.builder().comment(comment).user(user).build());
+            comment.setLikesCount(comment.getLikesCount() + 1);
+            liked = true;
+        }
+        commentRepository.save(comment);
+        return Map.of("liked", liked, "likes", comment.getLikesCount());
     }
 
     @Override

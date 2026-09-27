@@ -2,6 +2,7 @@ package seekfactory.axoraa.services.serviceImpl;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -43,6 +44,10 @@ public class AuthServiceImpl implements AuthService {
     private final JwtTokenProvider jwtTokenProvider;
     private final JwtConfig jwtConfig;
     private final AccountService accountService;
+
+    /** Development-only phone OTP. Blank (the default) disables phone login until an SMS provider exists. */
+    @Value("${app.auth.mock-otp:}")
+    private String mockOtp;
 
     @Override
     public AuthResponse register(RegisterRequest request) {
@@ -125,9 +130,12 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public AuthResponse loginWithPhone(PhoneLoginRequest request) {
-        // In production, verify OTP via SMS provider (Twilio, MSG91, etc.)
-        // For development, accept mock OTP "123456"
-        if (!"123456".equals(request.getOtp())) {
+        // No SMS provider is wired yet (MSG91 / Aliyun SMS). Until then phone login only works
+        // where a development code is configured (app.auth.mock-otp); elsewhere it is switched off.
+        if (mockOtp == null || mockOtp.isBlank()) {
+            throw new BadRequestException("Phone login is not available yet. Please sign in with email.");
+        }
+        if (!mockOtp.equals(request.getOtp())) {
             throw new UnauthorizedException("Invalid OTP");
         }
 
@@ -173,14 +181,16 @@ public class AuthServiceImpl implements AuthService {
     @Transactional(readOnly = true)
     public AuthResponse refreshToken(RefreshTokenRequest request) {
         String refreshToken = request.getRefreshToken();
-
-        if (!jwtTokenProvider.validateToken(refreshToken)) {
+        if (!jwtTokenProvider.isValidRefreshToken(refreshToken)) {
             throw new UnauthorizedException("Invalid or expired refresh token");
         }
 
         String userId = jwtTokenProvider.getUserIdFromToken(refreshToken);
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
+                .orElseThrow(() -> new UnauthorizedException("Invalid or expired refresh token"));
+        if (!Boolean.TRUE.equals(user.getIsActive())) {
+            throw new UnauthorizedException("Account has been deactivated");
+        }
 
         return buildAuthResponse(user);
     }
@@ -224,9 +234,8 @@ public class AuthServiceImpl implements AuthService {
             return UserRole.ROLE_BUYER;
         } else if ("supplier".equals(lowerRole) || "manufacturer".equals(lowerRole)) {
             return UserRole.ROLE_SUPPLIER;
-        } else if ("admin".equals(lowerRole)) {
-            return UserRole.ROLE_ADMIN;
         }
+        // Admins are never created through public signup; they come from AdminAuthService invitations
         throw new BadRequestException("Invalid role: " + role + ". Must be 'Buyer' or 'Supplier'");
     }
 

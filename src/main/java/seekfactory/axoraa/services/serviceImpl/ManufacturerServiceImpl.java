@@ -2,35 +2,35 @@ package seekfactory.axoraa.services.serviceImpl;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.modelmapper.ModelMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import seekfactory.axoraa.dto.Response.manufacturer.ManufacturerDetailResponse;
 import seekfactory.axoraa.dto.Response.manufacturer.ManufacturerResponse;
-import seekfactory.axoraa.dto.Response.product.ProductResponse;
-import seekfactory.axoraa.dto.Response.reel.ReelResponse;
 import seekfactory.axoraa.entity.Manufacturer;
+import seekfactory.axoraa.entity.ManufacturerFollow;
 import seekfactory.axoraa.entity.Product;
 import seekfactory.axoraa.entity.Reels.Reel;
+import seekfactory.axoraa.entity.User;
+import seekfactory.axoraa.enums.NotificationType;
 import seekfactory.axoraa.exceptions.ResourceNotFoundException;
+import seekfactory.axoraa.mapper.CatalogMapper;
+import seekfactory.axoraa.repository.ManufacturerFollowRepository;
 import seekfactory.axoraa.repository.ManufacturerRepository;
 import seekfactory.axoraa.repository.ProductRepository;
 import seekfactory.axoraa.repository.Reels.ReelRepository;
+import seekfactory.axoraa.repository.UserRepository;
+import seekfactory.axoraa.services.services.FactoryService;
 import seekfactory.axoraa.services.services.ManufacturerService;
+import seekfactory.axoraa.services.services.NotificationService;
+import seekfactory.axoraa.services.services.ResponseMetrics;
 
-import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
- * Handles manufacturer profile retrieval and listing.
- *
- * The getBySlug method returns a composite response containing:
- * - Manufacturer profile data
- * - All active products by this manufacturer
- * - All video reels by this manufacturer
- *
- * This matches the frontend ManufacturerDetail type in contracts.ts.
+ * Buyer-facing factory profiles and follows. Only admin-approved factories are visible.
  */
 @Slf4j
 @Service
@@ -39,27 +39,29 @@ import java.util.stream.Collectors;
 public class ManufacturerServiceImpl implements ManufacturerService {
 
     private final ManufacturerRepository manufacturerRepository;
+    private final ManufacturerFollowRepository manufacturerFollowRepository;
     private final ProductRepository productRepository;
     private final ReelRepository reelRepository;
-    private final ModelMapper modelMapper;
+    private final UserRepository userRepository;
+    private final CatalogMapper catalogMapper;
+    private final FactoryService factoryService;
+    private final NotificationService notificationService;
 
     @Override
     public List<ManufacturerResponse> listVerified(int limit) {
         List<Manufacturer> verified = manufacturerRepository.findByVerifiedTrueOrderByFollowerCountDesc();
-
-        // Apply limit
         if (limit > 0 && verified.size() > limit) {
             verified = verified.subList(0, limit);
         }
-
         return verified.stream()
-                .map(this::mapToResponse)
+                .map(catalogMapper::toManufacturer)
                 .collect(Collectors.toList());
     }
 
     @Override
-    public ManufacturerDetailResponse getBySlug(String slug) {
+    public ManufacturerDetailResponse getBySlug(String slug, String viewerId) {
         Manufacturer manufacturer = manufacturerRepository.findBySlug(slug)
+                .filter(m -> Boolean.TRUE.equals(m.getVerified()))  // an unapproved factory has no public profile
                 .orElseThrow(() -> new ResourceNotFoundException("Manufacturer", "slug", slug));
 
         // An unapproved factory has no public profile
@@ -67,26 +69,22 @@ public class ManufacturerServiceImpl implements ManufacturerService {
             throw new ResourceNotFoundException("Manufacturer", "slug", slug);
         }
 
-        // Fetch related products and reels
+        // Buyer-facing: only listings the seller has not paused
         List<Product> products = productRepository
                 .findByManufacturerIdAndIsActiveTrueAndListedTrue(manufacturer.getId());
         List<Reel> reels = reelRepository
                 .findByManufacturerIdAndListedTrueOrderByCreatedAtDesc(manufacturer.getId());
+        ResponseMetrics metrics = factoryService.getResponseMetrics(manufacturer);
 
         return ManufacturerDetailResponse.builder()
-                .manufacturer(mapToResponse(manufacturer))
-                .products(products.stream()
-                        .map(p -> {
-                            ProductResponse res = modelMapper.map(p, ProductResponse.class);
-                            res.setManufacturerId(manufacturer.getId());
-                            res.setCategoryId(p.getCategory() != null ? p.getCategory().getId() : null);
-                            res.setImageUrls(p.gallery());
-                            return res;
-                        })
-                        .collect(Collectors.toList()))
-                .reels(reels.stream()
-                        .map(this::mapReelToResponse)
-                        .collect(Collectors.toList()))
+                .manufacturer(catalogMapper.toManufacturer(manufacturer))
+                .products(catalogMapper.toProducts(products, viewerId))
+                .reels(reels.stream().map(catalogMapper::toReel).collect(Collectors.toList()))
+                .certifications(manufacturer.getCertifications().stream().sorted().toList())
+                .responseRatePercent(metrics.responseRatePercent())
+                .avgResponseTimeHours(metrics.avgResponseTimeHours())
+                .followedByMe(viewerId == null ? null
+                        : manufacturerFollowRepository.existsByManufacturerIdAndUserId(manufacturer.getId(), viewerId))
                 .build();
     }
 
@@ -95,37 +93,52 @@ public class ManufacturerServiceImpl implements ManufacturerService {
         // Buyer-facing: only factories an admin has approved
         return manufacturerRepository.findAll().stream()
                 .filter(m -> Boolean.TRUE.equals(m.getVerified()))
-                .map(this::mapToResponse)
+                .map(catalogMapper::toManufacturer)
                 .collect(Collectors.toList());
     }
 
-    // ─── Private Helpers ──────────────────────────────────────
+    @Transactional
+    @Override
+    public Map<String, Object> toggleFollow(String manufacturerId, String userId) {
+        Manufacturer manufacturer = manufacturerRepository.findById(manufacturerId)
+                .filter(m -> Boolean.TRUE.equals(m.getVerified()))
+                .orElseThrow(() -> new ResourceNotFoundException("Manufacturer", "id", manufacturerId));
 
-    private ManufacturerResponse mapToResponse(Manufacturer m) {
-        ManufacturerResponse response = modelMapper.map(m, ManufacturerResponse.class);
-        // Map ElementCollection and ManyToMany to simple lists
-        response.setExportCountries(new ArrayList<>(m.getExportCountries()));
-        response.setCategoryIds(m.getCategories().stream()
-                .map(c -> c.getId())
-                .collect(Collectors.toList()));
-        response.setCertifications(new ArrayList<>(m.getCertifications()));
-        response.setCertificates(new ArrayList<>(m.getCertificates() != null ? m.getCertificates() : List.of()));
-        return response;
+        Optional<ManufacturerFollow> existing =
+                manufacturerFollowRepository.findByManufacturerIdAndUserId(manufacturerId, userId);
+        boolean following;
+        if (existing.isPresent()) {
+            manufacturerFollowRepository.delete(existing.get());
+            manufacturerFollowRepository.flush();
+            following = false;
+        } else {
+            User user = userRepository.findById(userId)
+                    .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
+            manufacturerFollowRepository.saveAndFlush(ManufacturerFollow.builder()
+                    .manufacturer(manufacturer)
+                    .user(user)
+                    .build());
+            following = true;
+            // One alert per follower until the factory reads it, so follow/unfollow toggling cannot spam
+            String who = user.getCompanyName() != null && !user.getCompanyName().isBlank()
+                    ? user.getName() + " (" + user.getCompanyName() + ")" : user.getName();
+            notificationService.notifyOnce(manufacturer.getUser(), NotificationType.FOLLOW,
+                    "New follower", who + " started following " + manufacturer.getName() + ".", userId);
+        }
+
+        // Recount rather than increment so concurrent toggles cannot drift the number
+        int followerCount = (int) manufacturerFollowRepository.countByManufacturerId(manufacturerId);
+        manufacturer.setFollowerCount(followerCount);
+        manufacturerRepository.save(manufacturer);
+        return Map.of("following", following, "followerCount", followerCount);
     }
 
-    private ReelResponse mapReelToResponse(Reel reel) {
-        ReelResponse response = modelMapper.map(reel, ReelResponse.class);
-        response.setViews(reel.getViewsCount());
-        response.setLikes(reel.getLikesCount());
-        response.setComments(reel.getCommentsCount());
-        response.setShares(reel.getSharesCount());
-        response.setSaves(reel.getSavesCount());
-        response.setTab(reel.getFeedTab().name().toLowerCase().replace("_", "-"));
-        response.setHashtags(new ArrayList<>(reel.getHashtags()));
-        response.setProductIds(reel.getProducts().stream()
-                .filter(Product::isPubliclyVisible)
-                .map(p -> p.getId())
-                .collect(Collectors.toList()));
-        return response;
+    @Override
+    public List<ManufacturerResponse> listFollowing(String userId) {
+        return manufacturerFollowRepository.findByUserIdOrderByCreatedAtDesc(userId).stream()
+                .map(ManufacturerFollow::getManufacturer)
+                .filter(m -> Boolean.TRUE.equals(m.getVerified()))
+                .map(catalogMapper::toManufacturer)
+                .collect(Collectors.toList());
     }
 }

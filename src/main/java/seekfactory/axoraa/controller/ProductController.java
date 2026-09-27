@@ -9,8 +9,10 @@ import seekfactory.axoraa.dto.Response.common.ApiResponse;
 import seekfactory.axoraa.dto.Response.product.ProductDetailResponse;
 import seekfactory.axoraa.dto.Response.product.ProductResponse;
 import seekfactory.axoraa.services.services.ProductService;
+import seekfactory.axoraa.utils.SecurityUtils;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * Product catalog — ALL PUBLIC.
@@ -32,20 +34,30 @@ public class ProductController {
     @Operation(summary = "List trending products")
     public ResponseEntity<ApiResponse<List<ProductResponse>>> listTrending(
             @RequestParam(defaultValue = "20") int limit) {
-        return ResponseEntity.ok(ApiResponse.of(productService.listTrending(limit)));
+        return ResponseEntity.ok(ApiResponse.of(productService.listTrending(limit, viewerId())));
     }
 
     @GetMapping("/{slug}")
     @Operation(summary = "Get product detail by slug (includes manufacturer and related products)")
     public ResponseEntity<ApiResponse<ProductDetailResponse>> getBySlug(
             @PathVariable String slug) {
-        return ResponseEntity.ok(ApiResponse.of(productService.getBySlug(slug)));
+        return ResponseEntity.ok(ApiResponse.of(productService.getBySlug(slug, viewerId())));
     }
 
     @GetMapping("/category/{categoryId}")
-    @Operation(summary = "List products by category")
+    @Operation(summary = "List products in a category and its subcategories (id or slug)")
     public ResponseEntity<ApiResponse<List<ProductResponse>>> listByCategory(
             @PathVariable String categoryId) {
-        return ResponseEntity.ok(ApiResponse.of(productService.listByCategory(categoryId)));
+        return ResponseEntity.ok(ApiResponse.of(productService.listByCategory(categoryId, viewerId())));
+    }
+
+    @PostMapping("/{id}/save")
+    @Operation(summary = "Toggle save (wishlist) on a product")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> toggleSave(@PathVariable String id) {
+        return ResponseEntity.ok(ApiResponse.of(productService.toggleSave(id, SecurityUtils.getCurrentUserId())));
+    }
+
+    private static String viewerId() {
+        return SecurityUtils.findCurrentUserId().orElse(null);
     }
 }

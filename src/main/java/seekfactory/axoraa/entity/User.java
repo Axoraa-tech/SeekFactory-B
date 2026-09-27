@@ -4,6 +4,7 @@ package seekfactory.axoraa.entity;
 import jakarta.persistence.*;
 import lombok.*;
 import seekfactory.axoraa.enums.AuthProvider;
+import seekfactory.axoraa.enums.BuyerPlan;
 import seekfactory.axoraa.enums.UserRole;
 
 
@@ -61,6 +62,17 @@ public class User extends BaseEntity{
 
     @Column(name = "country", length = 100)
     private String country;
+
+    @Column(name = "tax_id", length = 120)
+    private String taxId;
+
+    @Column(name = "address", columnDefinition = "TEXT")
+    private String address;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "buyer_plan", length = 32, nullable = false)
+    @Builder.Default
+    private BuyerPlan buyerPlan = BuyerPlan.FREE;
 
     @Column(name = "is_active", nullable = false)
     @Builder.Default

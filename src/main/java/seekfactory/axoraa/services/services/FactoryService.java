@@ -13,6 +13,7 @@ import seekfactory.axoraa.dto.Response.manufacturer.ManufacturerResponse;
 import seekfactory.axoraa.dto.Response.product.ProductResponse;
 import seekfactory.axoraa.dto.Response.reel.ReelResponse;
 import seekfactory.axoraa.dto.Response.rfq.RfqResponse;
+import seekfactory.axoraa.entity.Manufacturer;
 
 import java.util.List;
 
@@ -54,4 +55,7 @@ public interface FactoryService {
     List<RfqResponse> getRfqs(String userId);
 
     void submitQuote(String userId, String rfqId, RfqQuoteRequest request);
+
+    /** Public responsiveness figures shown on the factory's buyer-facing profile. */
+    ResponseMetrics getResponseMetrics(Manufacturer manufacturer);
 }

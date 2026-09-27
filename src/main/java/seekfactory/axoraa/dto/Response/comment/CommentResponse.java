@@ -24,4 +24,6 @@ public class CommentResponse {
     private String createdAt;
     private int likes;
     private List<CommentReplyResponse> replies;
+    /** Viewer's own state; omitted for guests. */
+    private Boolean likedByMe;
 }

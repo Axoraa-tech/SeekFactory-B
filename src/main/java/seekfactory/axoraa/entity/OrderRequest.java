@@ -4,6 +4,9 @@ import jakarta.persistence.*;
 import lombok.*;
 import org.springframework.data.annotation.LastModifiedDate;
 import seekfactory.axoraa.enums.OrderStatus;
+import seekfactory.axoraa.entity.Rfqs.RfqQuote;
+import seekfactory.axoraa.enums.Currency;
+import seekfactory.axoraa.enums.OrderSource;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -70,6 +73,41 @@ public class OrderRequest extends BaseEntity {
     @Column(name = "status_updated_at", nullable = false)
     @Builder.Default
     private Instant statusUpdatedAt = Instant.now();
+
+    // ─── Buyer-side details (V15) ─────────────────────────────
+
+    /** Where the request came from: a product page, the cart, or an accepted RFQ quote. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "source", length = 16, nullable = false)
+    @Builder.Default
+    private OrderSource source = OrderSource.DIRECT;
+
+    /** The accepted quote, for RFQ_QUOTE orders. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "rfq_quote_id")
+    private RfqQuote rfqQuote;
+
+    /** Currency of {@link #quotedTotal}; listing prices are always INR. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "currency", length = 3, nullable = false)
+    @Builder.Default
+    private Currency currency = Currency.INR;
+
+    /** Total the factory quoted, for RFQ_QUOTE orders (may be in a non-INR currency). */
+    @Column(name = "quoted_total", precision = 16, scale = 2)
+    private BigDecimal quotedTotal;
+
+    @Column(name = "contact_name")
+    private String contactName;
+
+    @Column(name = "contact_phone", length = 50)
+    private String contactPhone;
+
+    @Column(name = "delivery_address", columnDefinition = "TEXT")
+    private String deliveryAddress;
+
+    @Column(name = "cancel_reason", columnDefinition = "TEXT")
+    private String cancelReason;
 
     @LastModifiedDate
     @Column(name = "updated_at", nullable = false)

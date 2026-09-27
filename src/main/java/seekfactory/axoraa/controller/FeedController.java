@@ -26,17 +26,17 @@ public class FeedController {
     private final ReelService reelService;
 
     @GetMapping
-    @Operation(summary = "Get video reels feed by tab")
+    @Operation(summary = "Get video reels feed by tab (following = seeks from factories the viewer follows)")
     public ResponseEntity<ApiResponse<List<FeedItemResponse>>> getFeed(
-            @RequestParam(defaultValue = "for-you") String tab) {
-
+            @RequestParam(defaultValue = "for-you") String tab,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size) {
         FeedTab feedTab = switch (tab.toLowerCase()) {
             case "following" -> FeedTab.FOLLOWING;
             default -> FeedTab.FOR_YOU;
         };
-
-        List<FeedItemResponse> feed = reelService.getFeed(feedTab);
-        return ResponseEntity.ok(ApiResponse.of(feed));
+        String viewerId = SecurityUtils.findCurrentUserId().orElse(null);
+        return ResponseEntity.ok(ApiResponse.of(reelService.getFeed(feedTab, viewerId, page, size)));
     }
 
     @PostMapping("/{id}/like")
@@ -51,5 +51,11 @@ public class FeedController {
     public ResponseEntity<ApiResponse<Map<String, Object>>> toggleSave(@PathVariable String id) {
         String userId = SecurityUtils.getCurrentUserId();
         return ResponseEntity.ok(ApiResponse.of(reelService.toggleSave(id, userId)));
+    }
+
+    @PostMapping("/{id}/share")
+    @Operation(summary = "Count a share of a reel (guests included)")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> share(@PathVariable String id) {
+        return ResponseEntity.ok(ApiResponse.of(reelService.recordShare(id)));
     }
 }

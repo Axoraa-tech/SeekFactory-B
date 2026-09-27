@@ -14,6 +14,8 @@ import seekfactory.axoraa.entity.Rfqs.RfqQuote;
 import seekfactory.axoraa.enums.RfqStatus;
 import seekfactory.axoraa.enums.ViewEntityType;
 import seekfactory.axoraa.repository.CategoryRepository;
+import seekfactory.axoraa.services.services.NotificationService;
+import seekfactory.axoraa.utils.CategoryTree;
 import seekfactory.axoraa.repository.ManufacturerRepository;
 import seekfactory.axoraa.repository.ProductRepository;
 import seekfactory.axoraa.repository.Reels.ReelRepository;
@@ -53,6 +55,8 @@ class FactoryServiceImplStatsTest {
     @Mock private CategoryRepository categoryRepository;
     @Mock private ViewEventRepository viewEventRepository;
     @Mock private ModelMapper modelMapper;
+    @Mock private CategoryTree categoryTree;
+    @Mock private NotificationService notificationService;
 
     @InjectMocks private FactoryServiceImpl service;
 

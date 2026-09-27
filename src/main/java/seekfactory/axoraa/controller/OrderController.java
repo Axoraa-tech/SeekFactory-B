@@ -8,7 +8,12 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import seekfactory.axoraa.dto.Request.order.CartItemRequest;
+import seekfactory.axoraa.dto.Request.order.CartQuantityRequest;
+import seekfactory.axoraa.dto.Request.order.OrderCancelRequest;
+import seekfactory.axoraa.dto.Request.order.OrderContactRequest;
 import seekfactory.axoraa.dto.Request.order.OrderCreateRequest;
+import seekfactory.axoraa.dto.Response.order.CartResponse;
 import seekfactory.axoraa.dto.Request.order.OrderStatusUpdateRequest;
 import seekfactory.axoraa.dto.Response.common.ApiResponse;
 import seekfactory.axoraa.dto.Response.order.OrderResponse;
@@ -42,6 +47,53 @@ public class OrderController {
     @Operation(summary = "List the current user's order requests")
     public ResponseEntity<ApiResponse<List<OrderResponse>>> myOrders() {
         return ResponseEntity.ok(ApiResponse.of(orderService.listBuyerOrders(SecurityUtils.getCurrentUserId())));
+    }
+
+    @PostMapping("/api/v1/orders/{orderId}/cancel")
+    @Operation(summary = "Buyer withdraws an order request the factory has not confirmed yet")
+    public ResponseEntity<ApiResponse<OrderResponse>> cancelOrder(
+            @PathVariable String orderId,
+            @Valid @RequestBody(required = false) OrderCancelRequest request) {
+        OrderResponse order = orderService.cancelByBuyer(SecurityUtils.getCurrentUserId(), orderId,
+                request != null ? request.getReason() : null);
+        return ResponseEntity.ok(ApiResponse.of(order, "Order request cancelled"));
+    }
+
+    // ─── Cart: checkout turns each line into an order request ──
+
+    @GetMapping("/api/v1/cart")
+    @Operation(summary = "Current user's cart")
+    public ResponseEntity<ApiResponse<CartResponse>> getCart() {
+        return ResponseEntity.ok(ApiResponse.of(orderService.getCart(SecurityUtils.getCurrentUserId())));
+    }
+
+    @PostMapping("/api/v1/cart/items")
+    @Operation(summary = "Add a product to the cart (quantities of the same product are merged)")
+    public ResponseEntity<ApiResponse<CartResponse>> addToCart(@Valid @RequestBody CartItemRequest request) {
+        return ResponseEntity.ok(ApiResponse.of(orderService.addToCart(SecurityUtils.getCurrentUserId(), request),
+                "Added to cart"));
+    }
+
+    @PutMapping("/api/v1/cart/items/{itemId}")
+    @Operation(summary = "Change a cart line's quantity")
+    public ResponseEntity<ApiResponse<CartResponse>> updateCartQuantity(
+            @PathVariable String itemId,
+            @Valid @RequestBody CartQuantityRequest request) {
+        return ResponseEntity.ok(ApiResponse.of(orderService.updateCartQuantity(
+                SecurityUtils.getCurrentUserId(), itemId, request.getQuantity())));
+    }
+
+    @DeleteMapping("/api/v1/cart/items/{itemId}")
+    @Operation(summary = "Remove a cart line")
+    public ResponseEntity<ApiResponse<CartResponse>> removeFromCart(@PathVariable String itemId) {
+        return ResponseEntity.ok(ApiResponse.of(orderService.removeFromCart(SecurityUtils.getCurrentUserId(), itemId)));
+    }
+
+    @PostMapping("/api/v1/cart/checkout")
+    @Operation(summary = "Send every cart line to its factory as an order request and empty the cart")
+    public ResponseEntity<ApiResponse<List<OrderResponse>>> checkout(@Valid @RequestBody OrderContactRequest request) {
+        List<OrderResponse> orders = orderService.checkout(SecurityUtils.getCurrentUserId(), request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.of(orders, "Order requests sent to the factories"));
     }
 
     @GetMapping("/api/v1/factory/orders")

@@ -22,4 +22,11 @@ public class ManufacturerDetailResponse {
     private ManufacturerResponse manufacturer;
     private List<ProductResponse> products;
     private List<ReelResponse> reels;
+    /** Certifications the factory declared; empty when it has none. */
+    private List<String> certifications;
+    /** Share of recent RFQs the factory quoted on; null until it has received any. */
+    private Double responseRatePercent;
+    private Double avgResponseTimeHours;
+    /** Whether the viewer follows this factory; omitted for guests. */
+    private Boolean followedByMe;
 }

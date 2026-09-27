@@ -10,4 +10,7 @@ public interface UserService {
     UserResponse updateProfile(String userId, UserUpdateRequest request);
 
     void deactivateUser(String userId);
+
+    /** Switches a buyer's membership tier. No payment is collected yet. */
+    UserResponse updatePlan(String userId, String plan);
 }

@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 import seekfactory.axoraa.dto.Response.common.ApiResponse;
 import seekfactory.axoraa.dto.Response.media.MediaUploadResponse;
+import seekfactory.axoraa.exceptions.BadRequestException;
 import seekfactory.axoraa.services.services.MediaStorageService;
 
 import java.util.concurrent.TimeUnit;
@@ -36,6 +37,22 @@ public class MediaController {
             @RequestParam("kind") String kind) {
         MediaUploadResponse response = mediaStorageService.store(file, kind);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.of(response, "Media uploaded"));
+    }
+
+    /**
+     * Any signed-in user (buyers included) can upload images, e.g. a profile photo, and
+     * documents such as drawings attached to RFQs and chat messages. Seek videos stay seller-only.
+     */
+    @PostMapping(value = "/api/v1/media", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(summary = "Upload an image or document (multipart: file, kind=image|document)")
+    public ResponseEntity<ApiResponse<MediaUploadResponse>> uploadForUser(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam("kind") String kind) {
+        if (!"image".equals(kind) && !"document".equals(kind)) {
+            throw new BadRequestException("kind must be 'image' or 'document'");
+        }
+        MediaUploadResponse response = mediaStorageService.store(file, kind);
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.of(response, "File uploaded"));
     }
 
     /**

@@ -26,4 +26,18 @@ public class OrderCreateRequest {
 
     @Size(max = 2000, message = "Note must be at most 2000 characters")
     private String note;
+
+    // Optional delivery contact, shared with the factory with the request
+    @Size(max = 255, message = "Contact name is too long")
+    private String contactName;
+
+    @Size(max = 50, message = "Contact phone is too long")
+    private String contactPhone;
+
+    @Size(max = 2000, message = "Delivery address is too long")
+    private String deliveryAddress;
+
+    public OrderCreateRequest(String productSlug, Integer quantity, String note) {
+        this(productSlug, quantity, note, null, null, null);
+    }
 }

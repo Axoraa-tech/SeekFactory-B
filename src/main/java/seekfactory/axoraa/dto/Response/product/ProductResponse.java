@@ -5,6 +5,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import seekfactory.axoraa.entity.PriceTier;
+
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
@@ -32,4 +34,8 @@ public class ProductResponse {
     private String datasheetName;
     /** false when the seller has paused the listing. */
     private Boolean listed;
+    /** Bulk price breaks, ascending by minQty; empty when the factory set none. */
+    private List<PriceTier> priceTiers;
+    /** Viewer's own state; omitted for guests. */
+    private Boolean savedByMe;
 }

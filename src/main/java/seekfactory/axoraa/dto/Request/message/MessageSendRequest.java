@@ -16,7 +16,8 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class MessageSendRequest {
 
-    @Size(max = 5000, message = "Message must be at most 5000 characters")
+    /** May be empty when an attachment is sent on its own. */
+    @Size(max = 5000, message = "Message is too long")
     private String messageText;
 
     @Size(max = 255)

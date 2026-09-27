@@ -7,6 +7,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import seekfactory.axoraa.dto.Response.common.ApiResponse;
+import seekfactory.axoraa.dto.Response.pricing.BuyerPlanResponse;
 import seekfactory.axoraa.dto.Response.pricing.SubscriptionPlanResponse;
 import seekfactory.axoraa.services.services.PricingService;
 
@@ -25,6 +26,12 @@ public class PricingController {
     public ResponseEntity<ApiResponse<List<SubscriptionPlanResponse>>> getAllPlans() {
         List<SubscriptionPlanResponse> plans = pricingService.getAllPlans();
         return ResponseEntity.ok(ApiResponse.of(plans));
+    }
+
+    @GetMapping("/buyer-plans")
+    @Operation(summary = "Public: buyer membership plans with INR and CNY prices")
+    public ResponseEntity<ApiResponse<List<BuyerPlanResponse>>> getBuyerPlans() {
+        return ResponseEntity.ok(ApiResponse.of(pricingService.getBuyerPlans()));
     }
 
     @PutMapping("/admin/manufacturers/{manufacturerId}/subscription/{subscriptionId}")

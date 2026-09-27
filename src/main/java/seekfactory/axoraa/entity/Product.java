@@ -69,6 +69,11 @@ public class Product extends BaseEntity{
     @Builder.Default
     private Map<String, String> specs = new HashMap<>();
 
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "price_tiers", columnDefinition = "jsonb", nullable = false)
+    @Builder.Default
+    private List<PriceTier> priceTiers = new ArrayList<>();
+
     @Column(name = "is_active", nullable = false)
     @Builder.Default
     private Boolean isActive = true;

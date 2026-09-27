@@ -7,6 +7,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 import seekfactory.axoraa.entity.Notification;
 import java.util.List;
+import org.springframework.data.repository.query.Param;
+import seekfactory.axoraa.enums.NotificationType;
 
 @Repository
 public interface NotificationRepository extends JpaRepository<Notification, String> {
@@ -14,7 +16,11 @@ public interface NotificationRepository extends JpaRepository<Notification, Stri
     List<Notification> findByUserIdOrderByCreatedAtDesc(String userId);
     long countByUserIdAndIsReadFalse(String userId);
 
+    boolean existsByUserIdAndNotificationTypeAndReferenceIdAndIsReadFalse(String userId,
+                                                                          NotificationType type,
+                                                                          String referenceId);
+
     @Modifying
     @Query("UPDATE Notification n SET n.isRead = true WHERE n.user.id = :userId")
-    void markAllAsReadForUser(@org.springframework.data.repository.query.Param("userId") String userId);
+    void markAllAsReadForUser(@Param("userId") String userId);
 }

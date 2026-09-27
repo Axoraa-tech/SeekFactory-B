@@ -31,4 +31,7 @@ public class ReelResponse {
     private List<String> productIds;
     /** false when the seller has paused the seek. */
     private Boolean listed;
+    /** Viewer's own state; omitted for guests. */
+    private Boolean likedByMe;
+    private Boolean savedByMe;
 }

@@ -21,4 +21,10 @@ public class UserResponse {
     private String country;
     private String phone;
     private Boolean emailVerified;
+    private String taxId;
+    private String address;
+    /** Buyer membership tier in lower case: free, pro, enterprise. */
+    private String plan;
+    /** ISO timestamp of account creation. */
+    private String memberSince;
 }

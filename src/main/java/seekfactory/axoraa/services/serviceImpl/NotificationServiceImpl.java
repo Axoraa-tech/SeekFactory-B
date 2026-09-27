@@ -6,6 +6,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import seekfactory.axoraa.dto.Response.notification.NotificationResponse;
 import seekfactory.axoraa.entity.Notification;
+import seekfactory.axoraa.entity.User;
+import seekfactory.axoraa.enums.NotificationType;
 import seekfactory.axoraa.repository.NotificationRepository;
 import seekfactory.axoraa.services.services.NotificationService;
 
@@ -64,6 +66,29 @@ public class NotificationServiceImpl implements NotificationService {
         });
     }
 
+    @Override
+    public void notify(User user, NotificationType type, String title, String body, String referenceId) {
+        if (user == null) return;
+        notificationRepository.save(Notification.builder()
+                .user(user)
+                .notificationType(type)
+                .title(title)
+                .body(body)
+                .referenceId(referenceId)
+                .isRead(false)
+                .build());
+    }
+
+    @Override
+    public void notifyOnce(User user, NotificationType type, String title, String body, String referenceId) {
+        if (user == null) return;
+        if (referenceId != null && notificationRepository
+                .existsByUserIdAndNotificationTypeAndReferenceIdAndIsReadFalse(user.getId(), type, referenceId)) {
+            return;
+        }
+        notify(user, type, title, body, referenceId);
+    }
+
     // ─── Private Helpers ──────────────────────────────────────
 
     private NotificationResponse mapToResponse(Notification notification) {
@@ -73,6 +98,9 @@ public class NotificationServiceImpl implements NotificationService {
                 .body(notification.getBody())
                 .createdAt(notification.getCreatedAt() != null ? notification.getCreatedAt().toString() : "")
                 .read(notification.getIsRead() != null ? notification.getIsRead() : false)
+                .type(notification.getNotificationType() != null
+                        ? notification.getNotificationType().name().toLowerCase() : "system")
+                .referenceId(notification.getReferenceId())
                 .build();
     }
 }

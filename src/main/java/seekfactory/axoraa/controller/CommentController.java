@@ -16,6 +16,7 @@ import seekfactory.axoraa.services.services.CommentService;
 import seekfactory.axoraa.utils.SecurityUtils;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * Reel comments and replies.
@@ -39,7 +40,14 @@ public class CommentController {
     @Operation(summary = "List comments for a reel (public)")
     public ResponseEntity<ApiResponse<List<CommentResponse>>> listByReel(
             @PathVariable String reelId) {
-        return ResponseEntity.ok(ApiResponse.of(commentService.listByReelId(reelId)));
+        String viewerId = SecurityUtils.findCurrentUserId().orElse(null);
+        return ResponseEntity.ok(ApiResponse.of(commentService.listByReelId(reelId, viewerId)));
+    }
+
+    @PostMapping("/api/v1/comments/{commentId}/like")
+    @Operation(summary = "Like or unlike a comment or reply (toggle)")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> toggleLike(@PathVariable String commentId) {
+        return ResponseEntity.ok(ApiResponse.of(commentService.toggleLike(commentId, SecurityUtils.getCurrentUserId())));
     }
 
     @PostMapping("/api/v1/reels/{reelId}/comments")

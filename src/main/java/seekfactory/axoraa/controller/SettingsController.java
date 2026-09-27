@@ -9,6 +9,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import seekfactory.axoraa.dto.Response.common.ApiResponse;
+import seekfactory.axoraa.dto.Response.settings.ExchangeRatesResponse;
 import seekfactory.axoraa.dto.Response.settings.FeedShowcaseSettings;
 import seekfactory.axoraa.services.services.PlatformSettingsService;
 import seekfactory.axoraa.utils.SecurityUtils;
@@ -31,6 +32,14 @@ public class SettingsController {
         return ResponseEntity.ok()
                 .cacheControl(CacheControl.maxAge(30, TimeUnit.SECONDS).cachePublic())
                 .body(ApiResponse.of(publicView));
+    }
+
+    @GetMapping("/api/v1/settings/exchange-rates")
+    @Operation(summary = "Public: display currency conversion rates (1 INR = rate units)")
+    public ResponseEntity<ApiResponse<ExchangeRatesResponse>> getExchangeRates() {
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.maxAge(5, TimeUnit.MINUTES).cachePublic())
+                .body(ApiResponse.of(platformSettingsService.getExchangeRates()));
     }
 
     @GetMapping("/api/v1/admin/settings/feed-showcase")

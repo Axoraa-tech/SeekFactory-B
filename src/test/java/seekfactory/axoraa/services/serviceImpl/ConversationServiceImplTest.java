@@ -25,6 +25,7 @@ import seekfactory.axoraa.repository.Messages.MessageRepository;
 import seekfactory.axoraa.repository.OrderRequestRepository;
 import seekfactory.axoraa.repository.UserRepository;
 import seekfactory.axoraa.services.services.MediaStorageService;
+import seekfactory.axoraa.services.services.NotificationService;
 import seekfactory.axoraa.services.services.OrderService;
 import seekfactory.axoraa.services.services.SseService;
 
@@ -52,6 +53,7 @@ class ConversationServiceImplTest {
     @Mock private OrderRequestRepository orderRequestRepository;
     @Mock private OrderService orderService;
     @Mock private MediaStorageService mediaStorageService;
+    @Mock private NotificationService notificationService;
 
     @InjectMocks private ConversationServiceImpl service;
 

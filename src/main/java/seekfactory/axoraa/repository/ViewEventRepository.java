@@ -8,6 +8,7 @@ import seekfactory.axoraa.entity.ViewEvent;
 import seekfactory.axoraa.enums.ViewEntityType;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 
 @Repository
@@ -24,4 +25,8 @@ public interface ViewEventRepository extends JpaRepository<ViewEvent, String> {
     /** (entityType, createdAt) of a factory's views since {@code since}; bucketed into the stats trend. */
     @Query("SELECT v.entityType, v.createdAt FROM ViewEvent v WHERE v.manufacturerId = :manufacturerId AND v.createdAt >= :since")
     List<Object[]> findTypeAndTimeSince(@Param("manufacturerId") String manufacturerId, @Param("since") Instant since);
+
+    /** (entityId, distinct-viewer views) rows for the given entities; entities with none are absent. */
+    @Query("SELECT v.entityId, COUNT(v) FROM ViewEvent v WHERE v.entityType = :type AND v.entityId IN :ids GROUP BY v.entityId")
+    List<Object[]> countByEntityIds(@Param("type") ViewEntityType type, @Param("ids") Collection<String> ids);
 }

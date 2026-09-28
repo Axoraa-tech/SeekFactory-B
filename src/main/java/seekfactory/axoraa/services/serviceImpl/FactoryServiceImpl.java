@@ -42,7 +42,10 @@ import seekfactory.axoraa.repository.CategoryRepository;
 import seekfactory.axoraa.repository.ManufacturerRepository;
 import seekfactory.axoraa.repository.NotificationRepository;
 import seekfactory.axoraa.repository.ProductRepository;
+import seekfactory.axoraa.repository.Comments.CommentRepository;
+import seekfactory.axoraa.repository.Reels.ReelLikeRepository;
 import seekfactory.axoraa.repository.Reels.ReelRepository;
+import seekfactory.axoraa.repository.Reels.ReelSaveRepository;
 import seekfactory.axoraa.repository.Rfqs.RfqQuoteRepository;
 import seekfactory.axoraa.repository.Rfqs.RfqRepository;
 import seekfactory.axoraa.repository.UserRepository;
@@ -72,6 +75,9 @@ public class FactoryServiceImpl implements FactoryService {
     private final ManufacturerRepository manufacturerRepository;
     private final ProductRepository productRepository;
     private final ReelRepository reelRepository;
+    private final ReelLikeRepository reelLikeRepository;
+    private final ReelSaveRepository reelSaveRepository;
+    private final CommentRepository commentRepository;
     private final RfqRepository rfqRepository;
     private final RfqQuoteRepository rfqQuoteRepository;
     private final UserRepository userRepository;
@@ -426,10 +432,38 @@ public class FactoryServiceImpl implements FactoryService {
     @Transactional(readOnly = true)
     public List<ReelResponse> getSeeks(String userId) {
         Manufacturer manufacturer = getOrCreateManufacturer(userId);
-        return reelRepository.findByManufacturerIdOrderByCreatedAtDesc(manufacturer.getId())
-                .stream()
-                .map(this::mapToReelResponse)
-                .collect(Collectors.toList());
+        return withRealEngagement(reelRepository.findByManufacturerIdOrderByCreatedAtDesc(manufacturer.getId()));
+    }
+
+    /**
+     * Seller-facing seek numbers counted from the event tables (distinct-viewer views, likes,
+     * saves, comments) instead of the reels.*_count columns, which were seeded with demo values.
+     */
+    private List<ReelResponse> withRealEngagement(List<Reel> reels) {
+        if (reels.isEmpty()) return new ArrayList<>();
+        List<String> ids = reels.stream().map(Reel::getId).collect(Collectors.toList());
+        Map<String, Long> views = toCounts(viewEventRepository.countByEntityIds(ViewEntityType.REEL, ids));
+        Map<String, Long> likes = toCounts(reelLikeRepository.countByReelIds(ids));
+        Map<String, Long> saves = toCounts(reelSaveRepository.countByReelIds(ids));
+        Map<String, Long> comments = toCounts(commentRepository.countByReelIds(ids));
+        return reels.stream().map(reel -> {
+            ReelResponse response = mapToReelResponse(reel);
+            response.setViews(views.getOrDefault(reel.getId(), 0L));
+            response.setLikes(likes.getOrDefault(reel.getId(), 0L).intValue());
+            response.setSaves(saves.getOrDefault(reel.getId(), 0L).intValue());
+            response.setComments(comments.getOrDefault(reel.getId(), 0L).intValue());
+            return response;
+        }).collect(Collectors.toList());
+    }
+
+    private ReelResponse withRealEngagement(Reel reel) {
+        return withRealEngagement(List.of(reel)).get(0);
+    }
+
+    private static Map<String, Long> toCounts(List<Object[]> rows) {
+        Map<String, Long> counts = new HashMap<>();
+        for (Object[] row : rows) counts.put((String) row[0], ((Number) row[1]).longValue());
+        return counts;
     }
 
     @Override
@@ -454,7 +488,7 @@ public class FactoryServiceImpl implements FactoryService {
                 .videoUrl(request.getVideoUrl())
                 .durationSec(request.getDurationSec() != null ? request.getDurationSec() : 30)
                 .startSec(0)
-                .viewsCount(1L)
+                .viewsCount(0L)
                 .likesCount(0)
                 .commentsCount(0)
                 .sharesCount(0)
@@ -465,7 +499,7 @@ public class FactoryServiceImpl implements FactoryService {
                 .build();
 
         Reel saved = reelRepository.save(reel);
-        return mapToReelResponse(saved);
+        return withRealEngagement(saved);
     }
 
     @Override
@@ -510,14 +544,14 @@ public class FactoryServiceImpl implements FactoryService {
         if (request.getProductIds() != null) {
             reel.setProducts(taggableProducts(manufacturer, request.getProductIds()));
         }
-        return mapToReelResponse(reelRepository.save(reel));
+        return withRealEngagement(reelRepository.save(reel));
     }
 
     @Override
     public ReelResponse setSeekListed(String userId, String reelId, boolean listed) {
         Reel reel = ownedReel(getOrCreateManufacturer(userId), reelId);
         reel.setListed(listed);
-        return mapToReelResponse(reelRepository.save(reel));
+        return withRealEngagement(reelRepository.save(reel));
     }
 
     private Reel ownedReel(Manufacturer manufacturer, String reelId) {

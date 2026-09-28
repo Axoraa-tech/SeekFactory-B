@@ -24,7 +24,12 @@ import seekfactory.axoraa.exceptions.ForbiddenException;
 import seekfactory.axoraa.repository.CategoryRepository;
 import seekfactory.axoraa.repository.ManufacturerRepository;
 import seekfactory.axoraa.repository.ProductRepository;
+import seekfactory.axoraa.repository.Comments.CommentRepository;
+import seekfactory.axoraa.repository.Reels.ReelLikeRepository;
 import seekfactory.axoraa.repository.Reels.ReelRepository;
+import seekfactory.axoraa.repository.Reels.ReelSaveRepository;
+import seekfactory.axoraa.repository.ViewEventRepository;
+import seekfactory.axoraa.enums.ViewEntityType;
 
 import java.util.List;
 import java.util.Optional;
@@ -32,6 +37,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
@@ -44,6 +50,10 @@ class FactoryServiceImplCatalogTest {
     @Mock private ManufacturerRepository manufacturerRepository;
     @Mock private ProductRepository productRepository;
     @Mock private ReelRepository reelRepository;
+    @Mock private ReelLikeRepository reelLikeRepository;
+    @Mock private ReelSaveRepository reelSaveRepository;
+    @Mock private CommentRepository commentRepository;
+    @Mock private ViewEventRepository viewEventRepository;
     @Mock private CategoryRepository categoryRepository;
     @Mock private ModelMapper modelMapper;
 
@@ -138,6 +148,32 @@ class FactoryServiceImplCatalogTest {
 
         assertThat(service.setSeekListed(USER_ID, "r-1", false).getListed()).isFalse();
         assertThat(reel.getListed()).isFalse();
+    }
+
+    @Test
+    void sellerSeeksShowCountedEngagementNotSeededCounters() {
+        Reel seeded = Reel.builder().manufacturer(manufacturer).title("Demo").posterUrl("/p.png")
+                .feedTab(FeedTab.FOR_YOU).viewsCount(48600L).likesCount(3240).savesCount(890).commentsCount(182).build();
+        seeded.setId("r-1");
+        Reel quiet = Reel.builder().manufacturer(manufacturer).title("New").posterUrl("/p.png")
+                .feedTab(FeedTab.FOR_YOU).viewsCount(1L).build();
+        quiet.setId("r-2");
+        when(reelRepository.findByManufacturerIdOrderByCreatedAtDesc("mfr-1")).thenReturn(List.of(seeded, quiet));
+        when(viewEventRepository.countByEntityIds(eq(ViewEntityType.REEL), any()))
+                .thenReturn(List.<Object[]>of(new Object[]{"r-1", 12L}));
+        when(reelLikeRepository.countByReelIds(any())).thenReturn(List.<Object[]>of(new Object[]{"r-1", 3L}));
+        when(reelSaveRepository.countByReelIds(any())).thenReturn(List.<Object[]>of(new Object[]{"r-1", 2L}));
+        when(commentRepository.countByReelIds(any())).thenReturn(List.of());
+
+        var seeks = service.getSeeks(USER_ID);
+
+        assertThat(seeks.get(0).getViews()).isEqualTo(12);
+        assertThat(seeks.get(0).getLikes()).isEqualTo(3);
+        assertThat(seeks.get(0).getSaves()).isEqualTo(2);
+        assertThat(seeks.get(0).getComments()).isZero();
+        // A seek nobody has watched shows 0, not a made-up starting count
+        assertThat(seeks.get(1).getViews()).isZero();
+        assertThat(seeks.get(1).getSaves()).isZero();
     }
 
     @Test

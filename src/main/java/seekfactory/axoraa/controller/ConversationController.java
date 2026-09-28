@@ -15,6 +15,15 @@ import seekfactory.axoraa.dto.Response.message.ConversationResponse;
 import seekfactory.axoraa.dto.Response.message.MessageResponse;
 import seekfactory.axoraa.services.services.ConversationService;
 import seekfactory.axoraa.services.services.SseService;
+import seekfactory.axoraa.services.services.MediaStorageService;
+import seekfactory.axoraa.dto.Response.message.AttachmentUploadResponse;
+import seekfactory.axoraa.dto.Response.order.OrderResponse;
+import org.springframework.core.io.Resource;
+import org.springframework.http.CacheControl;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.web.multipart.MultipartFile;
+import java.util.concurrent.TimeUnit;
 import seekfactory.axoraa.utils.SecurityUtils;
 
 import java.util.List;
@@ -30,12 +39,49 @@ public class ConversationController {
 
     private final ConversationService conversationService;
     private final SseService sseService;
+    private final MediaStorageService mediaStorageService;
 
     @GetMapping(value = "/{id}/stream", produces = org.springframework.http.MediaType.TEXT_EVENT_STREAM_VALUE)
     @Operation(summary = "Subscribe to real-time message stream via Server-Sent Events (SSE)")
     public SseEmitter streamMessages(@PathVariable String id) {
-        // Authentication is verified via SecurityContext implicitly (in a real app, ensure user is part of the conversation)
+        // Only the buyer and the factory of this conversation may listen to it
+        conversationService.assertParticipant(id, SecurityUtils.getCurrentUserId());
         return sseService.subscribe(id);
+    }
+
+    @GetMapping("/{id}/orders")
+    @Operation(summary = "Orders between this conversation's buyer and factory (for message context)")
+    public ResponseEntity<ApiResponse<List<OrderResponse>>> conversationOrders(@PathVariable String id) {
+        return ResponseEntity.ok(ApiResponse.of(
+                conversationService.listConversationOrders(id, SecurityUtils.getCurrentUserId())));
+    }
+
+    @PostMapping(value = "/{id}/attachments", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(summary = "Upload an image or PDF to attach to a message (participants only)")
+    public ResponseEntity<ApiResponse<AttachmentUploadResponse>> uploadAttachment(
+            @PathVariable String id,
+            @RequestParam("file") MultipartFile file) {
+        AttachmentUploadResponse response =
+                conversationService.uploadAttachment(id, SecurityUtils.getCurrentUserId(), file);
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.of(response, "Attachment uploaded"));
+    }
+
+    @GetMapping("/{id}/attachments/{key}")
+    @Operation(summary = "Download a message attachment (participants only)")
+    public ResponseEntity<Resource> downloadAttachment(@PathVariable String id, @PathVariable String key) {
+        Resource file = conversationService.loadAttachment(id, SecurityUtils.getCurrentUserId(), key);
+        String contentType = mediaStorageService.contentTypeOf(key);
+        ResponseEntity.BodyBuilder response = ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(contentType))
+                .cacheControl(CacheControl.maxAge(1, TimeUnit.HOURS).cachePrivate())
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline")
+                .header("X-Content-Type-Options", "nosniff");
+        if (!"application/pdf".equals(contentType)) {
+            // Images are rendered from our origin; never let them run script. (Not applied to
+            // PDFs: Chrome's PDF viewer refuses to render sandboxed documents.)
+            response.header("Content-Security-Policy", "sandbox; default-src 'none'; img-src 'self'; style-src 'unsafe-inline'");
+        }
+        return response.body(file);
     }
 
     @GetMapping

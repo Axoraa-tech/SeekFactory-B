@@ -21,20 +21,24 @@ import java.util.Date;
 @RequiredArgsConstructor
 public class JwtTokenProvider {
 
+    private static final String TYPE_CLAIM = "typ";
+    private static final String TYPE_ACCESS = "access";
+    private static final String TYPE_REFRESH = "refresh";
+
     private final JwtConfig jwtConfig;
 
     /**
      * Generate an access token for the given user.
      */
     public String generateAccessToken(String userId, String email, String role) {
-        return buildToken(userId, email, role, jwtConfig.getAccessTokenExpiry());
+        return buildToken(userId, email, role, TYPE_ACCESS, jwtConfig.getAccessTokenExpiry());
     }
 
     /**
      * Generate a refresh token for the given user.
      */
     public String generateRefreshToken(String userId, String email, String role) {
-        return buildToken(userId, email, role, jwtConfig.getRefreshTokenExpiry());
+        return buildToken(userId, email, role, TYPE_REFRESH, jwtConfig.getRefreshTokenExpiry());
     }
 
     /**
@@ -48,6 +52,16 @@ public class JwtTokenProvider {
             System.err.println("JWT Validation Failed: " + e.getMessage());
             return false;
         }
+    }
+
+    /** True for a valid, unexpired access token. Refresh tokens are rejected for API calls. */
+    public boolean isValidAccessToken(String token) {
+        return validateToken(token) && TYPE_ACCESS.equals(getClaims(token).get(TYPE_CLAIM, String.class));
+    }
+
+    /** True for a valid, unexpired refresh token. Access tokens cannot be used to refresh. */
+    public boolean isValidRefreshToken(String token) {
+        return validateToken(token) && TYPE_REFRESH.equals(getClaims(token).get(TYPE_CLAIM, String.class));
     }
 
     /**
@@ -73,7 +87,7 @@ public class JwtTokenProvider {
 
     // ─── Private Helpers ──────────────────────────────────────
 
-    private String buildToken(String userId, String email, String role, long expiry) {
+    private String buildToken(String userId, String email, String role, String type, long expiry) {
         Date now = new Date();
         Date expiryDate = new Date(now.getTime() + expiry);
 
@@ -81,6 +95,7 @@ public class JwtTokenProvider {
                 .subject(userId)
                 .claim("email", email)
                 .claim("role", role)
+                .claim(TYPE_CLAIM, type)
                 .issuer(jwtConfig.getIssuer())
                 .issuedAt(now)
                 .expiration(expiryDate)

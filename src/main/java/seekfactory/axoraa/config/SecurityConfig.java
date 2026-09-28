@@ -1,9 +1,11 @@
 package seekfactory.axoraa.config;
 
+import jakarta.servlet.DispatcherType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -11,6 +13,7 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.config.Customizer;
 
@@ -43,9 +46,17 @@ public class SecurityConfig {
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )
 
+                // Missing or expired token → 401 (not Spring's default 403) so clients can refresh
+                // or send the user to sign in; a signed-in user without the role still gets 403
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED))
+                )
+
                 // Endpoint access rules
                 .authorizeHttpRequests(auth -> auth
                         // ─── PUBLIC ENDPOINTS (no auth required) ──────────────
+                        // Error forwards keep the original status (403 stays 403, not 401)
+                        .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                         .requestMatchers("/api/v1/auth/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/feed/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/categories/**").permitAll()
@@ -56,6 +67,9 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/v1/media/**").permitAll()
                         // View tracking counts guests too (deduped server-side)
                         .requestMatchers(HttpMethod.POST, "/api/v1/feed/*/view", "/api/v1/products/*/view").permitAll()
+                        // Buyer discovery: search, buyer plan prices and share counts work for guests too
+                        .requestMatchers(HttpMethod.GET, "/api/v1/search", "/api/v1/pricing/buyer-plans").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/feed/*/share").permitAll()
 
                         // Swagger / OpenAPI / Actuator
                         .requestMatchers("/swagger-ui/**", "/api-docs/**", "/v3/api-docs/**").permitAll()

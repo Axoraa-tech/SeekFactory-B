@@ -55,7 +55,7 @@ public class AnalyticsServiceImpl implements AnalyticsService {
     @Override
     public boolean recordProductView(String productId, String anonymousViewerId) {
         Product product = productRepository.findById(productId)
-                .filter(p -> Boolean.TRUE.equals(p.getIsActive()))
+                .filter(Product::isPubliclyVisible)
                 .orElseThrow(() -> new ResourceNotFoundException("Product", "id", productId));
         return record(ViewEntityType.PRODUCT, product.getId(), product.getManufacturer(), anonymousViewerId);
     }

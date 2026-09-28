@@ -24,6 +24,9 @@ spring:
     show-sql: false
 
 app:
+  auth:
+    # No SMS provider yet: phone login accepts this code in development only
+    mock-otp: "123456"
   cors:
     allowed-origin-patterns:
       - http://localhost:3000

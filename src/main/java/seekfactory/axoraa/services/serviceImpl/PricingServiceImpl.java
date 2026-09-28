@@ -2,8 +2,10 @@ package seekfactory.axoraa.services.serviceImpl;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import seekfactory.axoraa.dto.Response.pricing.BuyerPlanResponse;
 import seekfactory.axoraa.dto.Response.pricing.SubscriptionPlanResponse;
 import seekfactory.axoraa.entity.Manufacturer;
 import seekfactory.axoraa.entity.SubscriptionPlan;
@@ -23,6 +25,7 @@ public class PricingServiceImpl implements PricingService {
 
     private final SubscriptionPlanRepository subscriptionPlanRepository;
     private final ManufacturerRepository manufacturerRepository;
+    private final JdbcTemplate jdbcTemplate;
 
     @Override
     @Transactional(readOnly = true)
@@ -35,6 +38,23 @@ public class PricingServiceImpl implements PricingService {
                         .featuresJson(plan.getFeaturesJson())
                         .build())
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<BuyerPlanResponse> getBuyerPlans() {
+        return jdbcTemplate.query("""
+                SELECT code, name, price_inr, price_cny,
+                       ARRAY(SELECT jsonb_array_elements_text(features_json)) AS features
+                FROM buyer_plans
+                ORDER BY sort_order
+                """, (rs, i) -> BuyerPlanResponse.builder()
+                .code(rs.getString("code").toLowerCase())
+                .name(rs.getString("name"))
+                .priceInr(rs.getBigDecimal("price_inr"))
+                .priceCny(rs.getBigDecimal("price_cny"))
+                .features(List.of((String[]) rs.getArray("features").getArray()))
+                .build());
     }
 
     @Override

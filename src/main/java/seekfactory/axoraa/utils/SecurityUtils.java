@@ -20,11 +20,8 @@ public final class SecurityUtils {
      * Throws UnauthorizedException if no authentication is present.
      */
     public static String getCurrentUserId() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication == null || !authentication.isAuthenticated()) {
-            throw new UnauthorizedException("User is not authenticated");
-        }
-        return (String) authentication.getPrincipal();
+        // Anonymous requests to permitAll routes (e.g. /auth/me) must get 401, not a lookup of "anonymousUser"
+        return findCurrentUserId().orElseThrow(() -> new UnauthorizedException("User is not authenticated"));
     }
 
     /**

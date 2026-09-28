@@ -29,4 +29,9 @@ public class ReelResponse {
     private int saves;
     private String tab;          // "for-you" or "following"
     private List<String> productIds;
+    /** false when the seller has paused the seek. */
+    private Boolean listed;
+    /** Viewer's own state; omitted for guests. */
+    private Boolean likedByMe;
+    private Boolean savedByMe;
 }

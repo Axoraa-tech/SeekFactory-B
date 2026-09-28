@@ -2,6 +2,7 @@ package seekfactory.axoraa.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import seekfactory.axoraa.config.NotificationTypeConverter;
 import seekfactory.axoraa.enums.NotificationType;
 
 /**
@@ -30,7 +31,8 @@ public class Notification extends BaseEntity {
     @Column(name = "body", nullable = false, columnDefinition = "TEXT")
     private String body;
 
-    @Enumerated(EnumType.STRING)
+    // Tolerant converter: legacy/unknown DB values must not break the whole notification list
+    @Convert(converter = NotificationTypeConverter.class)
     @Column(name = "notification_type", length = 64, nullable = false)
     @Builder.Default
     private NotificationType notificationType = NotificationType.SYSTEM;

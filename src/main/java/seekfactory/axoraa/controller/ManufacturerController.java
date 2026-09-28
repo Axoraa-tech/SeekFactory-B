@@ -9,8 +9,10 @@ import seekfactory.axoraa.dto.Response.common.ApiResponse;
 import seekfactory.axoraa.dto.Response.manufacturer.ManufacturerDetailResponse;
 import seekfactory.axoraa.dto.Response.manufacturer.ManufacturerResponse;
 import seekfactory.axoraa.services.services.ManufacturerService;
+import seekfactory.axoraa.utils.SecurityUtils;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * Manufacturer / Factory profiles — ALL PUBLIC.
@@ -43,6 +45,14 @@ public class ManufacturerController {
     @Operation(summary = "Get manufacturer detail by slug (includes products and reels)")
     public ResponseEntity<ApiResponse<ManufacturerDetailResponse>> getBySlug(
             @PathVariable String slug) {
-        return ResponseEntity.ok(ApiResponse.of(manufacturerService.getBySlug(slug)));
+        String viewerId = SecurityUtils.findCurrentUserId().orElse(null);
+        return ResponseEntity.ok(ApiResponse.of(manufacturerService.getBySlug(slug, viewerId)));
+    }
+
+    @PostMapping("/{id}/follow")
+    @Operation(summary = "Follow or unfollow a manufacturer (toggle)")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> toggleFollow(@PathVariable String id) {
+        return ResponseEntity.ok(ApiResponse.of(
+                manufacturerService.toggleFollow(id, SecurityUtils.getCurrentUserId())));
     }
 }

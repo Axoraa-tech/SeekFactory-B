@@ -14,7 +14,9 @@ import seekfactory.axoraa.entity.Manufacturer;
 import seekfactory.axoraa.entity.Messages.Conversation;
 import seekfactory.axoraa.entity.Messages.Message;
 import seekfactory.axoraa.entity.User;
+import seekfactory.axoraa.enums.NotificationType;
 import seekfactory.axoraa.enums.SenderType;
+import seekfactory.axoraa.exceptions.BadRequestException;
 import seekfactory.axoraa.exceptions.ForbiddenException;
 import seekfactory.axoraa.exceptions.ResourceNotFoundException;
 import seekfactory.axoraa.repository.ManufacturerRepository;
@@ -22,7 +24,20 @@ import seekfactory.axoraa.repository.Messages.ConversationRepository;
 import seekfactory.axoraa.repository.Messages.MessageRepository;
 import seekfactory.axoraa.repository.UserRepository;
 import seekfactory.axoraa.services.services.ConversationService;
+import seekfactory.axoraa.services.services.NotificationService;
 import seekfactory.axoraa.services.services.SseService;
+import seekfactory.axoraa.services.services.MediaStorageService;
+import seekfactory.axoraa.services.services.OrderService;
+import seekfactory.axoraa.repository.OrderRequestRepository;
+import seekfactory.axoraa.repository.Rfqs.RfqRepository;
+import seekfactory.axoraa.entity.Rfqs.Rfq;
+import seekfactory.axoraa.entity.OrderRequest;
+import seekfactory.axoraa.exceptions.BadRequestException;
+import seekfactory.axoraa.dto.Response.message.AttachmentUploadResponse;
+import seekfactory.axoraa.dto.Response.order.OrderResponse;
+import org.springframework.core.io.Resource;
+import org.springframework.web.multipart.MultipartFile;
+import java.util.Locale;
 
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
@@ -45,6 +60,11 @@ public class ConversationServiceImpl implements ConversationService {
     private final UserRepository userRepository;
     private final ModelMapper modelMapper;
     private final SseService sseService;
+    private final OrderRequestRepository orderRequestRepository;
+    private final OrderService orderService;
+    private final MediaStorageService mediaStorageService;
+    private final RfqRepository rfqRepository;
+    private final NotificationService notificationService;
 
     @Override
     @Transactional(readOnly = true)
@@ -108,6 +128,7 @@ public class ConversationServiceImpl implements ConversationService {
             conversation.setLastMessageAt(OffsetDateTime.now());
             conversation.setUnreadCountSupplier(conversation.getUnreadCountSupplier() + 1);
             conversation = conversationRepository.save(conversation);
+            notifyRecipient(conversation, buyer, SenderType.USER, message.getMessageText());
         }
 
         return mapToResponse(conversation, false);
@@ -147,22 +168,51 @@ public class ConversationServiceImpl implements ConversationService {
             throw new ForbiddenException("You are not a participant of this conversation");
         }
 
+        String text = request.getMessageText() == null ? "" : request.getMessageText().trim();
+        String attachmentUrl = blankToNull(request.getAttachmentUrl());
+        if (text.isEmpty() && attachmentUrl == null) {
+            throw new BadRequestException("Type a message or attach a file");
+        }
+        String attachmentContentType = null;
+        if (attachmentUrl != null) {
+            // Only files uploaded to *this* conversation may be referenced
+            String prefix = attachmentBasePath(conversationId);
+            if (!attachmentUrl.startsWith(prefix)) {
+                throw new BadRequestException("Attachment does not belong to this conversation");
+            }
+            String key = attachmentUrl.substring(prefix.length());
+            mediaStorageService.loadPrivate(conversationId, key); // exists + valid key
+            attachmentContentType = mediaStorageService.contentTypeOf(key);
+        }
+        OrderRequest order = null;
+        if (blankToNull(request.getOrderId()) != null) {
+            order = orderRequestRepository.findById(request.getOrderId())
+                    .orElseThrow(() -> new BadRequestException("Unknown order: " + request.getOrderId()));
+            if (!order.getBuyer().getId().equals(conversation.getBuyer().getId())
+                    || !order.getManufacturer().getId().equals(conversation.getManufacturer().getId())) {
+                throw new BadRequestException("That order is not between the participants of this conversation");
+            }
+        }
+
         Message message = Message.builder()
                 .conversation(conversation)
                 .sender(user)
                 .senderType(senderType)
-                .messageText(request.getMessageText().trim())
-                .attachmentName(request.getAttachmentName())
-                .attachmentSize(request.getAttachmentSize())
-                .attachmentUrl(request.getAttachmentUrl())
+                .messageText(text)
+                .attachmentName(attachmentUrl != null ? truncate(request.getAttachmentName(), 255) : null)
+                .attachmentSize(attachmentUrl != null ? truncate(request.getAttachmentSize(), 50) : null)
+                .attachmentUrl(attachmentUrl)
+                .attachmentContentType(attachmentContentType)
+                .order(order)
                 .isRead(false)
                 .build();
-
         message = messageRepository.save(message);
-
-        conversation.setLastMessageText(message.getMessageText());
+        conversation.setLastMessageText(!text.isEmpty() ? text
+                : "\uD83D\uDCCE " + (message.getAttachmentName() != null ? message.getAttachmentName() : "Attachment"));
         conversation.setLastMessageAt(OffsetDateTime.now());
         conversationRepository.save(conversation);
+
+        notifyRecipient(conversation, user, senderType, conversation.getLastMessageText());
 
         MessageResponse response = mapToMessageResponse(message);
         sseService.pushMessageToConversation(conversationId, response);
@@ -194,6 +244,132 @@ public class ConversationServiceImpl implements ConversationService {
     }
 
     // ─── Private Helpers ──────────────────────────────────────
+
+    @Override
+    public ConversationResponse openForOrder(String supplierUserId, String orderId) {
+        OrderRequest order = orderRequestRepository.findById(orderId)
+                .orElseThrow(() -> new ResourceNotFoundException("Order", "id", orderId));
+        Manufacturer manufacturer = order.getManufacturer();
+        if (manufacturer.getUser() == null || !supplierUserId.equals(manufacturer.getUser().getId())) {
+            throw new ForbiddenException("This order belongs to another factory");
+        }
+        return mapToResponse(findOrCreate(order.getBuyer(), manufacturer), true);
+    }
+
+    @Override
+    public ConversationResponse openForRfq(String supplierUserId, String rfqId) {
+        Rfq rfq = rfqRepository.findById(rfqId)
+                .orElseThrow(() -> new ResourceNotFoundException("Rfq", "id", rfqId));
+        Manufacturer manufacturer = manufacturerRepository.findByUserId(supplierUserId)
+                .orElseThrow(() -> new ForbiddenException("Only factories can contact RFQ buyers"));
+        User buyer = rfq.getUser();
+        if (buyer == null) {
+            throw new BadRequestException("This RFQ has no buyer account to message");
+        }
+        if (buyer.getId().equals(supplierUserId)) {
+            throw new BadRequestException("You cannot message yourself");
+        }
+        return mapToResponse(findOrCreate(buyer, manufacturer), true);
+    }
+
+    /** One conversation per buyer-factory pair. */
+    private Conversation findOrCreate(User buyer, Manufacturer manufacturer) {
+        return conversationRepository
+                .findByBuyerIdAndManufacturerId(buyer.getId(), manufacturer.getId())
+                .orElseGet(() -> conversationRepository.save(Conversation.builder()
+                        .buyer(buyer)
+                        .manufacturer(manufacturer)
+                        .unreadCountBuyer(0)
+                        .unreadCountSupplier(0)
+                        .build()));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<OrderResponse> listConversationOrders(String conversationId, String userId) {
+        Conversation conversation = conversationRepository.findById(conversationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Conversation", "id", conversationId));
+        validateParticipant(conversation, userId);
+        boolean supplierView = !conversation.getBuyer().getId().equals(userId);
+        return orderService.listOrdersBetween(conversation.getBuyer().getId(),
+                conversation.getManufacturer().getId(), supplierView);
+    }
+
+    @Override
+    public AttachmentUploadResponse uploadAttachment(String conversationId, String userId, MultipartFile file) {
+        Conversation conversation = conversationRepository.findById(conversationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Conversation", "id", conversationId));
+        validateParticipant(conversation, userId);
+        String key = mediaStorageService.storePrivate(conversationId, file);
+        String original = file.getOriginalFilename();
+        String name = original != null && !original.isBlank()
+                ? truncate(original.replaceAll("[\\\\/\\r\\n]", "_"), 255) : key;
+        return AttachmentUploadResponse.builder()
+                .url(attachmentBasePath(conversationId) + key)
+                .name(name)
+                .size(humanSize(file.getSize()))
+                .contentType(mediaStorageService.contentTypeOf(key))
+                .build();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Resource loadAttachment(String conversationId, String userId, String key) {
+        assertParticipant(conversationId, userId);
+        return mediaStorageService.loadPrivate(conversationId, key);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public void assertParticipant(String conversationId, String userId) {
+        Conversation conversation = conversationRepository.findById(conversationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Conversation", "id", conversationId));
+        validateParticipant(conversation, userId);
+    }
+
+    private static String attachmentBasePath(String conversationId) {
+        return "/api/v1/conversations/" + conversationId + "/attachments/";
+    }
+
+    private static MessageResponse.OrderContext toOrderContext(OrderRequest order) {
+        if (order == null) return null;
+        return MessageResponse.OrderContext.builder()
+                .id(order.getId())
+                .referenceNumber(order.getReferenceNumber())
+                .productName(order.getProductName())
+                .productSlug(order.getProductSlug())
+                .quantity(order.getQuantity())
+                .unit(order.getUnit())
+                .status(order.getStatus().name())
+                .build();
+    }
+
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    private static String truncate(String value, int max) {
+        if (value == null) return null;
+        String trimmed = value.trim();
+        return trimmed.length() > max ? trimmed.substring(0, max) : trimmed;
+    }
+
+    private static String humanSize(long bytes) {
+        if (bytes < 1024) return bytes + " B";
+        if (bytes < 1024 * 1024) return String.format(Locale.ROOT, "%.0f KB", bytes / 1024.0);
+        return String.format(Locale.ROOT, "%.1f MB", bytes / (1024.0 * 1024.0));
+    }
+
+    /** One unread alert per conversation: further messages only bump the chat's unread count. */
+    private void notifyRecipient(Conversation conversation, User sender, SenderType senderType, String preview) {
+        User recipient = senderType == SenderType.USER
+                ? conversation.getManufacturer().getUser()
+                : conversation.getBuyer();
+        String from = senderType == SenderType.USER ? sender.getName() : conversation.getManufacturer().getName();
+        String body = preview.length() > 140 ? preview.substring(0, 137) + "..." : preview;
+        notificationService.notifyOnce(recipient, NotificationType.MESSAGE,
+                "New message from " + from, body, conversation.getId());
+    }
 
     private void validateParticipant(Conversation conversation, String userId) {
         boolean isBuyer = conversation.getBuyer().getId().equals(userId);
@@ -248,6 +424,8 @@ public class ConversationServiceImpl implements ConversationService {
                 .attachmentName(message.getAttachmentName())
                 .attachmentSize(message.getAttachmentSize())
                 .attachmentUrl(message.getAttachmentUrl())
+                .attachmentContentType(message.getAttachmentContentType())
+                .order(toOrderContext(message.getOrder()))
                 .isRead(Boolean.TRUE.equals(message.getIsRead()))
                 .createdAt(message.getCreatedAt() != null ? message.getCreatedAt().toString() : OffsetDateTime.now().toString())
                 .build();

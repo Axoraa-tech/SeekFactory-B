@@ -14,6 +14,8 @@ import seekfactory.axoraa.entity.Rfqs.RfqQuote;
 import seekfactory.axoraa.enums.RfqStatus;
 import seekfactory.axoraa.enums.ViewEntityType;
 import seekfactory.axoraa.repository.CategoryRepository;
+import seekfactory.axoraa.services.services.NotificationService;
+import seekfactory.axoraa.utils.CategoryTree;
 import seekfactory.axoraa.repository.ManufacturerRepository;
 import seekfactory.axoraa.repository.ProductRepository;
 import seekfactory.axoraa.repository.Reels.ReelRepository;
@@ -53,6 +55,8 @@ class FactoryServiceImplStatsTest {
     @Mock private CategoryRepository categoryRepository;
     @Mock private ViewEventRepository viewEventRepository;
     @Mock private ModelMapper modelMapper;
+    @Mock private CategoryTree categoryTree;
+    @Mock private NotificationService notificationService;
 
     @InjectMocks private FactoryServiceImpl service;
 
@@ -150,5 +154,25 @@ class FactoryServiceImplStatsTest {
 
     private boolean isCurrentWindow(Instant to) {
         return Duration.between(to, Instant.now()).abs().toMinutes() < 1;
+    }
+
+    @Test
+    void weeklyTrendBucketsViewsAndRfqsIntoTwelveWeeks() {
+        rfq("r-now", RfqStatus.SUBMITTED, Duration.ofMinutes(5));
+        rfq("r-old", RfqStatus.SUBMITTED, Duration.ofDays(200)); // outside the window
+        when(viewEventRepository.findTypeAndTimeSince(eq(MFR_ID), any())).thenReturn(List.of(
+                new Object[]{ViewEntityType.REEL, now.minusSeconds(60)},
+                new Object[]{ViewEntityType.REEL, now.minusSeconds(120)},
+                new Object[]{ViewEntityType.PRODUCT, now.minusSeconds(60)}));
+
+        FactoryStatsResponse stats = service.getStats(USER_ID);
+
+        assertThat(stats.getWeeklyTrend()).hasSize(12);
+        FactoryStatsResponse.TrendPoint thisWeek = stats.getWeeklyTrend().get(11);
+        assertThat(thisWeek.getSeekViews()).isEqualTo(2);
+        assertThat(thisWeek.getProductViews()).isEqualTo(1);
+        assertThat(thisWeek.getRfqs()).isEqualTo(1);
+        assertThat(stats.getWeeklyTrend().stream().mapToLong(FactoryStatsResponse.TrendPoint::getRfqs).sum())
+                .isEqualTo(1);
     }
 }

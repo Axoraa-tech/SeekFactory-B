@@ -76,6 +76,11 @@ public class Reel extends BaseEntity {
     private Integer savesCount = 0;
 
 
+    /** Seller's pause switch: unlisted seeks are hidden from the feed and profile. */
+    @Column(name = "listed", nullable = false)
+    @Builder.Default
+    private Boolean listed = true;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "feed_tab", length = 32, nullable = false)
     @Builder.Default

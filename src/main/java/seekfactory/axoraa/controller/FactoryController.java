@@ -8,7 +8,14 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import seekfactory.axoraa.dto.Request.common.ListingStatusRequest;
 import seekfactory.axoraa.dto.Request.manufacturer.ManufacturerUpdateRequest;
+import seekfactory.axoraa.dto.Request.manufacturer.VerificationSubmitRequest;
+import seekfactory.axoraa.dto.Request.product.ProductUpdateRequest;
+import seekfactory.axoraa.dto.Request.reel.ReelUpdateRequest;
+import seekfactory.axoraa.dto.Response.manufacturer.VerificationResponse;
+import seekfactory.axoraa.dto.Response.message.ConversationResponse;
+import seekfactory.axoraa.services.services.ConversationService;
 import seekfactory.axoraa.dto.Request.product.ProductCreateRequest;
 import seekfactory.axoraa.dto.Request.reel.ReelCreateRequest;
 import seekfactory.axoraa.dto.Request.rfq.RfqQuoteRequest;
@@ -35,6 +42,7 @@ import java.util.List;
 public class FactoryController {
 
     private final FactoryService factoryService;
+    private final ConversationService conversationService;
 
     @GetMapping("/profile")
     @Operation(summary = "Get current supplier factory profile")
@@ -74,6 +82,23 @@ public class FactoryController {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.of(response, "Product added successfully"));
     }
 
+    @PutMapping("/products/{id}")
+    @Operation(summary = "Edit a factory product (partial: omitted fields are unchanged)")
+    public ResponseEntity<ApiResponse<ProductResponse>> updateProduct(
+            @PathVariable String id, @Valid @RequestBody ProductUpdateRequest request) {
+        String userId = SecurityUtils.getCurrentUserId();
+        return ResponseEntity.ok(ApiResponse.of(factoryService.updateProduct(userId, id, request), "Product updated"));
+    }
+
+    @PatchMapping("/products/{id}/status")
+    @Operation(summary = "Pause (unlist) or relist a product")
+    public ResponseEntity<ApiResponse<ProductResponse>> setProductListed(
+            @PathVariable String id, @Valid @RequestBody ListingStatusRequest request) {
+        String userId = SecurityUtils.getCurrentUserId();
+        ProductResponse response = factoryService.setProductListed(userId, id, request.getListed());
+        return ResponseEntity.ok(ApiResponse.of(response, request.getListed() ? "Product relisted" : "Product paused"));
+    }
+
     @DeleteMapping("/products/{id}")
     @Operation(summary = "Delete or archive a factory product")
     public ResponseEntity<ApiResponse<Void>> deleteProduct(@PathVariable String id) {
@@ -96,6 +121,23 @@ public class FactoryController {
         String userId = SecurityUtils.getCurrentUserId();
         ReelResponse response = factoryService.addSeek(userId, request);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.of(response, "Video seek uploaded"));
+    }
+
+    @PutMapping("/seeks/{id}")
+    @Operation(summary = "Edit a video seek (partial: omitted fields are unchanged)")
+    public ResponseEntity<ApiResponse<ReelResponse>> updateSeek(
+            @PathVariable String id, @Valid @RequestBody ReelUpdateRequest request) {
+        String userId = SecurityUtils.getCurrentUserId();
+        return ResponseEntity.ok(ApiResponse.of(factoryService.updateSeek(userId, id, request), "Seek updated"));
+    }
+
+    @PatchMapping("/seeks/{id}/status")
+    @Operation(summary = "Pause (hide from feed) or relist a video seek")
+    public ResponseEntity<ApiResponse<ReelResponse>> setSeekListed(
+            @PathVariable String id, @Valid @RequestBody ListingStatusRequest request) {
+        String userId = SecurityUtils.getCurrentUserId();
+        ReelResponse response = factoryService.setSeekListed(userId, id, request.getListed());
+        return ResponseEntity.ok(ApiResponse.of(response, request.getListed() ? "Seek relisted" : "Seek paused"));
     }
 
     @DeleteMapping("/seeks/{id}")
@@ -121,5 +163,28 @@ public class FactoryController {
         String userId = SecurityUtils.getCurrentUserId();
         factoryService.submitQuote(userId, id, request);
         return ResponseEntity.ok(ApiResponse.ok("Quotation submitted successfully"));
+    }
+
+    @PostMapping("/rfqs/{id}/conversation")
+    @Operation(summary = "Open (or reuse) a chat with the buyer who posted an RFQ")
+    public ResponseEntity<ApiResponse<ConversationResponse>> openRfqConversation(@PathVariable String id) {
+        String userId = SecurityUtils.getCurrentUserId();
+        factoryService.assertRfqRouted(userId, id);
+        return ResponseEntity.ok(ApiResponse.of(conversationService.openForRfq(userId, id)));
+    }
+
+    @GetMapping("/verification")
+    @Operation(summary = "Get this factory's verification application and review status")
+    public ResponseEntity<ApiResponse<VerificationResponse>> getVerification() {
+        return ResponseEntity.ok(ApiResponse.of(factoryService.getVerification(SecurityUtils.getCurrentUserId())));
+    }
+
+    @PostMapping("/verification")
+    @Operation(summary = "Submit (or resubmit) factory details for admin verification")
+    public ResponseEntity<ApiResponse<VerificationResponse>> submitVerification(
+            @Valid @RequestBody VerificationSubmitRequest request) {
+        String userId = SecurityUtils.getCurrentUserId();
+        return ResponseEntity.ok(ApiResponse.of(factoryService.submitVerification(userId, request),
+                "Submitted for verification"));
     }
 }

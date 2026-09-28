@@ -16,4 +16,8 @@ public class NotificationResponse {
     private String body;
     private String createdAt;
     private boolean read;
+    /** Lower-case NotificationType: system, quote, rfq, message, follow, order. */
+    private String type;
+    /** Id of the RFQ, conversation, order or factory the notification is about. */
+    private String referenceId;
 }

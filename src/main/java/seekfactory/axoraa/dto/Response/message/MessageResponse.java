@@ -21,6 +21,24 @@ public class MessageResponse {
     private String attachmentName;
     private String attachmentSize;
     private String attachmentUrl;
+    private String attachmentContentType;
     private boolean isRead;
     private String createdAt;
+
+    /** The order this message is about, if the sender picked one. */
+    private OrderContext order;
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class OrderContext {
+        private String id;
+        private String referenceNumber;
+        private String productName;
+        private String productSlug;
+        private Integer quantity;
+        private String unit;
+        private String status;
+    }
 }

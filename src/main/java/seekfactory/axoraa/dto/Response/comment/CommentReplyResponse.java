@@ -20,4 +20,6 @@ public class CommentReplyResponse {
     private String content;
     private String createdAt;
     private int likes;
+    /** Viewer's own state; omitted for guests. */
+    private Boolean likedByMe;
 }

@@ -8,9 +8,13 @@ import org.springframework.transaction.annotation.Transactional;
 import seekfactory.axoraa.dto.Request.user.UserUpdateRequest;
 import seekfactory.axoraa.dto.Response.user.UserResponse;
 import seekfactory.axoraa.entity.User;
+import seekfactory.axoraa.enums.BuyerPlan;
+import seekfactory.axoraa.enums.UserRole;
+import seekfactory.axoraa.exceptions.BadRequestException;
 import seekfactory.axoraa.exceptions.ResourceNotFoundException;
 import seekfactory.axoraa.repository.UserRepository;
 import seekfactory.axoraa.services.services.UserService;
+import seekfactory.axoraa.utils.InputUtils;
 
 /**
  * Manages user profile operations.
@@ -53,12 +57,38 @@ public class UserServiceImpl implements UserService {
             user.setPhone(request.getPhone());
         }
         if (request.getAvatarUrl() != null) {
-            user.setAvatarUrl(request.getAvatarUrl());
+            if (!InputUtils.isSafeUrl(request.getAvatarUrl())) {
+                throw new BadRequestException("Avatar must be an http(s) URL or an uploaded media path");
+            }
+            user.setAvatarUrl(request.getAvatarUrl().isBlank() ? null : request.getAvatarUrl().trim());
+        }
+        if (request.getTaxId() != null) {
+            user.setTaxId(request.getTaxId().isBlank() ? null : request.getTaxId().trim());
+        }
+        if (request.getAddress() != null) {
+            user.setAddress(request.getAddress().isBlank() ? null : request.getAddress().trim());
         }
 
         User saved = userRepository.save(user);
         log.info("User profile updated: {}", saved.getId());
         return mapToResponse(saved);
+    }
+
+    @Override
+    public UserResponse updatePlan(String userId, String plan) {
+        User user = findUserOrThrow(userId);
+        if (user.getRole() != UserRole.ROLE_BUYER) {
+            throw new BadRequestException("Membership plans apply to buyer accounts only");
+        }
+        BuyerPlan buyerPlan;
+        try {
+            buyerPlan = BuyerPlan.valueOf(plan.trim().toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new BadRequestException("Unknown plan: " + plan);
+        }
+        user.setBuyerPlan(buyerPlan);
+        log.info("User {} switched to buyer plan {}", userId, buyerPlan);
+        return mapToResponse(userRepository.save(user));
     }
 
     @Override
@@ -84,6 +114,8 @@ public class UserServiceImpl implements UserService {
             case ROLE_SUPPLIER -> "Supplier";
             case ROLE_ADMIN -> "Admin";
         });
+        response.setPlan(user.getBuyerPlan() != null ? user.getBuyerPlan().name().toLowerCase() : "free");
+        response.setMemberSince(user.getCreatedAt() != null ? user.getCreatedAt().toString() : null);
         return response;
     }
 }

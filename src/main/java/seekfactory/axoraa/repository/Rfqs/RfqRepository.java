@@ -7,6 +7,7 @@ import org.springframework.stereotype.Repository;
 import seekfactory.axoraa.entity.Rfqs.Rfq;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface RfqRepository extends JpaRepository<Rfq, String> {
@@ -16,6 +17,11 @@ public interface RfqRepository extends JpaRepository<Rfq, String> {
     List<Rfq> findByUserIdOrderByCreatedAtDesc(String userId);
 
     List<Rfq> findByCategoryIdInOrderByCreatedAtDesc(List<String> categoryIds);
+
+    /** RFQs in any of the given categories, plus uncategorised RFQs that every factory may quote on. */
+    List<Rfq> findByCategoryIdInOrCategoryIsNullOrderByCreatedAtDesc(List<String> categoryIds);
+
+    Optional<Rfq> findByIdAndUserId(String id, String userId);
 
     List<Rfq> findAllByOrderByCreatedAtDesc();
 

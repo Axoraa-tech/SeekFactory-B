@@ -1,11 +1,14 @@
 package seekfactory.axoraa.repository;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import seekfactory.axoraa.entity.ViewEvent;
 import seekfactory.axoraa.enums.ViewEntityType;
 
 import java.time.Instant;
+import java.util.List;
 
 @Repository
 public interface ViewEventRepository extends JpaRepository<ViewEvent, String> {
@@ -17,4 +20,8 @@ public interface ViewEventRepository extends JpaRepository<ViewEvent, String> {
     /** Views of a factory's reels or products in [from, to). */
     long countByManufacturerIdAndEntityTypeAndCreatedAtGreaterThanEqualAndCreatedAtLessThan(
             String manufacturerId, ViewEntityType entityType, Instant from, Instant to);
+
+    /** (entityType, createdAt) of a factory's views since {@code since}; bucketed into the stats trend. */
+    @Query("SELECT v.entityType, v.createdAt FROM ViewEvent v WHERE v.manufacturerId = :manufacturerId AND v.createdAt >= :since")
+    List<Object[]> findTypeAndTimeSince(@Param("manufacturerId") String manufacturerId, @Param("since") Instant since);
 }

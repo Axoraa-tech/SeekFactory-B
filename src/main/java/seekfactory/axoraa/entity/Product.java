@@ -7,7 +7,9 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -67,7 +69,42 @@ public class Product extends BaseEntity{
     @Builder.Default
     private Map<String, String> specs = new HashMap<>();
 
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "price_tiers", columnDefinition = "jsonb", nullable = false)
+    @Builder.Default
+    private List<PriceTier> priceTiers = new ArrayList<>();
+
     @Column(name = "is_active", nullable = false)
     @Builder.Default
     private Boolean isActive = true;
+
+    /** Seller's pause switch: unlisted products stay in the hub but are hidden from buyers. */
+    @Column(name = "listed", nullable = false)
+    @Builder.Default
+    private Boolean listed = true;
+
+    /** Gallery in display order; imageUrl mirrors the first entry as the cover. */
+    @ElementCollection
+    @CollectionTable(name = "product_images", joinColumns = @JoinColumn(name = "product_id"))
+    @OrderColumn(name = "position")
+    @Column(name = "image_url", nullable = false, columnDefinition = "TEXT")
+    @Builder.Default
+    private List<String> imageUrls = new ArrayList<>();
+
+    @Column(name = "datasheet_url", columnDefinition = "TEXT")
+    private String datasheetUrl;
+
+    @Column(name = "datasheet_name")
+    private String datasheetName;
+
+    /** Images in display order, falling back to the cover for rows without a gallery. */
+    public List<String> gallery() {
+        if (imageUrls != null && !imageUrls.isEmpty()) return new ArrayList<>(imageUrls);
+        return imageUrl != null ? new ArrayList<>(List.of(imageUrl)) : new ArrayList<>();
+    }
+
+    /** Visible to buyers: not deleted and not paused by the seller. */
+    public boolean isPubliclyVisible() {
+        return Boolean.TRUE.equals(isActive) && !Boolean.FALSE.equals(listed);
+    }
 }

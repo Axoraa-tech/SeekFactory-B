@@ -11,5 +11,6 @@ public enum NotificationType {
     QUOTE,
     RFQ,
     MESSAGE,
-    FOLLOW
+    FOLLOW,
+    ORDER
 }

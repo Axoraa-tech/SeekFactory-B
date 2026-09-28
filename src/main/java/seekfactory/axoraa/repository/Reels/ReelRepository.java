@@ -19,6 +19,23 @@ public interface ReelRepository extends JpaRepository<Reel, String> {
 
     List<Reel> findByFeedTabOrderByCreatedAtDesc(FeedTab feedTab, Pageable pageable);
 
+    /**
+     * The buyer feed: approved factories only, with the manufacturer joined in.
+     *
+     * The approval filter is in SQL rather than applied after loading, so an
+     * unapproved factory's seeks never leave the database. Joining the
+     * manufacturer removes one lazy load per reel, which dominated the response
+     * time when the database is a network hop away. Products stay lazy and are
+     * batched by `default_batch_fetch_size`.
+     */
+    @Query("""
+            SELECT r FROM Reel r
+            JOIN FETCH r.manufacturer m
+            WHERE r.feedTab = :feedTab AND m.verified = true
+            ORDER BY r.createdAt DESC
+            """)
+    List<Reel> findApprovedByFeedTab(@Param("feedTab") FeedTab feedTab, Pageable pageable);
+
     List<Reel> findByManufacturerIdOrderByCreatedAtDesc(String manufacturerId);
 
     /** Buyer-facing: seeks the seller has not paused. */

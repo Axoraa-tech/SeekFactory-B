@@ -44,16 +44,16 @@ public class ReelServiceImpl implements ReelService {
     private final CatalogMapper catalogMapper;
 
     @Override
-    public List<FeedItemResponse> getFeed(FeedTab tab, String viewerId, int page, int size) {
-        // Pending or rejected manufacturers never reach buyers (filtered in the queries)
-        PageRequest pageRequest = PageRequest.of(Math.max(0, page), Math.clamp(size, 1, MAX_PAGE_SIZE));
-        List<Reel> reels;
-        if (tab == FeedTab.FOLLOWING) {
-            reels = viewerId == null ? List.of() : reelRepository.findFollowingFeed(viewerId, pageRequest);
-        } else {
-            reels = reelRepository.findVisibleFeed(pageRequest);
-        }
-        return catalogMapper.toFeedItems(reels, viewerId);
+    public List<FeedItemResponse> getFeed(FeedTab tab) {
+        // Limit feed to top 50 items to prevent massive payloads and frontend overload
+        // Approval is filtered in SQL and the manufacturer is joined in, so the feed
+        // costs one query instead of one per reel and never over-fetches rows it
+        // is about to discard.
+        List<Reel> reels = reelRepository.findApprovedByFeedTab(tab, PageRequest.of(0, 50));
+
+        return reels.stream()
+                .map(this::mapToFeedItem)
+                .collect(Collectors.toList());
     }
 
     @Transactional

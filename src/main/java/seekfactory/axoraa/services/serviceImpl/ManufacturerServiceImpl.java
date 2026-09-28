@@ -90,9 +90,10 @@ public class ManufacturerServiceImpl implements ManufacturerService {
 
     @Override
     public List<ManufacturerResponse> listAll() {
-        // Buyer-facing: only approved factories, filtered in SQL rather than after loading every manufacturer
+        // Buyer-facing: only approved factories, filtered in SQL rather than after
+        // loading every manufacturer into memory.
         return manufacturerRepository.findByVerifiedTrue().stream()
-                .map(catalogMapper::toManufacturer)
+                .map(this::mapToResponse)
                 .collect(Collectors.toList());
     }
 

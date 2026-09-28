@@ -25,6 +25,9 @@ FROM eclipse-temurin:25-jre-alpine
 
 WORKDIR /app
 
+# ffmpeg compresses uploaded seek videos (H.264/AAC); without it videos are stored as uploaded
+RUN apk add --no-cache ffmpeg
+
 # Non-root user for container security
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 

@@ -1,5 +1,6 @@
 package seekfactory.axoraa.services.serviceImpl;
 
+import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.PathResource;
@@ -10,6 +11,8 @@ import org.springframework.web.multipart.MultipartFile;
 import seekfactory.axoraa.dto.Response.media.MediaUploadResponse;
 import seekfactory.axoraa.exceptions.BadRequestException;
 import seekfactory.axoraa.exceptions.ResourceNotFoundException;
+import seekfactory.axoraa.services.media.ImageCompressor;
+import seekfactory.axoraa.services.media.VideoTranscoder;
 import seekfactory.axoraa.services.services.MediaStorageService;
 
 import java.io.IOException;
@@ -20,6 +23,8 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
+import java.util.stream.Stream;
 import java.util.TreeSet;
 import java.util.UUID;
 import java.util.regex.Pattern;
@@ -30,6 +35,10 @@ import java.util.regex.Pattern;
  * Only allowlisted raster images, video containers and document/CAD formats are accepted:
  * SVG/HTML would be served from the API origin and could carry script. Files are renamed to
  * random UUID keys, so client-supplied names never touch the filesystem.
+ *
+ * Photos are compressed on upload (see {@link ImageCompressor}); videos are compressed in the
+ * background (see {@link VideoTranscoder}). A video's URL is final from the start: while it is
+ * being encoded the key serves the original from {@code pending/}, then the smaller MP4 replaces it.
  */
 @Slf4j
 @Service
@@ -98,22 +107,41 @@ public class LocalMediaStorageService implements MediaStorageService {
     private final long maxImageBytes;
     private final long maxVideoBytes;
     private final long maxDocumentBytes;
+    /** Originals of videos still being compressed, named {@code <uuid>.<original ext>}. */
+    private final Path pending;
+    private final ImageCompressor imageCompressor;
+    private final VideoTranscoder videoTranscoder;
 
     public LocalMediaStorageService(
             @Value("${app.media.storage-dir:uploads}") String storageDir,
             @Value("${app.media.max-image-size:20MB}") DataSize maxImageSize,
             @Value("${app.media.max-video-size:100MB}") DataSize maxVideoSize,
-            @Value("${app.media.max-document-size:50MB}") DataSize maxDocumentSize) {
+            @Value("${app.media.max-document-size:50MB}") DataSize maxDocumentSize,
+            @Value("${app.media.image-max-dimension:2048}") int imageMaxDimension,
+            @Value("${app.media.image-quality:0.85}") float imageQuality,
+            @Value("${app.media.ffmpeg-path:ffmpeg}") String ffmpegPath,
+            @Value("${app.media.video-crf:23}") int videoCrf,
+            @Value("${app.media.video-preset:medium}") String videoPreset) {
         this.root = Path.of(storageDir).toAbsolutePath().normalize();
+        this.pending = root.resolve("pending");
         this.maxImageBytes = maxImageSize.toBytes();
         this.maxVideoBytes = maxVideoSize.toBytes();
         this.maxDocumentBytes = maxDocumentSize.toBytes();
+        this.imageCompressor = new ImageCompressor(imageMaxDimension, imageQuality);
+        this.videoTranscoder = new VideoTranscoder(ffmpegPath, videoCrf, videoPreset);
         try {
             Files.createDirectories(root);
+            Files.createDirectories(pending);
         } catch (IOException e) {
             throw new UncheckedIOException("Cannot create media storage directory " + root, e);
         }
         log.info("Media storage directory: {}", root);
+        resumePendingVideos();
+    }
+
+    @PreDestroy
+    void shutdown() {
+        videoTranscoder.close();
     }
 
     @Override
@@ -147,7 +175,119 @@ public class LocalMediaStorageService implements MediaStorageService {
             throw new BadRequestException("File exceeds " + (maxBytes / (1024 * 1024)) + "MB limit");
         }
 
-        return write(file, extension);
+        if ("image".equals(kind)) {
+            return writeImage(file, extension);
+        }
+        return writeVideo(file, extension);
+    }
+
+    /** Stores the compressed photo when it is smaller, otherwise the original. */
+    private MediaUploadResponse writeImage(MultipartFile file, String extension) {
+        byte[] original = readAll(file);
+        Optional<ImageCompressor.Result> compressed = imageCompressor.compress(original, extension);
+        byte[] bytes = compressed.map(ImageCompressor.Result::bytes).orElse(original);
+        String ext = compressed.map(ImageCompressor.Result::extension).orElse(extension);
+        String key = UUID.randomUUID() + "." + ext;
+        try {
+            Files.write(root.resolve(key), bytes);
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to store upload", e);
+        }
+        compressed.ifPresent(c -> log.info("Image {} compressed {} KB -> {} KB", key,
+                original.length / 1024, c.bytes().length / 1024));
+        return MediaUploadResponse.builder()
+                .url(PUBLIC_PATH + key)
+                .contentType(EXTENSION_TYPES.get(ext))
+                .size(bytes.length)
+                .build();
+    }
+
+    /**
+     * Without ffmpeg the video is stored as uploaded. With it, the original waits in pending/
+     * (served under the final key) until the compressed MP4 is ready.
+     */
+    private MediaUploadResponse writeVideo(MultipartFile file, String extension) {
+        if (!videoTranscoder.isAvailable()) {
+            return write(file, extension);
+        }
+        String id = UUID.randomUUID().toString();
+        String key = id + ".mp4";
+        Path source = pending.resolve(id + "." + extension);
+        try (InputStream in = file.getInputStream()) {
+            Files.copy(in, source, StandardCopyOption.REPLACE_EXISTING);
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to store upload", e);
+        }
+        queueVideo(source, key);
+        return MediaUploadResponse.builder()
+                .url(PUBLIC_PATH + key)
+                .contentType("video/mp4")
+                .size(file.getSize())
+                .build();
+    }
+
+    private void queueVideo(Path source, String key) {
+        Path target = root.resolve(key);
+        videoTranscoder.submit(source, target, compressed -> finishVideo(source, target, compressed));
+    }
+
+    /**
+     * After encoding: drop the original when the MP4 replaced it; otherwise an original MP4 is
+     * promoted to the final key, and other containers keep serving from pending/.
+     */
+    private void finishVideo(Path source, Path target, boolean compressed) {
+        try {
+            if (compressed) {
+                Files.deleteIfExists(source);
+            } else if (source.getFileName().toString().endsWith(".mp4")) {
+                Files.move(source, target, StandardCopyOption.REPLACE_EXISTING);
+            }
+        } catch (IOException e) {
+            // e.g. the original is still being streamed on Windows; retried at next startup
+            log.warn("Could not finalize video {}: {}", target.getFileName(), e.getMessage());
+        }
+    }
+
+    /** Re-queues videos whose compression was interrupted by a restart; cleans up finished ones. */
+    private void resumePendingVideos() {
+        try (Stream<Path> files = Files.list(pending)) {
+            files.filter(Files::isRegularFile).forEach(source -> {
+                String name = source.getFileName().toString();
+                String id = name.substring(0, name.indexOf('.'));
+                Path target = root.resolve(id + ".mp4");
+                if (Files.isRegularFile(target)) {
+                    try {
+                        Files.deleteIfExists(source);
+                    } catch (IOException ignored) {
+                        // leave it for the next start
+                    }
+                } else if (videoTranscoder.isAvailable()) {
+                    log.info("Resuming compression of video {}", id);
+                    queueVideo(source, id + ".mp4");
+                }
+            });
+        } catch (IOException e) {
+            log.warn("Could not scan pending videos: {}", e.getMessage());
+        }
+    }
+
+    /** Original of a video still in pending/, if the final file does not exist yet. */
+    private Optional<Path> pendingOriginal(String key) {
+        if (!key.endsWith(".mp4") || Files.isRegularFile(root.resolve(key))) return Optional.empty();
+        String id = key.substring(0, key.length() - ".mp4".length());
+        for (String ext : VIDEO_TYPES.values()) {
+            Path candidate = pending.resolve(id + "." + ext);
+            if (Files.isRegularFile(candidate)) return Optional.of(candidate);
+        }
+        return Optional.empty();
+    }
+
+    private static byte[] readAll(MultipartFile file) {
+        try {
+            return file.getBytes();
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to read upload", e);
+        }
     }
 
     private MediaUploadResponse storeDocument(MultipartFile file) {
@@ -185,16 +325,26 @@ public class LocalMediaStorageService implements MediaStorageService {
             throw new ResourceNotFoundException("Media", "key", key);
         }
         Path file = root.resolve(key).normalize();
-        if (!file.startsWith(root) || !Files.isRegularFile(file)) {
+        if (!file.startsWith(root)) {
             throw new ResourceNotFoundException("Media", "key", key);
+        }
+        if (!Files.isRegularFile(file)) {
+            return pendingOriginal(key).map(PathResource::new)
+                    .orElseThrow(() -> new ResourceNotFoundException("Media", "key", key));
         }
         return new PathResource(file);
     }
 
     @Override
     public String contentTypeOf(String key) {
-        String extension = key.substring(key.lastIndexOf('.') + 1);
+        String name = pendingOriginal(key).map(p -> p.getFileName().toString()).orElse(key);
+        String extension = name.substring(name.lastIndexOf('.') + 1);
         return EXTENSION_TYPES.getOrDefault(extension, "application/octet-stream");
+    }
+
+    @Override
+    public boolean isProcessing(String key) {
+        return key != null && KEY_PATTERN.matcher(key).matches() && pendingOriginal(key).isPresent();
     }
 
     @Override
@@ -218,15 +368,25 @@ public class LocalMediaStorageService implements MediaStorageService {
         if (file.getSize() > maxBytes) {
             throw new BadRequestException("File exceeds " + (maxBytes / (1024 * 1024)) + "MB limit");
         }
-        String key = UUID.randomUUID() + "." + extension;
         Path dir = privateDir(namespace);
-        try (InputStream in = file.getInputStream()) {
+        try {
             Files.createDirectories(dir);
-            Files.copy(in, dir.resolve(key), StandardCopyOption.REPLACE_EXISTING);
+            if (maxBytes == maxImageBytes) {
+                // Photos in chat are compressed like public ones
+                byte[] original = file.getBytes();
+                Optional<ImageCompressor.Result> compressed = imageCompressor.compress(original, extension);
+                String key = UUID.randomUUID() + "." + compressed.map(ImageCompressor.Result::extension).orElse(extension);
+                Files.write(dir.resolve(key), compressed.map(ImageCompressor.Result::bytes).orElse(original));
+                return key;
+            }
+            String key = UUID.randomUUID() + "." + extension;
+            try (InputStream in = file.getInputStream()) {
+                Files.copy(in, dir.resolve(key), StandardCopyOption.REPLACE_EXISTING);
+            }
+            return key;
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to store attachment", e);
         }
-        return key;
     }
 
     @Override

@@ -25,6 +25,14 @@ public interface MediaStorageService {
     String contentTypeOf(String key);
 
     /**
+     * True while an uploaded video is still being compressed: the key then serves the original,
+     * which must not be cached as the final, immutable file.
+     */
+    default boolean isProcessing(String key) {
+        return false;
+    }
+
+    /**
      * Store a private file (chat attachment: image or PDF) under a namespace such as a
      * conversation id. Private files are never served by the public media endpoint.
      *

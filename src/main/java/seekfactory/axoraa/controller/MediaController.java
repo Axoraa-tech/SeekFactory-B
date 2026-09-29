@@ -65,7 +65,11 @@ public class MediaController {
         Resource resource = mediaStorageService.load(key);
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(mediaStorageService.contentTypeOf(key)))
-                .cacheControl(CacheControl.maxAge(365, TimeUnit.DAYS).cachePublic().immutable())
+                // A video still being compressed serves its original under the final key: don't let
+                // browsers or CDNs keep that copy
+                .cacheControl(mediaStorageService.isProcessing(key)
+                        ? CacheControl.noCache()
+                        : CacheControl.maxAge(365, TimeUnit.DAYS).cachePublic().immutable())
                 .header("Content-Disposition", "inline")
                 .header("X-Content-Type-Options", "nosniff")
                 .body(resource);

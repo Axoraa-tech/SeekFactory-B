@@ -2,6 +2,11 @@ spring:
   application:
     name: axoraa
 
+  # Load local .env (if present) so DEV_DB_* / JWT_SECRET etc. resolve without
+  # exporting them to the shell. Real environment variables take precedence.
+  config:
+    import: optional:file:.env[.properties]
+
   profiles:
     active: ${SPRING_PROFILES_ACTIVE:dev}
 
@@ -52,7 +57,6 @@ spring:
 
   # ─── Jackson ─────────────────────────────────────────────────
   jackson:
-    serialization:
     default-property-inclusion: non_null
     property-naming-strategy: LOWER_CAMEL_CASE
 

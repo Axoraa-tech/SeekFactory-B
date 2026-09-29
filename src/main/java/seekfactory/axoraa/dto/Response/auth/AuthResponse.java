@@ -28,4 +28,7 @@ public class AuthResponse {
     private String role;
     private String companyName;
     private String avatarUrl;
+
+    /** True on the account's first sign-in (sign-up included); refreshes are never "first". */
+    private boolean firstLogin;
 }

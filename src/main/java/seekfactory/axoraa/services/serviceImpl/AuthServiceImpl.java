@@ -24,6 +24,8 @@ import seekfactory.axoraa.services.services.AccountService;
 import seekfactory.axoraa.services.services.AuthService;
 import seekfactory.axoraa.utils.JwtTokenProvider;
 
+import java.time.Instant;
+
 /**
  * Enterprise-grade authentication service.
  *
@@ -104,11 +106,10 @@ public class AuthServiceImpl implements AuthService {
         accountService.sendEmailVerification(savedUser);
 
         // 5. Generate JWT tokens and return
-        return buildAuthResponse(savedUser);
+        return signedIn(savedUser);
     }
 
     @Override
-    @Transactional(readOnly = true)
     public AuthResponse login(LoginRequest request) {
         // 1. Find user by email
         User user = userRepository.findByEmail(request.getEmail())
@@ -125,7 +126,7 @@ public class AuthServiceImpl implements AuthService {
         }
 
         log.info("User logged in: {} ({})", user.getEmail(), user.getRole());
-        return buildAuthResponse(user);
+        return signedIn(user);
     }
 
     @Override
@@ -155,7 +156,7 @@ public class AuthServiceImpl implements AuthService {
                 });
 
         log.info("Phone login: {} ({})", user.getPhone(), user.getRole());
-        return buildAuthResponse(user);
+        return signedIn(user);
     }
 
     @Override
@@ -203,6 +204,16 @@ public class AuthServiceImpl implements AuthService {
     }
 
     // ─── Private Helpers ──────────────────────────────────────
+
+    /** Tokens for an interactive sign-in, flagging the account's very first one. */
+    private AuthResponse signedIn(User user) {
+        boolean first = user.getLastLoginAt() == null;
+        user.setLastLoginAt(Instant.now());
+        userRepository.save(user);
+        AuthResponse response = buildAuthResponse(user);
+        response.setFirstLogin(first);
+        return response;
+    }
 
     private AuthResponse buildAuthResponse(User user) {
         String roleStr = user.getRole().name();

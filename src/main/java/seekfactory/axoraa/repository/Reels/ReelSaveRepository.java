@@ -23,4 +23,8 @@ public interface ReelSaveRepository extends JpaRepository<ReelSave, String> {
     @Query("SELECT s.reel.id FROM ReelSave s WHERE s.user.id = :userId AND s.reel.id IN :reelIds")
     List<String> findSavedReelIds(@Param("userId") String userId,
                                             @Param("reelIds") Collection<String> reelIds);
+
+    /** (reelId, count) rows for the given reels; reels with none are absent. */
+    @Query("SELECT s.reel.id, COUNT(s) FROM ReelSave s WHERE s.reel.id IN :reelIds GROUP BY s.reel.id")
+    List<Object[]> countByReelIds(@Param("reelIds") Collection<String> reelIds);
 }

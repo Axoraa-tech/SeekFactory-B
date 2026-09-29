@@ -7,6 +7,8 @@ import seekfactory.axoraa.enums.AuthProvider;
 import seekfactory.axoraa.enums.BuyerPlan;
 import seekfactory.axoraa.enums.UserRole;
 
+import java.time.Instant;
+
 
 /**
  * Represents a platform user — either a Buyer, Supplier (Manufacturer), or Admin.
@@ -84,6 +86,10 @@ public class User extends BaseEntity{
     @Column(name = "email_verified", nullable = false)
     @Builder.Default
     private Boolean emailVerified = false;
+
+    /** Last successful sign-in; null until the account signs in for the first time. */
+    @Column(name = "last_login_at")
+    private Instant lastLoginAt;
 
     @Column(name = "is_totp_enabled")
     @Builder.Default

@@ -93,7 +93,7 @@ public class ManufacturerServiceImpl implements ManufacturerService {
         // Buyer-facing: only approved factories, filtered in SQL rather than after
         // loading every manufacturer into memory.
         return manufacturerRepository.findByVerifiedTrue().stream()
-                .map(this::mapToResponse)
+                .map(catalogMapper::toManufacturer)
                 .collect(Collectors.toList());
     }
 

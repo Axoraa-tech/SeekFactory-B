@@ -1,0 +1,63 @@
+# ─── Production profile ─────────────────────────────────────────────────────────
+# Activate with SPRING_PROFILES_ACTIVE=prod. Everything here overrides application.yaml.
+# ProductionSafetyCheck refuses to start the app when a required secret is missing or weak.
+#
+# Required environment variables:
+#   PROD_DB_URL, PROD_DB_USERNAME, PROD_DB_PASSWORD  (or DB_URL / DB_USERNAME / DB_PASSWORD)
+#   JWT_SECRET               at least 32 random bytes, unique to this environment
+#   CORS_ALLOWED_ORIGINS     comma-separated, e.g. https://seekfactory.com,https://www.seekfactory.com
+
+spring:
+  datasource:
+    url: ${PROD_DB_URL:${DB_URL:${DATABASE_URL:}}}
+    username: ${PROD_DB_USERNAME:${DB_USERNAME:}}
+    password: ${PROD_DB_PASSWORD:${DB_PASSWORD:}}
+
+  jpa:
+    show-sql: false
+
+  # A migration that no longer matches its checksum must stop the deploy, not be silently repaired
+  flyway:
+    validate-on-migrate: true
+    repair-on-migrate: false
+
+app:
+  auth:
+    # No mock OTP in production: phone sign-in needs a real SMS provider
+    mock-otp: ""
+  cors:
+    allowed-origin-patterns: ${CORS_ALLOWED_ORIGINS}
+  logging:
+    # Request/response bodies carry names, phones, addresses and chats: never log them in prod
+    request-bodies: false
+
+# API docs are for development only
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+
+# Clients get the status and our own error body, never internal exception text or stack traces
+server:
+  error:
+    include-message: never
+    include-binding-errors: never
+    include-stacktrace: never
+    include-exception: false
+
+logging:
+  level:
+    root: INFO
+    seekfactory.axoraa: INFO
+    org.springframework.web: WARN
+    org.hibernate.SQL: WARN

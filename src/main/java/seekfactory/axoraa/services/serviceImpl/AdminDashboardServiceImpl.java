@@ -36,6 +36,18 @@ public class AdminDashboardServiceImpl implements AdminDashboardService {
     private static final Set<Integer> ALLOWED_PERIODS = Set.of(7, 30, 90, 365);
     private static final int TOP_COUNTRIES = 7;
 
+    /**
+     * Ids written by the V5 demo seed ('usr-admin', 'mfg-01', 'reel-01', ...). Every real row gets a UUID
+     * from BaseEntity, which can never start with one of these prefixes, so the dashboard can leave the
+     * demo rows out of its figures without deleting them. A test keeps this in step with the seed file.
+     */
+    static final String DEMO_ID_REGEX = "^(usr|mfg|prod|reel|com|rfq|quote|conv|msg|notif)-";
+
+    /** SQL predicate that is true for real (non-demo) rows; pass the qualified id column. */
+    private static String real(String idColumn) {
+        return idColumn + " !~ '" + DEMO_ID_REGEX + "'";
+    }
+
     private final UserRepository userRepository;
     private final ManufacturerRepository manufacturerRepository;
     private final RfqRepository rfqRepository;
@@ -78,24 +90,24 @@ public class AdminDashboardServiceImpl implements AdminDashboardService {
     private Totals loadTotals() {
         String sql = """
                 SELECT
-                  (SELECT count(*) FROM users)                                    AS users,
-                  (SELECT count(*) FROM users WHERE role = 'ROLE_BUYER')          AS buyers,
-                  (SELECT count(*) FROM users WHERE role = 'ROLE_SUPPLIER')       AS suppliers,
-                  (SELECT count(*) FROM users WHERE role = 'ROLE_ADMIN')          AS admins,
-                  (SELECT count(*) FROM users WHERE is_active)                    AS active_users,
-                  (SELECT count(*) FROM manufacturers)                            AS manufacturers,
-                  (SELECT count(*) FROM manufacturers WHERE verified)             AS verified_manufacturers,
-                  (SELECT count(*) FROM manufacturers WHERE premium)              AS premium_manufacturers,
-                  (SELECT count(*) FROM products)                                 AS products,
-                  (SELECT count(*) FROM products WHERE is_active)                 AS active_products,
-                  (SELECT count(*) FROM reels)                                    AS reels,
-                  (SELECT coalesce(sum(views_count), 0) FROM reels)               AS reel_views,
-                  (SELECT count(*) FROM rfqs)                                     AS rfqs,
-                  (SELECT count(*) FROM rfqs WHERE status = 'SUBMITTED')          AS pending_rfqs,
-                  (SELECT count(*) FROM rfq_quotes)                               AS quotes,
-                  (SELECT count(*) FROM conversations)                            AS conversations,
-                  (SELECT count(*) FROM messages)                                 AS messages
-                """;
+                  (SELECT count(*) FROM users WHERE %1$s)                                    AS users,
+                  (SELECT count(*) FROM users WHERE role = 'ROLE_BUYER' AND %1$s)            AS buyers,
+                  (SELECT count(*) FROM users WHERE role = 'ROLE_SUPPLIER' AND %1$s)         AS suppliers,
+                  (SELECT count(*) FROM users WHERE role = 'ROLE_ADMIN' AND %1$s)            AS admins,
+                  (SELECT count(*) FROM users WHERE is_active AND %1$s)                      AS active_users,
+                  (SELECT count(*) FROM manufacturers WHERE %1$s)                            AS manufacturers,
+                  (SELECT count(*) FROM manufacturers WHERE verified AND %1$s)               AS verified_manufacturers,
+                  (SELECT count(*) FROM manufacturers WHERE premium AND %1$s)                AS premium_manufacturers,
+                  (SELECT count(*) FROM products WHERE %1$s)                                 AS products,
+                  (SELECT count(*) FROM products WHERE is_active AND %1$s)                   AS active_products,
+                  (SELECT count(*) FROM reels WHERE %1$s)                                    AS reels,
+                  (SELECT coalesce(sum(views_count), 0) FROM reels WHERE %1$s)               AS reel_views,
+                  (SELECT count(*) FROM rfqs WHERE %1$s)                                     AS rfqs,
+                  (SELECT count(*) FROM rfqs WHERE status = 'SUBMITTED' AND %1$s)            AS pending_rfqs,
+                  (SELECT count(*) FROM rfq_quotes WHERE %1$s)                               AS quotes,
+                  (SELECT count(*) FROM conversations WHERE %1$s)                            AS conversations,
+                  (SELECT count(*) FROM messages WHERE %1$s)                                 AS messages
+                """.formatted(real("id"));
         return jdbcTemplate.queryForObject(sql, (rs, i) -> Totals.builder()
                 .users(rs.getLong("users"))
                 .buyers(rs.getLong("buyers"))
@@ -120,13 +132,14 @@ public class AdminDashboardServiceImpl implements AdminDashboardService {
     /** New records per table in the current period vs the previous period of equal length. */
     private List<Kpi> loadKpis(int period) {
         Map<String, String> sources = new java.util.LinkedHashMap<>();
-        sources.put("buyers", "users WHERE role = 'ROLE_BUYER' AND");
-        sources.put("suppliers", "users WHERE role = 'ROLE_SUPPLIER' AND");
-        sources.put("manufacturers", "manufacturers WHERE");
-        sources.put("products", "products WHERE");
-        sources.put("rfqs", "rfqs WHERE");
-        sources.put("quotes", "rfq_quotes WHERE");
-        sources.put("messages", "messages WHERE");
+        String real = real("id") + " AND";
+        sources.put("buyers", "users WHERE role = 'ROLE_BUYER' AND " + real);
+        sources.put("suppliers", "users WHERE role = 'ROLE_SUPPLIER' AND " + real);
+        sources.put("manufacturers", "manufacturers WHERE " + real);
+        sources.put("products", "products WHERE " + real);
+        sources.put("rfqs", "rfqs WHERE " + real);
+        sources.put("quotes", "rfq_quotes WHERE " + real);
+        sources.put("messages", "messages WHERE " + real);
 
         List<Kpi> kpis = new ArrayList<>();
         sources.forEach((key, from) -> {
@@ -153,8 +166,9 @@ public class AdminDashboardServiceImpl implements AdminDashboardService {
                 LEFT JOIN users u
                   ON date_trunc('%1$s', u.created_at) = b.s
                  AND u.created_at >= now() - make_interval(days => ?)
+                 AND %2$s
                 GROUP BY b.s ORDER BY b.s
-                """.formatted(bucket);
+                """.formatted(bucket, real("u.id"));
         return jdbcTemplate.query(sql, (rs, i) -> SignupPoint.builder()
                 .bucketStart(toInstant(rs.getTimestamp("bucket_start")))
                 .buyers(rs.getLong("buyers"))
@@ -169,8 +183,9 @@ public class AdminDashboardServiceImpl implements AdminDashboardService {
                 LEFT JOIN rfqs r
                   ON date_trunc('%1$s', r.created_at) = b.s
                  AND r.created_at >= now() - make_interval(days => ?)
+                 AND %2$s
                 GROUP BY b.s ORDER BY b.s
-                """.formatted(bucket);
+                """.formatted(bucket, real("r.id"));
         return jdbcTemplate.query(sql, (rs, i) -> CountPoint.builder()
                 .bucketStart(toInstant(rs.getTimestamp("bucket_start")))
                 .count(rs.getLong("cnt"))
@@ -180,7 +195,7 @@ public class AdminDashboardServiceImpl implements AdminDashboardService {
     /** Every status in pipeline order, including zero counts, so the funnel shape is stable. */
     private List<LabelCount> loadRfqsByStatus() {
         Map<String, Long> counts = new HashMap<>();
-        jdbcTemplate.query("SELECT status, count(*) AS cnt FROM rfqs GROUP BY status",
+        jdbcTemplate.query("SELECT status, count(*) AS cnt FROM rfqs WHERE " + real("id") + " GROUP BY status",
                 rs -> { counts.put(rs.getString("status"), rs.getLong("cnt")); });
 
         List<LabelCount> result = new ArrayList<>();
@@ -194,8 +209,8 @@ public class AdminDashboardServiceImpl implements AdminDashboardService {
     private List<LabelCount> loadUsersByCountry() {
         List<LabelCount> all = jdbcTemplate.query("""
                 SELECT coalesce(nullif(trim(country), ''), 'Unknown') AS label, count(*) AS cnt
-                FROM users GROUP BY 1 ORDER BY cnt DESC, label
-                """, (rs, i) -> new LabelCount(rs.getString("label"), rs.getLong("cnt")));
+                FROM users WHERE %s GROUP BY 1 ORDER BY cnt DESC, label
+                """.formatted(real("id")), (rs, i) -> new LabelCount(rs.getString("label"), rs.getLong("cnt")));
 
         if (all.size() <= TOP_COUNTRIES + 1) {
             return all;
@@ -210,8 +225,9 @@ public class AdminDashboardServiceImpl implements AdminDashboardService {
         return jdbcTemplate.query("""
                 SELECT coalesce(c.name, 'Uncategorised') AS label, count(*) AS cnt
                 FROM rfqs r LEFT JOIN categories c ON c.id = r.category_id
+                WHERE %s
                 GROUP BY 1 ORDER BY cnt DESC, label LIMIT 6
-                """, (rs, i) -> new LabelCount(rs.getString("label"), rs.getLong("cnt")));
+                """.formatted(real("r.id")), (rs, i) -> new LabelCount(rs.getString("label"), rs.getLong("cnt")));
     }
 
     /** Latest platform events across entities. No emails or contact details are exposed. */
@@ -224,18 +240,18 @@ public class AdminDashboardServiceImpl implements AdminDashboardService {
                                                     ELSE 'Admin' END,
                                    nullif(company_name, ''), nullif(country, '')) AS subtitle,
                          created_at
-                  FROM users
+                  FROM users WHERE %1$s
                   UNION ALL
                   SELECT 'MANUFACTURER_JOINED', name,
                          concat_ws(' · ', nullif(location, ''), nullif(country, ''),
                                    CASE WHEN verified THEN 'Verified' END),
                          created_at
-                  FROM manufacturers
+                  FROM manufacturers WHERE %2$s
                   UNION ALL
                   SELECT 'RFQ_CREATED', product_name,
                          concat_ws(' · ', reference_number, nullif(company_name, ''), status),
                          created_at
-                  FROM rfqs
+                  FROM rfqs WHERE %3$s
                   UNION ALL
                   SELECT 'QUOTE_SUBMITTED', coalesce(r.product_name, 'RFQ quote'),
                          concat_ws(' · ', m.name, r.reference_number),
@@ -243,14 +259,17 @@ public class AdminDashboardServiceImpl implements AdminDashboardService {
                   FROM rfq_quotes q
                   LEFT JOIN rfqs r ON r.id = q.rfq_id
                   LEFT JOIN manufacturers m ON m.id = q.manufacturer_id
+                  WHERE %4$s
                   UNION ALL
                   SELECT 'PRODUCT_ADDED', p.name, m.name, p.created_at
                   FROM products p LEFT JOIN manufacturers m ON m.id = p.manufacturer_id
+                  WHERE %5$s
                 ) events
                 WHERE created_at IS NOT NULL
                 ORDER BY created_at DESC
                 LIMIT 12
-                """, (rs, i) -> Activity.builder()
+                """.formatted(real("id"), real("id"), real("id"), real("q.id"), real("p.id")),
+                (rs, i) -> Activity.builder()
                 .type(rs.getString("type"))
                 .title(rs.getString("title"))
                 .subtitle(rs.getString("subtitle"))

@@ -6,6 +6,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
@@ -27,6 +28,10 @@ import java.util.Set;
 public class ApiLoggingFilter extends OncePerRequestFilter {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    /** Bodies carry personal data (names, phones, addresses, chats); prod turns this off. */
+    @Value("${app.logging.request-bodies:true}")
+    private boolean logBodies;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
@@ -53,8 +58,9 @@ public class ApiLoggingFilter extends OncePerRequestFilter {
         String queryString = req.getQueryString() != null ? "?" + req.getQueryString() : "";
         int status = res.getStatus();
 
-        // Auth calls carry passwords, OTPs and tokens: never write their bodies to the log
-        boolean sensitive = uri.contains("/auth/");
+        // Auth calls carry passwords, OTPs and tokens: never write their bodies to the log.
+        // Production skips bodies entirely (app.logging.request-bodies=false).
+        boolean sensitive = !logBodies || uri.contains("/auth/");
         String reqBody = sensitive ? "" : formatJson(getPayload(req.getContentAsByteArray()));
         String resBody = sensitive ? "" : formatJson(getPayload(res.getContentAsByteArray()));
 

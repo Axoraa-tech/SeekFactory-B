@@ -53,6 +53,7 @@ import seekfactory.axoraa.repository.ViewEventRepository;
 import seekfactory.axoraa.services.services.FactoryService;
 import seekfactory.axoraa.services.services.NotificationService;
 import seekfactory.axoraa.services.services.ResponseMetrics;
+import seekfactory.axoraa.utils.SlugUtils;
 import seekfactory.axoraa.utils.CategoryTree;
 
 import java.time.Duration;
@@ -314,8 +315,8 @@ public class FactoryServiceImpl implements FactoryService {
                 ? request.getImageUrls() : List.of(request.getImageUrl());
         gallery = validGallery(gallery);
 
-        String baseSlug = request.getName().toLowerCase().replaceAll("[^a-z0-9]+", "-");
-        String uniqueSlug = baseSlug + "-" + (System.currentTimeMillis() % 100000);
+        // Random suffix: the old millisecond counter could repeat and hit the unique constraint (500)
+        String uniqueSlug = SlugUtils.uniqueSlug(request.getName(), "product");
 
         Product product = Product.builder()
                 .name(request.getName())

@@ -26,6 +26,8 @@ import org.springframework.web.multipart.MultipartFile;
 import java.util.concurrent.TimeUnit;
 import seekfactory.axoraa.utils.SecurityUtils;
 
+import java.net.URI;
+import java.util.Optional;
 import java.util.List;
 
 /**
@@ -70,6 +72,14 @@ public class ConversationController {
     @Operation(summary = "Download a message attachment (participants only)")
     public ResponseEntity<Resource> downloadAttachment(@PathVariable String id, @PathVariable String key) {
         Resource file = conversationService.loadAttachment(id, SecurityUtils.getCurrentUserId(), key);
+        // Bucket storage: the participant check above passed, so hand out a short-lived signed link
+        Optional<String> signed = mediaStorageService.privateUrl(id, key);
+        if (signed.isPresent()) {
+            return ResponseEntity.status(HttpStatus.FOUND)
+                    .location(URI.create(signed.get()))
+                    .cacheControl(CacheControl.noStore())
+                    .build();
+        }
         String contentType = mediaStorageService.contentTypeOf(key);
         ResponseEntity.BodyBuilder response = ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(contentType))

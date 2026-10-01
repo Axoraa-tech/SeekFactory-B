@@ -6,6 +6,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import seekfactory.axoraa.dto.Request.order.CartCheckoutRequest;
 import seekfactory.axoraa.dto.Request.order.OrderContactRequest;
 import seekfactory.axoraa.dto.Request.order.OrderCreateRequest;
 import seekfactory.axoraa.dto.Request.order.OrderStatusUpdateRequest;
@@ -87,6 +88,60 @@ class OrderServiceImplBuyerTest {
         return new OrderContactRequest("Arjun", "+91 90000 00000", "Plot 1, Pune", null);
     }
 
+    /** Checkout without a selection: every line, shared note. */
+    private static CartCheckoutRequest checkoutAll() {
+        return new CartCheckoutRequest("Arjun", "+91 90000 00000", "Plot 1, Pune", null, null);
+    }
+
+    private CartItem cartLine(String id, Product p, int quantity) {
+        CartItem item = CartItem.builder().user(buyer).product(p).quantity(quantity).build();
+        item.setId(id);
+        return item;
+    }
+
+    private Product bracket() {
+        Product second = Product.builder().name("Bracket").slug("bracket").manufacturer(factory)
+                .priceInr(new BigDecimal("200")).unit("Piece").isActive(true).build();
+        second.setId("p-2");
+        return second;
+    }
+
+    @Test
+    void checkoutSendsOnlySelectedLinesEachWithItsOwnNote() {
+        CartItem housing = cartLine("c-1", product, 60);
+        CartItem bracket = cartLine("c-2", bracket(), 5);
+        CartItem later = cartLine("c-3", bracket(), 9);
+        when(cartItemRepository.findByUserIdOrderByCreatedAtDesc("u-buyer")).thenReturn(List.of(housing, bracket, later));
+
+        List<OrderResponse> placed = service.checkout("u-buyer", new CartCheckoutRequest("Arjun", "+91 90000 00000",
+                "Plot 1, Pune", "Shared note", List.of(
+                        new CartCheckoutRequest.Line("c-2", "Zinc plated, ship by sea"),
+                        new CartCheckoutRequest.Line("c-1", "  "))));
+
+        assertThat(placed).extracting(OrderResponse::getProductName).containsExactly("Bracket", "HPDC Housing");
+        // Own note when given, otherwise the shared one
+        assertThat(placed).extracting(OrderResponse::getBuyerNote).containsExactly("Zinc plated, ship by sea", "Shared note");
+        // The unselected line stays in the cart
+        verify(cartItemRepository).deleteAll(List.of(bracket, housing));
+        verify(notificationRepository, times(2)).save(any());
+    }
+
+    @Test
+    void checkoutRejectsLinesNotInTheCartAndWritesNothing() {
+        when(cartItemRepository.findByUserIdOrderByCreatedAtDesc("u-buyer")).thenReturn(List.of(cartLine("c-1", product, 60)));
+
+        for (List<CartCheckoutRequest.Line> lines : List.of(
+                List.of(new CartCheckoutRequest.Line("c-other-users", null)),
+                List.of(new CartCheckoutRequest.Line("c-1", null), new CartCheckoutRequest.Line("c-1", null)))) {
+            assertThatThrownBy(() -> service.checkout("u-buyer",
+                    new CartCheckoutRequest("Arjun", "+91 90000 00000", "Plot 1, Pune", null, lines)))
+                    .isInstanceOf(BadRequestException.class)
+                    .hasMessageContaining("no longer in your cart");
+        }
+        verify(orderRepository, never()).save(any());
+        verify(cartItemRepository, never()).deleteAll(any());
+    }
+
     @Test
     void orderBelowMinimumQuantityIsRejected() {
         assertThatThrownBy(() -> service.placeOrder("u-buyer", new OrderCreateRequest("hpdc", 49, null)))
@@ -115,7 +170,7 @@ class OrderServiceImplBuyerTest {
                 CartItem.builder().user(buyer).product(second).quantity(5).build());
         when(cartItemRepository.findByUserIdOrderByCreatedAtDesc("u-buyer")).thenReturn(cart);
 
-        List<OrderResponse> placed = service.checkout("u-buyer", contact());
+        List<OrderResponse> placed = service.checkout("u-buyer", checkoutAll());
 
         assertThat(placed).hasSize(2).allSatisfy(o -> {
             assertThat(o.getSource()).isEqualTo("CART");
@@ -130,7 +185,7 @@ class OrderServiceImplBuyerTest {
         List<CartItem> cart = List.of(CartItem.builder().user(buyer).product(product).quantity(10).build());
         when(cartItemRepository.findByUserIdOrderByCreatedAtDesc("u-buyer")).thenReturn(cart);
 
-        assertThatThrownBy(() -> service.checkout("u-buyer", contact())).isInstanceOf(BadRequestException.class);
+        assertThatThrownBy(() -> service.checkout("u-buyer", checkoutAll())).isInstanceOf(BadRequestException.class);
         verify(orderRepository, never()).save(any());
         verify(cartItemRepository, never()).deleteAll(any());
     }

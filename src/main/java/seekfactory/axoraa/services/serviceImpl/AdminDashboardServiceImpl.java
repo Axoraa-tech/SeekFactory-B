@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import seekfactory.axoraa.dto.Response.admin.AdminAnalyticsResponse;
 import seekfactory.axoraa.dto.Response.admin.AdminAnalyticsResponse.Activity;
@@ -26,6 +27,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.function.Supplier;
 
 @Slf4j
 @Service
@@ -53,6 +58,9 @@ public class AdminDashboardServiceImpl implements AdminDashboardService {
     private final RfqRepository rfqRepository;
     private final JdbcTemplate jdbcTemplate;
 
+    /** Cheap virtual threads; concurrency is bounded by the Hikari pool, not by this executor. */
+    private final ExecutorService queryExecutor = Executors.newVirtualThreadPerTaskExecutor();
+
     @Override
     public AdminDashboardStatsResponse getDashboardStats() {
         long totalUsers = userRepository.count();
@@ -66,25 +74,44 @@ public class AdminDashboardServiceImpl implements AdminDashboardService {
                 .build();
     }
 
+    /**
+     * Runs the independent read queries concurrently. They are separate round trips to a remote
+     * database, so running them one after another made the dashboard take several seconds. No class-level
+     * transaction here: each query borrows its own pooled connection on its worker thread.
+     */
     @Override
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public AdminAnalyticsResponse getAnalytics(int days) {
         int period = ALLOWED_PERIODS.contains(days) ? days : 30;
         // Whitelisted, never user-supplied text, so it is safe to inline into date_trunc / interval
         String bucket = period <= 31 ? "day" : period <= 90 ? "week" : "month";
 
+        var totals = async(this::loadTotals);
+        var kpis = async(() -> loadKpis(period));
+        var signups = async(() -> loadSignups(period, bucket));
+        var rfqsOverTime = async(() -> loadRfqsOverTime(period, bucket));
+        var rfqsByStatus = async(this::loadRfqsByStatus);
+        var usersByCountry = async(this::loadUsersByCountry);
+        var topRfqCategories = async(this::loadTopRfqCategories);
+        var recentActivity = async(this::loadRecentActivity);
+
         return AdminAnalyticsResponse.builder()
                 .periodDays(period)
                 .bucket(bucket)
                 .generatedAt(Instant.now())
-                .totals(loadTotals())
-                .kpis(loadKpis(period))
-                .signups(loadSignups(period, bucket))
-                .rfqsOverTime(loadRfqsOverTime(period, bucket))
-                .rfqsByStatus(loadRfqsByStatus())
-                .usersByCountry(loadUsersByCountry())
-                .topRfqCategories(loadTopRfqCategories())
-                .recentActivity(loadRecentActivity())
+                .totals(totals.join())
+                .kpis(kpis.join())
+                .signups(signups.join())
+                .rfqsOverTime(rfqsOverTime.join())
+                .rfqsByStatus(rfqsByStatus.join())
+                .usersByCountry(usersByCountry.join())
+                .topRfqCategories(topRfqCategories.join())
+                .recentActivity(recentActivity.join())
                 .build();
+    }
+
+    private <T> CompletableFuture<T> async(Supplier<T> query) {
+        return CompletableFuture.supplyAsync(query, queryExecutor);
     }
 
     private Totals loadTotals() {
@@ -141,20 +168,23 @@ public class AdminDashboardServiceImpl implements AdminDashboardService {
         sources.put("quotes", "rfq_quotes WHERE " + real);
         sources.put("messages", "messages WHERE " + real);
 
-        List<Kpi> kpis = new ArrayList<>();
+        // One UNION ALL statement instead of one query per table: the database is remote, so each
+        // separate statement costs a full network round trip.
+        List<String> branches = new ArrayList<>();
+        List<Object> params = new ArrayList<>();
         sources.forEach((key, from) -> {
-            String sql = "SELECT"
+            branches.add("SELECT '" + key + "' AS key,"
                     + " count(*) FILTER (WHERE created_at >= now() - make_interval(days => ?)) AS cur,"
                     + " count(*) FILTER (WHERE created_at >= now() - make_interval(days => ?)"
                     + "                    AND created_at <  now() - make_interval(days => ?)) AS prev"
-                    + " FROM " + from + " created_at >= now() - make_interval(days => ?)";
-            kpis.add(jdbcTemplate.queryForObject(sql, (rs, i) -> Kpi.builder()
-                    .key(key)
-                    .current(rs.getLong("cur"))
-                    .previous(rs.getLong("prev"))
-                    .build(), period, period * 2, period, period * 2));
+                    + " FROM " + from + " created_at >= now() - make_interval(days => ?)");
+            params.addAll(List.of(period, period * 2, period, period * 2));
         });
-        return kpis;
+        return jdbcTemplate.query(String.join(" UNION ALL ", branches), (rs, i) -> Kpi.builder()
+                .key(rs.getString("key"))
+                .current(rs.getLong("cur"))
+                .previous(rs.getLong("prev"))
+                .build(), params.toArray());
     }
 
     private List<SignupPoint> loadSignups(int period, String bucket) {

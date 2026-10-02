@@ -37,6 +37,7 @@ class AuthServiceImplFirstLoginTest {
     @Mock private JwtTokenProvider jwtTokenProvider;
     @Mock private JwtConfig jwtConfig;
     @Mock private AccountService accountService;
+    @Mock private seekfactory.axoraa.services.services.PresenceService presenceService;
 
     @InjectMocks private AuthServiceImpl service;
 

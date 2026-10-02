@@ -16,6 +16,9 @@ public interface ConversationService {
 
     List<ConversationResponse> listRecent(String userId, int limit);
 
+    /** Unread messages across every conversation of the user (buyer or factory side). */
+    long unreadCount(String userId);
+
     ConversationResponse getOrCreateConversation(String userId, StartConversationRequest request);
 
     List<MessageResponse> getMessages(String conversationId, String userId);

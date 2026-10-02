@@ -21,5 +21,9 @@ public class ConversationResponse {
     private String lastMessage;
     private String lastMessageAt;
     private int unreadCount;
+    /** The other side of the chat is signed in and active right now (the green dot). */
+    private boolean counterpartOnline;
+    /** When the other side was last active, if known (ISO-8601). */
+    private String counterpartLastSeenAt;
     private ManufacturerResponse manufacturer;
 }

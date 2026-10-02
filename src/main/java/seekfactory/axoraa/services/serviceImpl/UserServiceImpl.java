@@ -86,6 +86,10 @@ public class UserServiceImpl implements UserService {
         } catch (IllegalArgumentException e) {
             throw new BadRequestException("Unknown plan: " + plan);
         }
+        // Paid plans are only activated when an admin approves the payment (see PlanPaymentService)
+        if (buyerPlan != BuyerPlan.FREE && buyerPlan != user.getBuyerPlan()) {
+            throw new BadRequestException("Paid plans are activated after your payment is approved");
+        }
         user.setBuyerPlan(buyerPlan);
         log.info("User {} switched to buyer plan {}", userId, buyerPlan);
         return mapToResponse(userRepository.save(user));

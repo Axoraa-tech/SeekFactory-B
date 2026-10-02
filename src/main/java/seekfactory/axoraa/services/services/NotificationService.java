@@ -16,6 +16,9 @@ public interface NotificationService {
 
     void markAsRead(String id, String userId);
 
+    /** Marks the user's unread notifications about one thing read, e.g. a chat they just opened. */
+    void markReadByReference(String userId, NotificationType type, String referenceId);
+
     void deleteNotification(String id, String userId);
 
     /** Creates a notification for the user. A null user (e.g. a factory with no account) is ignored. */

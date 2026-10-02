@@ -1,5 +1,6 @@
 package seekfactory.axoraa.services.serviceImpl;
 
+import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
@@ -10,9 +11,18 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
 import seekfactory.axoraa.services.services.MailService;
 
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+
 /**
  * Sends through SMTP when configured via environment variables
  * (SPRING_MAIL_HOST, SPRING_MAIL_PORT, SPRING_MAIL_USERNAME, SPRING_MAIL_PASSWORD, APP_MAIL_FROM).
+ *
+ * Delivery runs on a small background pool so sign-up and password reset return immediately
+ * even when the mail server is slow; failures are logged, never shown to the caller.
  *
  * Without SMTP the message is not delivered. Under the dev profile its body (with the
  * link) is logged so reset and verification can be tested locally; other profiles never
@@ -25,6 +35,16 @@ public class SmtpMailService implements MailService {
     private final ObjectProvider<JavaMailSender> mailSender;
     private final String from;
     private final boolean devProfile;
+    private final ExecutorService executor = Executors.newFixedThreadPool(2, new ThreadFactory() {
+        private final AtomicInteger count = new AtomicInteger();
+
+        @Override
+        public Thread newThread(Runnable task) {
+            Thread thread = new Thread(task, "mail-sender-" + count.incrementAndGet());
+            thread.setDaemon(true);
+            return thread;
+        }
+    });
 
     public SmtpMailService(ObjectProvider<JavaMailSender> mailSender,
                            Environment environment,
@@ -45,15 +65,25 @@ public class SmtpMailService implements MailService {
             }
             return;
         }
-        try {
-            SimpleMailMessage message = new SimpleMailMessage();
-            message.setFrom(from);
-            message.setTo(to);
-            message.setSubject(subject);
-            message.setText(body);
-            sender.send(message);
-        } catch (Exception e) {
-            log.error("Failed to send email '{}' to {}: {}", subject, to, e.getMessage());
-        }
+        SimpleMailMessage message = new SimpleMailMessage();
+        message.setFrom(from);
+        message.setTo(to);
+        message.setSubject(subject);
+        message.setText(body);
+        executor.execute(() -> {
+            try {
+                sender.send(message);
+                log.info("Email '{}' sent to {}", subject, to);
+            } catch (Exception e) {
+                log.error("Failed to send email '{}' to {}: {}", subject, to, e.getMessage());
+            }
+        });
+    }
+
+    /** Lets queued emails finish on shutdown (bounded, so a dead mail server cannot hang it). */
+    @PreDestroy
+    void shutdown() throws InterruptedException {
+        executor.shutdown();
+        executor.awaitTermination(20, TimeUnit.SECONDS);
     }
 }

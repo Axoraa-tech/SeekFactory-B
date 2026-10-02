@@ -11,6 +11,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
+import seekfactory.axoraa.services.services.PresenceService;
 import seekfactory.axoraa.utils.JwtTokenProvider;
 
 import java.io.IOException;
@@ -33,6 +34,7 @@ import java.util.List;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtTokenProvider jwtTokenProvider;
+    private final PresenceService presenceService;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
@@ -55,6 +57,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
             // Set in SecurityContext — available via SecurityContextHolder throughout the request
             SecurityContextHolder.getContext().setAuthentication(authentication);
+
+            // Any signed-in call (including the web app's 30s heartbeat) keeps the user "online"
+            presenceService.touch(userId);
         }
 
         filterChain.doFilter(request, response);

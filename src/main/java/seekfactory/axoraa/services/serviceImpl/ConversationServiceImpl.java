@@ -26,6 +26,7 @@ import seekfactory.axoraa.repository.UserRepository;
 import seekfactory.axoraa.services.services.ConversationService;
 import seekfactory.axoraa.services.services.NotificationService;
 import seekfactory.axoraa.services.services.SseService;
+import seekfactory.axoraa.services.services.PresenceService;
 import seekfactory.axoraa.services.services.MediaStorageService;
 import seekfactory.axoraa.services.services.OrderService;
 import seekfactory.axoraa.repository.OrderRequestRepository;
@@ -65,6 +66,7 @@ public class ConversationServiceImpl implements ConversationService {
     private final MediaStorageService mediaStorageService;
     private final RfqRepository rfqRepository;
     private final NotificationService notificationService;
+    private final PresenceService presenceService;
 
     @Override
     @Transactional(readOnly = true)
@@ -89,6 +91,19 @@ public class ConversationServiceImpl implements ConversationService {
         return conversations.stream()
                 .map(c -> mapToResponse(c, isSupplier))
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public long unreadCount(String userId) {
+        // Same side as listRecent: a factory account counts its factory inbox
+        Optional<Manufacturer> mfgOpt = manufacturerRepository.findByUserId(userId);
+        if (mfgOpt.isPresent()) {
+            return conversationRepository.findByManufacturerIdOrderByLastMessageAtDesc(mfgOpt.get().getId())
+                    .stream().mapToLong(Conversation::getUnreadCountSupplier).sum();
+        }
+        return conversationRepository.findByBuyerIdOrderByLastMessageAtDesc(userId)
+                .stream().mapToLong(Conversation::getUnreadCountBuyer).sum();
     }
 
     @Override
@@ -157,15 +172,25 @@ public class ConversationServiceImpl implements ConversationService {
                 .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
 
         SenderType senderType;
+        User recipient;
         if (conversation.getBuyer().getId().equals(userId)) {
             senderType = SenderType.USER;
-            conversation.setUnreadCountSupplier(conversation.getUnreadCountSupplier() + 1);
+            recipient = conversation.getManufacturer().getUser();
         } else if (conversation.getManufacturer().getUser() != null &&
                 conversation.getManufacturer().getUser().getId().equals(userId)) {
             senderType = SenderType.FACTORY;
-            conversation.setUnreadCountBuyer(conversation.getUnreadCountBuyer() + 1);
+            recipient = conversation.getBuyer();
         } else {
             throw new ForbiddenException("You are not a participant of this conversation");
+        }
+        // A recipient with this chat open reads the message live: no unread count, no alert
+        boolean recipientWatching = recipient != null && sseService.isWatching(conversationId, recipient.getId());
+        if (!recipientWatching) {
+            if (senderType == SenderType.USER) {
+                conversation.setUnreadCountSupplier(conversation.getUnreadCountSupplier() + 1);
+            } else {
+                conversation.setUnreadCountBuyer(conversation.getUnreadCountBuyer() + 1);
+            }
         }
 
         String text = request.getMessageText() == null ? "" : request.getMessageText().trim();
@@ -204,7 +229,7 @@ public class ConversationServiceImpl implements ConversationService {
                 .attachmentUrl(attachmentUrl)
                 .attachmentContentType(attachmentContentType)
                 .order(order)
-                .isRead(false)
+                .isRead(recipientWatching)
                 .build();
         message = messageRepository.save(message);
         conversation.setLastMessageText(!text.isEmpty() ? text
@@ -212,7 +237,9 @@ public class ConversationServiceImpl implements ConversationService {
         conversation.setLastMessageAt(OffsetDateTime.now());
         conversationRepository.save(conversation);
 
-        notifyRecipient(conversation, user, senderType, conversation.getLastMessageText());
+        if (!recipientWatching) {
+            notifyRecipient(conversation, user, senderType, conversation.getLastMessageText());
+        }
 
         MessageResponse response = mapToMessageResponse(message);
         sseService.pushMessageToConversation(conversationId, response);
@@ -241,6 +268,9 @@ public class ConversationServiceImpl implements ConversationService {
                 messageRepository.save(msg);
             }
         }
+
+        // Opening the chat also settles its "New message from ..." alert
+        notificationService.markReadByReference(userId, NotificationType.MESSAGE, conversationId);
     }
 
     // ─── Private Helpers ──────────────────────────────────────
@@ -391,6 +421,9 @@ public class ConversationServiceImpl implements ConversationService {
                 .collect(Collectors.toList()));
 
         int unread = isSupplierView ? conversation.getUnreadCountSupplier() : conversation.getUnreadCountBuyer();
+        User counterpart = isSupplierView ? conversation.getBuyer() : manufacturer.getUser();
+        String counterpartId = counterpart != null ? counterpart.getId() : null;
+        java.time.Instant lastSeen = presenceService.lastSeen(counterpartId);
         
         String buyerCompany = conversation.getBuyer().getCompanyName();
         if (buyerCompany == null || buyerCompany.trim().isEmpty()) {
@@ -408,6 +441,8 @@ public class ConversationServiceImpl implements ConversationService {
                 .lastMessageAt(conversation.getLastMessageAt() != null
                         ? conversation.getLastMessageAt().toString() : null)
                 .unreadCount(unread)
+                .counterpartOnline(presenceService.isOnline(counterpartId))
+                .counterpartLastSeenAt(lastSeen != null ? lastSeen.toString() : null)
                 .manufacturer(mfgResponse)
                 .build();
     }

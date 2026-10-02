@@ -27,6 +27,7 @@ import java.util.concurrent.TimeUnit;
 import seekfactory.axoraa.utils.SecurityUtils;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * B2B messaging / conversations — AUTHENTICATED only.
@@ -45,8 +46,9 @@ public class ConversationController {
     @Operation(summary = "Subscribe to real-time message stream via Server-Sent Events (SSE)")
     public SseEmitter streamMessages(@PathVariable String id) {
         // Only the buyer and the factory of this conversation may listen to it
-        conversationService.assertParticipant(id, SecurityUtils.getCurrentUserId());
-        return sseService.subscribe(id);
+        String userId = SecurityUtils.getCurrentUserId();
+        conversationService.assertParticipant(id, userId);
+        return sseService.subscribe(id, userId);
     }
 
     @GetMapping("/{id}/orders")
@@ -91,6 +93,13 @@ public class ConversationController {
         String userId = SecurityUtils.getCurrentUserId();
         return ResponseEntity.ok(ApiResponse.of(
                 conversationService.listRecent(userId, limit)));
+    }
+
+    @GetMapping("/unread-count")
+    @Operation(summary = "Unread messages across all of the viewer's conversations")
+    public ResponseEntity<ApiResponse<Map<String, Long>>> unreadCount() {
+        String userId = SecurityUtils.getCurrentUserId();
+        return ResponseEntity.ok(ApiResponse.of(Map.of("count", conversationService.unreadCount(userId))));
     }
 
     @PostMapping

@@ -47,6 +47,20 @@ spring:
         order_inserts: true
         order_updates: true
 
+  # ─── Mail (SMTP) ────────────────────────────────────────────
+  # Host / port / username / password come from SPRING_MAIL_* env vars (see .env.example).
+  # Without SPRING_MAIL_HOST no email is sent (dev logs the message instead).
+  mail:
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true        # port 587; for port 465 set SPRING_MAIL_PROPERTIES_MAIL_SMTP_SSL_ENABLE=true
+          connectiontimeout: 10000
+          timeout: 10000
+          writetimeout: 10000
+
   # ─── Flyway ─────────────────────────────────────────────────
   flyway:
     enabled: true

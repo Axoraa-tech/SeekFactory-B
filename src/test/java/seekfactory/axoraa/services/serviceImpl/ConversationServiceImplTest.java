@@ -16,6 +16,7 @@ import seekfactory.axoraa.entity.Messages.Conversation;
 import seekfactory.axoraa.entity.Messages.Message;
 import seekfactory.axoraa.entity.OrderRequest;
 import seekfactory.axoraa.entity.User;
+import seekfactory.axoraa.enums.NotificationType;
 import seekfactory.axoraa.enums.OrderStatus;
 import seekfactory.axoraa.exceptions.BadRequestException;
 import seekfactory.axoraa.exceptions.ForbiddenException;
@@ -27,14 +28,17 @@ import seekfactory.axoraa.repository.UserRepository;
 import seekfactory.axoraa.services.services.MediaStorageService;
 import seekfactory.axoraa.services.services.NotificationService;
 import seekfactory.axoraa.services.services.OrderService;
+import seekfactory.axoraa.services.services.PresenceService;
 import seekfactory.axoraa.services.services.SseService;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
@@ -54,6 +58,7 @@ class ConversationServiceImplTest {
     @Mock private OrderService orderService;
     @Mock private MediaStorageService mediaStorageService;
     @Mock private NotificationService notificationService;
+    @Mock private PresenceService presenceService;
 
     @InjectMocks private ConversationServiceImpl service;
 
@@ -165,5 +170,57 @@ class ConversationServiceImplTest {
     void anotherFactoryCannotOpenChatForTheOrder() {
         when(orderRequestRepository.findById("o-1")).thenReturn(Optional.of(order));
         assertThatThrownBy(() -> service.openForOrder("u-other-supplier", "o-1")).isInstanceOf(ForbiddenException.class);
+    }
+
+    @Test
+    void messageToSomeoneWatchingTheChatIsReadLiveWithoutAlert() {
+        when(sseService.isWatching("c-1", "u-buyer")).thenReturn(true);
+
+        MessageResponse res = service.sendMessage("c-1", "u-supplier", MessageSendRequest.builder().messageText("Hi").build());
+
+        assertThat(res.isRead()).isTrue();
+        assertThat(conversation.getUnreadCountBuyer()).isZero();
+        verify(notificationService, never()).notifyOnce(any(), any(), anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void messageToSomeoneAwayCountsAsUnreadAndAlerts() {
+        MessageResponse res = service.sendMessage("c-1", "u-supplier", MessageSendRequest.builder().messageText("Hi").build());
+
+        assertThat(res.isRead()).isFalse();
+        assertThat(conversation.getUnreadCountBuyer()).isEqualTo(1);
+        verify(notificationService).notifyOnce(eq(buyer), eq(NotificationType.MESSAGE), anyString(), eq("Hi"), eq("c-1"));
+    }
+
+    @Test
+    void openingTheChatClearsItsUnreadCountAndMessageAlert() {
+        conversation.setUnreadCountBuyer(3);
+        when(messageRepository.findByConversationIdOrderByCreatedAtAsc("c-1")).thenReturn(List.of());
+
+        service.markAsRead("c-1", "u-buyer");
+
+        assertThat(conversation.getUnreadCountBuyer()).isZero();
+        verify(notificationService).markReadByReference("u-buyer", NotificationType.MESSAGE, "c-1");
+    }
+
+    @Test
+    void conversationShowsWhetherTheOtherSideIsOnline() {
+        when(manufacturerRepository.findByUserId("u-buyer")).thenReturn(Optional.empty());
+        when(conversationRepository.findByBuyerIdOrderByLastMessageAtDesc("u-buyer")).thenReturn(List.of(conversation));
+        when(presenceService.isOnline("u-supplier")).thenReturn(true);
+
+        List<ConversationResponse> list = service.listRecent("u-buyer", 20);
+
+        assertThat(list.get(0).isCounterpartOnline()).isTrue();
+    }
+
+    @Test
+    void unreadCountSumsTheViewersSideOfEveryChat() {
+        conversation.setUnreadCountBuyer(2);
+        conversation.setUnreadCountSupplier(5);
+        when(manufacturerRepository.findByUserId("u-buyer")).thenReturn(Optional.empty());
+        when(conversationRepository.findByBuyerIdOrderByLastMessageAtDesc("u-buyer")).thenReturn(List.of(conversation));
+
+        assertThat(service.unreadCount("u-buyer")).isEqualTo(2);
     }
 }

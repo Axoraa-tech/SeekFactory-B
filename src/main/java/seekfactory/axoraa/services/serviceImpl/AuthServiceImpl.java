@@ -22,6 +22,7 @@ import seekfactory.axoraa.repository.ManufacturerRepository;
 import seekfactory.axoraa.repository.UserRepository;
 import seekfactory.axoraa.services.services.AccountService;
 import seekfactory.axoraa.services.services.AuthService;
+import seekfactory.axoraa.services.services.PresenceService;
 import seekfactory.axoraa.utils.JwtTokenProvider;
 
 import java.time.Instant;
@@ -46,6 +47,7 @@ public class AuthServiceImpl implements AuthService {
     private final JwtTokenProvider jwtTokenProvider;
     private final JwtConfig jwtConfig;
     private final AccountService accountService;
+    private final PresenceService presenceService;
 
     /** Development-only phone OTP. Blank (the default) disables phone login until an SMS provider exists. */
     @Value("${app.auth.mock-otp:}")
@@ -200,6 +202,7 @@ public class AuthServiceImpl implements AuthService {
     public void logout(String userId) {
         // With stateless JWT, logout is handled client-side by deleting the token.
         // For enterprise systems, you'd maintain a token blacklist in Redis.
+        presenceService.markOffline(userId);
         log.info("User logged out: {}", userId);
     }
 

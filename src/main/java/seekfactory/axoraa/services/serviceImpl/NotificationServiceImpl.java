@@ -57,6 +57,12 @@ public class NotificationServiceImpl implements NotificationService {
     }
 
     @Override
+    public void markReadByReference(String userId, NotificationType type, String referenceId) {
+        if (userId == null || referenceId == null) return;
+        notificationRepository.markReadByReference(userId, type, referenceId);
+    }
+
+    @Override
     public void deleteNotification(String id, String userId) {
         notificationRepository.findById(id).ifPresent(n -> {
             if (n.getUser() != null && n.getUser().getId().equals(userId)) {

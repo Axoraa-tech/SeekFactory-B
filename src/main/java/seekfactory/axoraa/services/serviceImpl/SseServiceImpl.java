@@ -16,15 +16,18 @@ import java.util.concurrent.CopyOnWriteArrayList;
 @Service
 public class SseServiceImpl implements SseService {
 
-    // Map conversationId -> List of connected SSE emitters
-    private final Map<String, List<SseEmitter>> emitters = new ConcurrentHashMap<>();
+    /** A connected stream and the participant who opened it. */
+    private record Watcher(String userId, SseEmitter emitter) {}
+
+    // Map conversationId -> connected SSE streams
+    private final Map<String, List<Watcher>> emitters = new ConcurrentHashMap<>();
 
     @Override
-    public SseEmitter subscribe(String conversationId) {
+    public SseEmitter subscribe(String conversationId, String userId) {
         // Timeout set to 0 (infinite) or something large like 30 mins
         SseEmitter emitter = new SseEmitter(1800000L); // 30 minutes
 
-        emitters.computeIfAbsent(conversationId, k -> new CopyOnWriteArrayList<>()).add(emitter);
+        emitters.computeIfAbsent(conversationId, k -> new CopyOnWriteArrayList<>()).add(new Watcher(userId, emitter));
 
         emitter.onCompletion(() -> removeEmitter(conversationId, emitter));
         emitter.onTimeout(() -> removeEmitter(conversationId, emitter));
@@ -42,24 +45,30 @@ public class SseServiceImpl implements SseService {
 
     @Override
     public void pushMessageToConversation(String conversationId, MessageResponse message) {
-        List<SseEmitter> conversationEmitters = emitters.get(conversationId);
+        List<Watcher> conversationEmitters = emitters.get(conversationId);
         if (conversationEmitters != null) {
-            for (SseEmitter emitter : conversationEmitters) {
+            for (Watcher watcher : conversationEmitters) {
                 try {
-                    emitter.send(SseEmitter.event()
+                    watcher.emitter().send(SseEmitter.event()
                             .name("message")
                             .data(message));
                 } catch (IOException e) {
-                    removeEmitter(conversationId, emitter);
+                    removeEmitter(conversationId, watcher.emitter());
                 }
             }
         }
     }
 
+    @Override
+    public boolean isWatching(String conversationId, String userId) {
+        List<Watcher> watchers = emitters.get(conversationId);
+        return userId != null && watchers != null && watchers.stream().anyMatch(w -> userId.equals(w.userId()));
+    }
+
     private void removeEmitter(String conversationId, SseEmitter emitter) {
-        List<SseEmitter> conversationEmitters = emitters.get(conversationId);
+        List<Watcher> conversationEmitters = emitters.get(conversationId);
         if (conversationEmitters != null) {
-            conversationEmitters.remove(emitter);
+            conversationEmitters.removeIf(w -> w.emitter() == emitter);
             if (conversationEmitters.isEmpty()) {
                 emitters.remove(conversationId);
             }

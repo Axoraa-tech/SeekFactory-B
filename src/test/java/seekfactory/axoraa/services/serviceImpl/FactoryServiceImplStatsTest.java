@@ -134,6 +134,21 @@ class FactoryServiceImplStatsTest {
     }
 
     @Test
+    void rfqsSentToAnotherFactoryAreNotRoutedHere() {
+        Manufacturer other = Manufacturer.builder().name("Other Factory").build();
+        other.setId("mfr-2");
+        rfq("open", RfqStatus.SUBMITTED, Duration.ofDays(1));                       // to the whole category
+        rfq("theirs", RfqStatus.SUBMITTED, Duration.ofDays(1)).setManufacturer(other); // sent to another factory
+        Rfq mine = Rfq.builder().status(RfqStatus.SUBMITTED).manufacturer(manufacturer).build();
+        mine.setId("mine");
+        mine.setCreatedAt(now.minus(Duration.ofDays(2)));
+        when(rfqRepository.findByManufacturerIdOrderByCreatedAtDesc(MFR_ID)).thenReturn(List.of(mine));
+
+        // open + mine; "theirs" is hidden
+        assertThat(service.getStats(USER_ID).getActiveRfqsCount()).isEqualTo(2);
+    }
+
+    @Test
     void viewKpisCompareWithPreviousPeriod() {
         // Current window is the call whose "to" is (approximately) now; previous window ends at periodStart.
         when(viewEventRepository.countByManufacturerIdAndEntityTypeAndCreatedAtGreaterThanEqualAndCreatedAtLessThan(

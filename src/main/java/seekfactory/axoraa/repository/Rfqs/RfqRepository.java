@@ -23,6 +23,9 @@ public interface RfqRepository extends JpaRepository<Rfq, String> {
 
     Optional<Rfq> findByIdAndUserId(String id, String userId);
 
+    /** RFQs sent directly to one factory. */
+    List<Rfq> findByManufacturerIdOrderByCreatedAtDesc(String manufacturerId);
+
     List<Rfq> findAllByOrderByCreatedAtDesc();
 
     @Query("SELECT COALESCE(MAX(CAST(SUBSTRING(r.referenceNumber, 10) AS int)), 0) FROM Rfq r WHERE r.referenceNumber LIKE :yearPrefix")

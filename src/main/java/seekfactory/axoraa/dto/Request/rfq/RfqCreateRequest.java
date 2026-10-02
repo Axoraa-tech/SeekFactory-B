@@ -32,4 +32,11 @@ public class RfqCreateRequest {
     private String attachmentName;
     private String attachmentSize;
     private String attachmentUrl;
+
+    /** Send to this factory only; omitted = every factory in the category. */
+    private String manufacturerId;
+    /** One of that factory's products; its name and category replace productName / categoryId. */
+    private String productId;
+    /** The seek (video) the buyer was watching when they sent the RFQ. */
+    private String reelId;
 }

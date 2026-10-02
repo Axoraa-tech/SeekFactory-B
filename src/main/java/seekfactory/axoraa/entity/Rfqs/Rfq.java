@@ -5,6 +5,9 @@ import jakarta.persistence.*;
 import lombok.*;
 import seekfactory.axoraa.entity.BaseEntity;
 import seekfactory.axoraa.entity.Category;
+import seekfactory.axoraa.entity.Manufacturer;
+import seekfactory.axoraa.entity.Product;
+import seekfactory.axoraa.entity.Reels.Reel;
 import seekfactory.axoraa.entity.User;
 import seekfactory.axoraa.enums.Currency;
 import seekfactory.axoraa.enums.Incoterm;
@@ -83,6 +86,21 @@ public class Rfq extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
+
+    // ─── Target (optional): one factory, one of its products, the seek it was sent from ───
+    // Without a manufacturer the RFQ goes to every factory in its category.
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "manufacturer_id")
+    private Manufacturer manufacturer;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "product_id")
+    private Product product;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "source_reel_id")
+    private Reel sourceReel;
 
 
 

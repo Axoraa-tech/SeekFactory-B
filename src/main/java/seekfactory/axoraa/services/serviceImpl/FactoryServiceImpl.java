@@ -658,11 +658,23 @@ public class FactoryServiceImpl implements FactoryService {
     }
 
     /**
-     * RFQs routed to a factory: those in its categories (including their subcategories),
-     * or every RFQ if it has no categories.
+     * RFQs routed to a factory: those sent to it directly, plus open RFQs (sent to no factory in
+     * particular) in its categories (including their subcategories), or every open RFQ if it has
+     * no categories. RFQs sent directly to another factory are never shown.
      * Shared by the RFQ list and the dashboard stats so the two always agree.
      */
     private List<Rfq> findMatchedRfqs(Manufacturer manufacturer) {
+        String id = manufacturer.getId();
+        return java.util.stream.Stream.concat(
+                        rfqRepository.findByManufacturerIdOrderByCreatedAtDesc(id).stream(),
+                        findCategoryRfqs(manufacturer).stream()
+                                .filter(r -> r.getManufacturer() == null))
+                .distinct()
+                .sorted(Comparator.comparing(Rfq::getCreatedAt, Comparator.nullsLast(Comparator.reverseOrder())))
+                .collect(Collectors.toList());
+    }
+
+    private List<Rfq> findCategoryRfqs(Manufacturer manufacturer) {
         if (manufacturer.getCategories().isEmpty()) {
             return rfqRepository.findAllByOrderByCreatedAtDesc();
         }
@@ -682,6 +694,10 @@ public class FactoryServiceImpl implements FactoryService {
         Manufacturer manufacturer = getOrCreateManufacturer(userId);
         Rfq rfq = rfqRepository.findById(rfqId)
                 .orElseThrow(() -> new ResourceNotFoundException("Rfq", "id", rfqId));
+        // An RFQ sent to one factory is not open to quotes from others
+        if (rfq.getManufacturer() != null && !rfq.getManufacturer().getId().equals(manufacturer.getId())) {
+            throw new ResourceNotFoundException("Rfq", "id", rfqId);
+        }
         if (rfq.getStatus() != null && !ACTIVE_RFQ_STATUSES.contains(rfq.getStatus())) {
             throw new BadRequestException("This RFQ is closed (" + rfq.getStatus().name() + ") and no longer accepts quotes");
         }
@@ -890,7 +906,7 @@ public class FactoryServiceImpl implements FactoryService {
     }
 
     private RfqResponse mapToRfqResponse(Rfq r) {
-        return RfqResponse.builder()
+        RfqResponse response = RfqResponse.builder()
                 .id(r.getId())
                 .referenceNumber(r.getReferenceNumber())
                 .productName(r.getProductName())
@@ -908,5 +924,7 @@ public class FactoryServiceImpl implements FactoryService {
                 .status(r.getStatus() != null ? r.getStatus().name() : "SUBMITTED")
                 .createdAt(r.getCreatedAt() != null ? r.getCreatedAt().toString() : null)
                 .build();
+        RfqTargets.apply(response, r);
+        return response;
     }
 }

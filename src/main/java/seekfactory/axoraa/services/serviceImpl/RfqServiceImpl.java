@@ -10,6 +10,9 @@ import seekfactory.axoraa.dto.Response.order.OrderResponse;
 import seekfactory.axoraa.dto.Response.rfq.RfqQuoteResponse;
 import seekfactory.axoraa.dto.Response.rfq.RfqResponse;
 import seekfactory.axoraa.entity.Category;
+import seekfactory.axoraa.entity.Manufacturer;
+import seekfactory.axoraa.entity.Product;
+import seekfactory.axoraa.entity.Reels.Reel;
 import seekfactory.axoraa.entity.OrderRequest;
 import seekfactory.axoraa.entity.Rfqs.Rfq;
 import seekfactory.axoraa.entity.Rfqs.RfqQuote;
@@ -23,6 +26,9 @@ import seekfactory.axoraa.exceptions.BadRequestException;
 import seekfactory.axoraa.exceptions.ResourceNotFoundException;
 import seekfactory.axoraa.mapper.CatalogMapper;
 import seekfactory.axoraa.repository.CategoryRepository;
+import seekfactory.axoraa.repository.ManufacturerRepository;
+import seekfactory.axoraa.repository.ProductRepository;
+import seekfactory.axoraa.repository.Reels.ReelRepository;
 import seekfactory.axoraa.repository.OrderRequestRepository;
 import seekfactory.axoraa.repository.Rfqs.RfqQuoteRepository;
 import seekfactory.axoraa.repository.Rfqs.RfqRepository;
@@ -68,6 +74,9 @@ public class RfqServiceImpl implements RfqService {
     private final OrderRequestRepository orderRequestRepository;
     private final UserRepository userRepository;
     private final CategoryRepository categoryRepository;
+    private final ManufacturerRepository manufacturerRepository;
+    private final ProductRepository productRepository;
+    private final ReelRepository reelRepository;
     private final OrderService orderService;
     private final NotificationService notificationService;
     private final CatalogMapper catalogMapper;
@@ -92,17 +101,28 @@ public class RfqServiceImpl implements RfqService {
         }
         String referenceNumber = IdGenerator.generateRfqReference(currentYear, nextSequence);
 
-        // Resolve optional category
+        // Optional target: one factory, one of its products, the seek it was sent from
+        Product product = resolveProduct(request.getProductId());
+        Manufacturer manufacturer = resolveManufacturer(request.getManufacturerId(), product);
+        Reel sourceReel = resolveReel(request.getReelId(), manufacturer);
+
+        // Resolve optional category; a chosen product decides it (and the product name)
         Category category = null;
-        if (request.getCategoryId() != null && !request.getCategoryId().isBlank()) {
+        if (product != null) {
+            category = product.getCategory();
+        } else if (request.getCategoryId() != null && !request.getCategoryId().isBlank()) {
             category = categoryRepository.findById(request.getCategoryId()).orElse(null);
         }
+        String productName = product != null ? product.getName() : request.getProductName();
 
         Rfq rfq = Rfq.builder()
                 .referenceNumber(referenceNumber)
                 .user(user)
-                .productName(request.getProductName())
+                .productName(productName)
                 .category(category)
+                .manufacturer(manufacturer)
+                .product(product)
+                .sourceReel(sourceReel)
                 .quantity(request.getQuantity())
                 .unit(request.getUnit() != null ? request.getUnit() : "Pieces")
                 .targetPrice(request.getTargetPrice())
@@ -117,7 +137,17 @@ public class RfqServiceImpl implements RfqService {
                 .build();
 
         Rfq saved = rfqRepository.save(rfq);
-        log.info("RFQ submitted: {} by user {}", referenceNumber, userId);
+        log.info("RFQ submitted: {} by user {}{}", referenceNumber, userId,
+                manufacturer != null ? " to manufacturer " + manufacturer.getId() : "");
+
+        // A directed RFQ is meant for this one factory: tell it right away
+        if (manufacturer != null && manufacturer.getUser() != null) {
+            notificationService.notify(manufacturer.getUser(), NotificationType.RFQ,
+                    "New RFQ for " + productName,
+                    request.getCompanyName() + " requested a quote for " + request.getQuantity() + " "
+                            + saved.getUnit() + " (" + referenceNumber + ")",
+                    saved.getId());
+        }
 
         return mapToResponse(saved, false);
     }
@@ -197,6 +227,45 @@ public class RfqServiceImpl implements RfqService {
 
     // ─── Private Helpers ──────────────────────────────────────
 
+    /** A product the buyer can see (active, listed, from a verified factory), or null if none was chosen. */
+    private Product resolveProduct(String productId) {
+        if (productId == null || productId.isBlank()) return null;
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new ResourceNotFoundException("Product", "id", productId));
+        if (!product.isPubliclyVisible() || !Boolean.TRUE.equals(product.getManufacturer().getVerified())) {
+            throw new ResourceNotFoundException("Product", "id", productId);
+        }
+        return product;
+    }
+
+    /** The factory the RFQ is for: the chosen product's factory, which must match manufacturerId if both are sent. */
+    private Manufacturer resolveManufacturer(String manufacturerId, Product product) {
+        boolean hasId = manufacturerId != null && !manufacturerId.isBlank();
+        if (product != null) {
+            Manufacturer owner = product.getManufacturer();
+            if (hasId && !owner.getId().equals(manufacturerId)) {
+                throw new BadRequestException("This product belongs to a different manufacturer");
+            }
+            return owner;
+        }
+        if (!hasId) return null;
+        Manufacturer manufacturer = manufacturerRepository.findById(manufacturerId)
+                .filter(m -> Boolean.TRUE.equals(m.getVerified()))
+                .orElseThrow(() -> new ResourceNotFoundException("Manufacturer", "id", manufacturerId));
+        return manufacturer;
+    }
+
+    /** The seek the RFQ came from; it must belong to the RFQ's factory. */
+    private Reel resolveReel(String reelId, Manufacturer manufacturer) {
+        if (reelId == null || reelId.isBlank()) return null;
+        Reel reel = reelRepository.findById(reelId)
+                .orElseThrow(() -> new ResourceNotFoundException("Reel", "id", reelId));
+        if (manufacturer == null || !reel.getManufacturer().getId().equals(manufacturer.getId())) {
+            throw new BadRequestException("This seek belongs to a different manufacturer");
+        }
+        return reel;
+    }
+
     private Rfq findMine(String userId, String rfqId) {
         return rfqRepository.findByIdAndUserId(rfqId, userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Rfq", "id", rfqId));
@@ -239,6 +308,7 @@ public class RfqServiceImpl implements RfqService {
                 .createdAt(rfq.getCreatedAt().toString())
                 .quoteCount(rfq.getQuotes().size())
                 .build();
+        RfqTargets.apply(response, rfq);
 
         if (withQuotes) {
             response.setQuotes(rfqQuoteRepository.findByRfqIdOrderByCreatedAtDesc(rfq.getId()).stream()

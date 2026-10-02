@@ -31,6 +31,15 @@ public class RfqResponse {
     private String status;
     private String createdAt;
 
+    // ── Target, when the RFQ was sent to one factory (see Rfq) ──
+    private String manufacturerId;
+    private String manufacturerName;
+    private String manufacturerSlug;
+    private String productId;
+    private String productSlug;
+    private String productImageUrl;
+    private String sourceReelId;
+
     // ── Seller view only (GET /api/v1/factory/rfqs); omitted elsewhere ──
     /** Buyer who posted the RFQ. */
     private String buyerName;

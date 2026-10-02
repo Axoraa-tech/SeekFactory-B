@@ -8,6 +8,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import seekfactory.axoraa.dto.Response.admin.AdminManagementDtos.BuyerPlanPriceRequest;
 import seekfactory.axoraa.dto.Response.admin.AdminManagementDtos.ManufacturerDetail;
 import seekfactory.axoraa.dto.Response.admin.AdminManagementDtos.ManufacturerRow;
 import seekfactory.axoraa.dto.Response.admin.AdminManagementDtos.Page;
@@ -17,7 +18,9 @@ import seekfactory.axoraa.dto.Response.admin.AdminManagementDtos.RfqRow;
 import seekfactory.axoraa.dto.Response.admin.AdminManagementDtos.RfqStatusRequest;
 import seekfactory.axoraa.dto.Response.admin.AdminManagementDtos.UserRow;
 import seekfactory.axoraa.dto.Response.common.ApiResponse;
+import seekfactory.axoraa.dto.Response.pricing.BuyerPlanResponse;
 import seekfactory.axoraa.services.services.AdminManagementService;
+import seekfactory.axoraa.services.services.PricingService;
 import seekfactory.axoraa.utils.SecurityUtils;
 
 import java.util.List;
@@ -43,6 +46,7 @@ import java.util.List;
 public class AdminController {
 
     private final AdminManagementService adminManagementService;
+    private final PricingService pricingService;
 
     /* ─── Users ─── */
 
@@ -123,6 +127,22 @@ public class AdminController {
     public ResponseEntity<ApiResponse<Void>> setRfqStatus(@PathVariable String id, @Valid @RequestBody RfqStatusRequest request) {
         adminManagementService.setRfqStatus(id, request.status());
         return ResponseEntity.ok(ApiResponse.ok("RFQ status updated successfully"));
+    }
+
+    /* ─── Buyer plans ─── */
+
+    @GetMapping("/pricing/buyer-plans")
+    @Operation(summary = "List buyer membership plans with INR and CNY prices")
+    public ResponseEntity<ApiResponse<List<BuyerPlanResponse>>> listBuyerPlans() {
+        return ResponseEntity.ok(ApiResponse.of(pricingService.getBuyerPlans()));
+    }
+
+    @PutMapping("/pricing/buyer-plans/{code}")
+    @Operation(summary = "Set the INR and CNY price of a buyer plan")
+    public ResponseEntity<ApiResponse<Void>> updateBuyerPlanPrices(
+            @PathVariable String code, @Valid @RequestBody BuyerPlanPriceRequest request) {
+        pricingService.updateBuyerPlanPrices(code, request.priceInr(), request.priceCny());
+        return ResponseEntity.ok(ApiResponse.ok("Buyer plan price updated successfully"));
     }
 
     /* ─── Pricing plans ─── */

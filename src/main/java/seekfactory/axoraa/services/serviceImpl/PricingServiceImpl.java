@@ -14,7 +14,9 @@ import seekfactory.axoraa.repository.ManufacturerRepository;
 import seekfactory.axoraa.repository.SubscriptionPlanRepository;
 import seekfactory.axoraa.services.services.PricingService;
 
+import java.math.BigDecimal;
 import java.util.List;
+import java.util.Locale;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -55,6 +57,17 @@ public class PricingServiceImpl implements PricingService {
                 .priceCny(rs.getBigDecimal("price_cny"))
                 .features(List.of((String[]) rs.getArray("features").getArray()))
                 .build());
+    }
+
+    @Override
+    public void updateBuyerPlanPrices(String code, BigDecimal priceInr, BigDecimal priceCny) {
+        int updated = jdbcTemplate.update(
+                "UPDATE buyer_plans SET price_inr = ?, price_cny = ? WHERE code = ?",
+                priceInr, priceCny, code.toUpperCase(Locale.ROOT));
+        if (updated == 0) {
+            throw new ResourceNotFoundException("BuyerPlan", "code", code);
+        }
+        log.info("Buyer plan {} prices set to INR {} / CNY {}", code, priceInr, priceCny);
     }
 
     @Override

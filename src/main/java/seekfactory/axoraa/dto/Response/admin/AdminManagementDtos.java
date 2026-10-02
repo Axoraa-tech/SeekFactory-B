@@ -69,6 +69,10 @@ public final class AdminManagementDtos {
 
     public record RfqStatusRequest(@NotBlank String status) {}
 
+    public record BuyerPlanPriceRequest(
+            @NotNull @DecimalMin("0.00") BigDecimal priceInr,
+            @NotNull @DecimalMin("0.00") BigDecimal priceCny) {}
+
     public record PlanRequest(
             @NotBlank @Size(max = 100) String name,
             @NotNull @DecimalMin("0.00") BigDecimal priceUsd,

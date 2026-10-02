@@ -38,6 +38,9 @@ public interface ReelRepository extends JpaRepository<Reel, String> {
 
     List<Reel> findByManufacturerIdOrderByCreatedAtDesc(String manufacturerId);
 
+    /** Whether another seek still uses this video (before deleting its file). */
+    boolean existsByVideoUrlAndIdNot(String videoUrl, String id);
+
     /** Buyer-facing: seeks the seller has not paused. */
     List<Reel> findByFeedTabAndListedTrueOrderByCreatedAtDesc(FeedTab feedTab, Pageable pageable);
 

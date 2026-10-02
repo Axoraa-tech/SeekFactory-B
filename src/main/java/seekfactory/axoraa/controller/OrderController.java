@@ -8,6 +8,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import seekfactory.axoraa.dto.Request.order.CartCheckoutRequest;
 import seekfactory.axoraa.dto.Request.order.CartItemRequest;
 import seekfactory.axoraa.dto.Request.order.CartQuantityRequest;
 import seekfactory.axoraa.dto.Request.order.OrderCancelRequest;
@@ -90,8 +91,8 @@ public class OrderController {
     }
 
     @PostMapping("/api/v1/cart/checkout")
-    @Operation(summary = "Send every cart line to its factory as an order request and empty the cart")
-    public ResponseEntity<ApiResponse<List<OrderResponse>>> checkout(@Valid @RequestBody OrderContactRequest request) {
+    @Operation(summary = "Send the selected cart lines (all when none are listed) to their factories as order requests")
+    public ResponseEntity<ApiResponse<List<OrderResponse>>> checkout(@Valid @RequestBody CartCheckoutRequest request) {
         List<OrderResponse> orders = orderService.checkout(SecurityUtils.getCurrentUserId(), request);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.of(orders, "Order requests sent to the factories"));
     }

@@ -20,6 +20,8 @@ import seekfactory.axoraa.dto.Response.media.MediaUploadResponse;
 import seekfactory.axoraa.exceptions.BadRequestException;
 import seekfactory.axoraa.services.services.MediaStorageService;
 
+import java.net.URI;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 @RestController
@@ -62,6 +64,14 @@ public class MediaController {
     @GetMapping("/api/v1/media/{key}")
     @Operation(summary = "Serve an uploaded media file (supports HTTP Range for video seeking)")
     public ResponseEntity<Resource> serve(@PathVariable String key) {
+        // Bucket storage: send the browser to the CDN (old links stored before the switch keep working)
+        Optional<String> location = mediaStorageService.publicUrl(key);
+        if (location.isPresent()) {
+            return ResponseEntity.status(HttpStatus.FOUND)
+                    .location(URI.create(location.get()))
+                    .cacheControl(CacheControl.noCache())
+                    .build();
+        }
         Resource resource = mediaStorageService.load(key);
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(mediaStorageService.contentTypeOf(key)))

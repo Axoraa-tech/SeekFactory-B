@@ -1,6 +1,7 @@
 package seekfactory.axoraa.services.services;
 
 import seekfactory.axoraa.dto.Request.order.CartItemRequest;
+import seekfactory.axoraa.dto.Request.order.CartCheckoutRequest;
 import seekfactory.axoraa.dto.Request.order.OrderContactRequest;
 import seekfactory.axoraa.dto.Request.order.OrderCreateRequest;
 import seekfactory.axoraa.dto.Request.order.OrderStatusUpdateRequest;
@@ -47,5 +48,5 @@ public interface OrderService {
     CartResponse removeFromCart(String userId, String cartItemId);
 
     /** Turns every cart line into an order request and empties the cart. */
-    List<OrderResponse> checkout(String userId, OrderContactRequest contact);
+    List<OrderResponse> checkout(String userId, CartCheckoutRequest request);
 }

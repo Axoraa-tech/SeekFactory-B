@@ -5,6 +5,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import seekfactory.axoraa.dto.Request.manufacturer.ManufacturerUpdateRequest;
 import seekfactory.axoraa.dto.Request.manufacturer.VerificationSubmitRequest;
 import seekfactory.axoraa.dto.Request.product.ProductUpdateRequest;
@@ -50,7 +52,9 @@ import seekfactory.axoraa.repository.Rfqs.RfqQuoteRepository;
 import seekfactory.axoraa.repository.Rfqs.RfqRepository;
 import seekfactory.axoraa.repository.UserRepository;
 import seekfactory.axoraa.repository.ViewEventRepository;
+import seekfactory.axoraa.services.media.MediaTypes;
 import seekfactory.axoraa.services.services.FactoryService;
+import seekfactory.axoraa.services.services.MediaStorageService;
 import seekfactory.axoraa.services.services.NotificationService;
 import seekfactory.axoraa.services.services.ResponseMetrics;
 import seekfactory.axoraa.utils.SlugUtils;
@@ -88,6 +92,7 @@ public class FactoryServiceImpl implements FactoryService {
     private final ModelMapper modelMapper;
     private final CategoryTree categoryTree;
     private final NotificationService notificationService;
+    private final MediaStorageService mediaStorageService;
 
     /** View KPIs cover this window; change % compares with the window before it. */
     private static final Duration STATS_PERIOD = Duration.ofDays(30);
@@ -513,7 +518,28 @@ public class FactoryServiceImpl implements FactoryService {
             throw new ForbiddenException("You cannot delete reels belonging to another factory");
         }
 
+        String videoUrl = reel.getVideoUrl();
+        boolean shared = videoUrl == null || reelRepository.existsByVideoUrlAndIdNot(videoUrl, reel.getId());
         reelRepository.delete(reel);
+        if (!shared && videoUrl.startsWith(MediaTypes.PUBLIC_PATH)) {
+            // Remove the video file too, once the delete is committed. Thumbnails are left alone:
+            // they are often product photos still in use.
+            String key = videoUrl.substring(MediaTypes.PUBLIC_PATH.length());
+            afterCommit(() -> mediaStorageService.delete(key));
+        }
+    }
+
+    private static void afterCommit(Runnable action) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            action.run();
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                action.run();
+            }
+        });
     }
 
     @Override

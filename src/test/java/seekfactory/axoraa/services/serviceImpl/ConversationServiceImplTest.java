@@ -158,6 +158,15 @@ class ConversationServiceImplTest {
     }
 
     @Test
+    void nonParticipantCannotOpenAnAttachment() {
+        // Rejected before storage is touched, so no file and no signed link is ever produced
+        assertThatThrownBy(() -> service.loadAttachment("c-1", "u-intruder", "11111111-1111-1111-1111-111111111111.pdf"))
+                .isInstanceOf(ForbiddenException.class);
+        verify(mediaStorageService, never()).loadPrivate(any(), any());
+        verify(mediaStorageService, never()).privateUrl(any(), any());
+    }
+
+    @Test
     void sellerOpensChatFromOrderReusingExistingConversation() {
         when(orderRequestRepository.findById("o-1")).thenReturn(Optional.of(order));
         when(conversationRepository.findByBuyerIdAndManufacturerId("u-buyer", "mfr-1")).thenReturn(Optional.of(conversation));

@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import seekfactory.axoraa.dto.Request.order.CartCheckoutRequest;
 import seekfactory.axoraa.dto.Request.order.CartItemRequest;
 import seekfactory.axoraa.dto.Request.order.OrderContactRequest;
 import seekfactory.axoraa.dto.Request.order.OrderCreateRequest;
@@ -45,8 +46,10 @@ import java.time.Instant;
 import java.time.Year;
 import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -273,14 +276,34 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
-    public List<OrderResponse> checkout(String userId, OrderContactRequest contact) {
+    public List<OrderResponse> checkout(String userId, CartCheckoutRequest request) {
         User buyer = findUser(userId);
-        List<CartItem> items = cartItemRepository.findByUserIdOrderByCreatedAtDesc(userId);
-        if (items.isEmpty()) {
+        List<CartItem> cart = cartItemRepository.findByUserIdOrderByCreatedAtDesc(userId);
+        if (cart.isEmpty()) {
             throw new BadRequestException("Your cart is empty");
         }
+
+        // Which lines to send, and each one's note: the selected lines, or every line with the shared note
+        List<SelectedLine> selected = new ArrayList<>();
+        if (request.getItems() == null) {
+            cart.forEach(item -> selected.add(new SelectedLine(item, request.getNote())));
+        } else {
+            Map<String, CartItem> byId = new HashMap<>();
+            cart.forEach(item -> byId.put(item.getId(), item));
+            for (CartCheckoutRequest.Line line : request.getItems()) {
+                CartItem item = byId.remove(line.getCartItemId());
+                if (item == null) {
+                    // Unknown, already sent, someone else's, or listed twice
+                    throw new BadRequestException("Some selected items are no longer in your cart. Refresh and try again.");
+                }
+                selected.add(new SelectedLine(item,
+                        line.getNote() != null && !line.getNote().isBlank() ? line.getNote() : request.getNote()));
+            }
+        }
+
         // Validate every line before creating anything
-        for (CartItem item : items) {
+        for (SelectedLine line : selected) {
+            CartItem item = line.item();
             Product product = item.getProduct();
             if (!product.isPubliclyVisible()) {
                 throw new BadRequestException("\"" + product.getName() + "\" is no longer available. Remove it from your cart to continue.");
@@ -289,19 +312,23 @@ public class OrderServiceImpl implements OrderService {
         }
 
         List<OrderResponse> placed = new ArrayList<>();
-        for (CartItem item : items) {
+        for (SelectedLine line : selected) {
+            CartItem item = line.item();
             OrderRequest saved = orderRepository.save(newProductOrder(buyer, item.getProduct(), item.getQuantity(),
-                    OrderSource.CART, contact.getNote(), contact.getContactName(), contact.getContactPhone(),
-                    contact.getDeliveryAddress()));
+                    OrderSource.CART, line.note(), request.getContactName(), request.getContactPhone(),
+                    request.getDeliveryAddress()));
             notifyFactoryOfNewOrder(saved);
             placed.add(toResponse(saved, false));
         }
-        cartItemRepository.deleteAll(items);
-        log.info("User {} checked out {} order request(s)", userId, placed.size());
+        cartItemRepository.deleteAll(selected.stream().map(SelectedLine::item).toList());
+        log.info("User {} checked out {} of {} cart line(s)", userId, placed.size(), cart.size());
         return placed;
     }
 
     // ─── Helpers ──────────────────────────────────────────────
+
+    /** A cart line chosen at checkout and the note sent with it. */
+    private record SelectedLine(CartItem item, String note) {}
 
     private OrderRequest newProductOrder(User buyer, Product product, int quantity, OrderSource source, String note,
                                          String contactName, String contactPhone, String deliveryAddress) {

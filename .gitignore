@@ -40,3 +40,5 @@ application-prod.yaml
 
 ### Local media uploads (LocalMediaStorageService) ###
 uploads/
+# Temp video work copies (S3MediaStorageService)
+media-work/

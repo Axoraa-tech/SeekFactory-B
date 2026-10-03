@@ -65,6 +65,29 @@
 			<artifactId>metadata-extractor</artifactId>
 			<version>2.19.0</version>
 		</dependency>
+		<!-- Object storage through the S3 API: Alibaba OSS in production; also works with
+		     Amazon S3, Tencent COS, Cloudflare R2 and MinIO. Uses the small JDK HTTP client
+		     instead of the SDK's default Apache and Netty clients. -->
+		<dependency>
+			<groupId>software.amazon.awssdk</groupId>
+			<artifactId>s3</artifactId>
+			<version>2.55.9</version>
+			<exclusions>
+				<exclusion>
+					<groupId>software.amazon.awssdk</groupId>
+					<artifactId>apache-client</artifactId>
+				</exclusion>
+				<exclusion>
+					<groupId>software.amazon.awssdk</groupId>
+					<artifactId>netty-nio-client</artifactId>
+				</exclusion>
+			</exclusions>
+		</dependency>
+		<dependency>
+			<groupId>software.amazon.awssdk</groupId>
+			<artifactId>url-connection-client</artifactId>
+			<version>2.55.9</version>
+		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-webmvc</artifactId>

@@ -17,6 +17,7 @@ import seekfactory.axoraa.enums.VerificationStatus;
 import seekfactory.axoraa.exceptions.BadRequestException;
 import seekfactory.axoraa.exceptions.DuplicateResourceException;
 import seekfactory.axoraa.exceptions.ResourceNotFoundException;
+import seekfactory.axoraa.exceptions.ForbiddenException;
 import seekfactory.axoraa.exceptions.UnauthorizedException;
 import seekfactory.axoraa.repository.ManufacturerRepository;
 import seekfactory.axoraa.repository.UserRepository;
@@ -127,6 +128,9 @@ public class AuthServiceImpl implements AuthService {
             throw new UnauthorizedException("Account has been deactivated");
         }
 
+        // 4. Admins must pass the authenticator (TOTP) step via /api/v1/admin/auth/login
+        requireNonAdmin(user);
+
         log.info("User logged in: {} ({})", user.getEmail(), user.getRole());
         return signedIn(user);
     }
@@ -156,6 +160,8 @@ public class AuthServiceImpl implements AuthService {
                             .build();
                     return userRepository.save(newUser);
                 });
+
+        requireNonAdmin(user);
 
         log.info("Phone login: {} ({})", user.getPhone(), user.getRole());
         return signedIn(user);
@@ -207,6 +213,15 @@ public class AuthServiceImpl implements AuthService {
     }
 
     // ─── Private Helpers ──────────────────────────────────────
+
+    /** Clients detect this message to show the authenticator-code step; no tokens are issued. */
+    static final String TOTP_REQUIRED = "TOTP_REQUIRED: Admin accounts must sign in with an authenticator code";
+
+    private void requireNonAdmin(User user) {
+        if (user.getRole() == UserRole.ROLE_ADMIN) {
+            throw new ForbiddenException(TOTP_REQUIRED);
+        }
+    }
 
     /** Tokens for an interactive sign-in, flagging the account's very first one. */
     private AuthResponse signedIn(User user) {

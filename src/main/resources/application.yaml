@@ -10,6 +10,13 @@ spring:
   profiles:
     active: ${SPRING_PROFILES_ACTIVE:dev}
 
+  # Spring's default (1MB per file) rejects seek videos with 413 before MediaStorageService
+  # can apply its own per-kind limits (app.media.max-*-size), so the servlet cap sits just above the largest
+  servlet:
+    multipart:
+      max-file-size: ${APP_UPLOAD_MAX_FILE_SIZE:100MB}
+      max-request-size: ${APP_UPLOAD_MAX_REQUEST_SIZE:105MB}
+
   # ─── DataSource (Supports any cloud / local env var names) ───
   datasource:
     url: ${DB_URL:${DATABASE_URL:${DEV_DB_URL:${PROD_DB_URL:}}}}

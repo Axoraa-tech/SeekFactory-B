@@ -1,0 +1,39 @@
+# Pings the Render backend so the free instance never spins down.
+# Set the repo variable RENDER_HEALTH_URL (Settings → Secrets and variables → Actions → Variables),
+# e.g. https://<service>.onrender.com/actuator/health
+name: keep-alive
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: keep-alive
+  cancel-in-progress: true
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Ping health endpoint
+        env:
+          URL: ${{ vars.RENDER_HEALTH_URL }}
+        run: |
+          if [ -z "$URL" ]; then
+            echo "::error::RENDER_HEALTH_URL repo variable is not set"
+            exit 1
+          fi
+          # A cold Spring Boot start can take a couple of minutes, so retry before failing
+          for i in 1 2 3 4 5; do
+            if curl -fsS --max-time 60 "$URL"; then
+              echo
+              echo "Backend is UP (attempt $i)"
+              exit 0
+            fi
+            echo "Attempt $i failed; retrying in 20s"
+            sleep 20
+          done
+          echo "::error::Backend did not respond healthy after 5 attempts"
+          exit 1

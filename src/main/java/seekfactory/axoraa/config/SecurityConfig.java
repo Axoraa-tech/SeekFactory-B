@@ -57,6 +57,8 @@ public class SecurityConfig {
                         // ─── PUBLIC ENDPOINTS (no auth required) ──────────────
                         // Error forwards keep the original status (403 stays 403, not 401)
                         .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
+                        // Keep-alive pinger (prod exposes only "health", without details)
+                        .requestMatchers(HttpMethod.GET, "/actuator/health").permitAll()
                         .requestMatchers("/api/v1/auth/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/feed", "/api/v1/feed/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/categories", "/api/v1/categories/**").permitAll()

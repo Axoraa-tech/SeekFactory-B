@@ -27,6 +27,9 @@ app:
   auth:
     # No SMS provider yet: phone login accepts this code in development only
     mock-otp: "123456"
+  google:
+    # OAuth Web client ID (public; not a secret). Override with GOOGLE_CLIENT_ID.
+    client-id: ${GOOGLE_CLIENT_ID:755855438157-ed0cikqv3srof2rgv6oe77jtaul9pcpf.apps.googleusercontent.com}
   cors:
     allowed-origin-patterns:
       - http://localhost:3000

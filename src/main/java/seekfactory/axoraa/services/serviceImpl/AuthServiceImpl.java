@@ -21,6 +21,8 @@ import seekfactory.axoraa.exceptions.ForbiddenException;
 import seekfactory.axoraa.exceptions.UnauthorizedException;
 import seekfactory.axoraa.repository.ManufacturerRepository;
 import seekfactory.axoraa.repository.UserRepository;
+import seekfactory.axoraa.services.auth.GoogleTokenVerifier;
+import seekfactory.axoraa.services.auth.GoogleTokenVerifier.GoogleIdentity;
 import seekfactory.axoraa.services.services.AccountService;
 import seekfactory.axoraa.services.services.AuthService;
 import seekfactory.axoraa.services.services.PresenceService;
@@ -49,6 +51,7 @@ public class AuthServiceImpl implements AuthService {
     private final JwtConfig jwtConfig;
     private final AccountService accountService;
     private final PresenceService presenceService;
+    private final GoogleTokenVerifier googleTokenVerifier;
 
     /** Development-only phone OTP. Blank (the default) disables phone login until an SMS provider exists. */
     @Value("${app.auth.mock-otp:}")
@@ -119,7 +122,8 @@ public class AuthServiceImpl implements AuthService {
                 .orElseThrow(() -> new UnauthorizedException("Invalid email or password"));
 
         // 2. Verify password
-        if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
+        if (user.getPasswordHash() == null
+                || !passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
             throw new UnauthorizedException("Invalid email or password");
         }
 
@@ -169,21 +173,54 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public AuthResponse loginWithGoogle(GoogleAuthRequest request) {
-        // In production, verify the Google ID token:
-        //
-        // GoogleIdTokenVerifier verifier = new GoogleIdTokenVerifier.Builder(transport, jsonFactory)
-        //     .setAudience(Collections.singletonList(googleClientId))
-        //     .build();
-        // GoogleIdToken idToken = verifier.verify(request.getIdToken());
-        // Payload payload = idToken.getPayload();
-        // String googleId = payload.getSubject();
-        // String email = payload.getEmail();
-        // String name = (String) payload.get("name");
-        //
-        // For now, this is a placeholder. Implement with actual Google API Client.
+        // Google sign-in is for buyers only; manufacturers use email/phone (WeChat later)
+        if (mapRole(request.getRole()) != UserRole.ROLE_BUYER) {
+            throw new BadRequestException("Google sign-in is only available for buyers");
+        }
 
-        throw new BadRequestException("Google authentication is not yet configured. " +
-                "Set app.google.client-id in application.yaml to enable.");
+        GoogleIdentity google = googleTokenVerifier.verify(request.getIdToken());
+        if (!google.emailVerified() || google.email() == null || google.email().isBlank()) {
+            throw new UnauthorizedException("Your Google account email is not verified");
+        }
+        String email = google.email().toLowerCase();
+
+        // 1. Returning Google user; 2. existing account with the same verified email gets linked;
+        // 3. otherwise a new buyer account
+        User user = userRepository.findByGoogleId(google.subject())
+                .or(() -> userRepository.findByEmail(email).map(existing -> {
+                    existing.setGoogleId(google.subject());
+                    // Google has confirmed the address, so it no longer needs our email verification
+                    existing.setEmailVerified(true);
+                    // Fill the photo from Google only when the account has none of its own
+                    if (existing.getAvatarUrl() == null || existing.getAvatarUrl().isBlank()) {
+                        existing.setAvatarUrl(google.pictureUrl());
+                    }
+                    log.info("Linked Google account to existing user {}", existing.getEmail());
+                    return existing;
+                }))
+                .orElseGet(() -> {
+                    String name = google.name() != null && !google.name().isBlank()
+                            ? google.name() : email.substring(0, email.indexOf('@'));
+                    User created = userRepository.save(User.builder()
+                            .email(email)
+                            .name(name)
+                            .googleId(google.subject())
+                            .avatarUrl(google.pictureUrl())
+                            .role(UserRole.ROLE_BUYER)
+                            .authProvider(AuthProvider.GOOGLE)
+                            .emailVerified(true)
+                            .build());
+                    log.info("New buyer registered via Google: {}", created.getEmail());
+                    return created;
+                });
+
+        if (!Boolean.TRUE.equals(user.getIsActive())) {
+            throw new UnauthorizedException("Account has been deactivated");
+        }
+        requireNonAdmin(user);
+
+        log.info("Google login: {} ({})", user.getEmail(), user.getRole());
+        return signedIn(user);
     }
 
     @Override

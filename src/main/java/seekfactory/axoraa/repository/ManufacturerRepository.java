@@ -35,6 +35,8 @@ public interface ManufacturerRepository extends JpaRepository<Manufacturer, Stri
 
     List<Manufacturer> findByVerifiedTrueOrderByFollowerCountDesc();
 
+    List<Manufacturer> findByVerifiedTrueOrderByFollowerCountDesc(Pageable pageable);
+
     /** Buyer-facing listing: approved factories only, filtered in SQL. */
     List<Manufacturer> findByVerifiedTrue();
 

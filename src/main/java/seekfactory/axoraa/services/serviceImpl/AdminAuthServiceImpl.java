@@ -200,6 +200,10 @@ public class AdminAuthServiceImpl implements AdminAuthService {
         // The fixed root token is public (it is in the V4 migration), so its bypasses are only
         // honoured when explicitly enabled for a one-off local recovery via app.admin.allow-root-reset
         boolean isRootToken = allowRootReset && ROOT_INVITE_TOKEN.equals(token);
+        if (ROOT_INVITE_TOKEN.equals(token) && !allowRootReset) {
+            // Otherwise anyone could claim the seeded invitation and become admin
+            throw new IllegalArgumentException("Invalid or expired setup token.");
+        }
 
         if (invitation.getIsUsed() && !isRootToken) {
             throw new IllegalArgumentException("This invitation has already been used.");

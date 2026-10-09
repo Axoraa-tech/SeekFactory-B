@@ -1,5 +1,6 @@
 package seekfactory.axoraa.services.serviceImpl;
 
+import org.springframework.data.domain.Pageable;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -204,18 +205,18 @@ class ConversationServiceImplTest {
     @Test
     void openingTheChatClearsItsUnreadCountAndMessageAlert() {
         conversation.setUnreadCountBuyer(3);
-        when(messageRepository.findByConversationIdOrderByCreatedAtAsc("c-1")).thenReturn(List.of());
-
         service.markAsRead("c-1", "u-buyer");
 
         assertThat(conversation.getUnreadCountBuyer()).isZero();
+        verify(messageRepository).markReadFor("c-1", "u-buyer");
         verify(notificationService).markReadByReference("u-buyer", NotificationType.MESSAGE, "c-1");
     }
 
     @Test
     void conversationShowsWhetherTheOtherSideIsOnline() {
         when(manufacturerRepository.findByUserId("u-buyer")).thenReturn(Optional.empty());
-        when(conversationRepository.findByBuyerIdOrderByLastMessageAtDesc("u-buyer")).thenReturn(List.of(conversation));
+        when(conversationRepository.findByBuyerIdOrderByLastMessageAtDesc(eq("u-buyer"), any(Pageable.class)))
+                .thenReturn(List.of(conversation));
         when(presenceService.isOnline("u-supplier")).thenReturn(true);
 
         List<ConversationResponse> list = service.listRecent("u-buyer", 20);
@@ -228,7 +229,7 @@ class ConversationServiceImplTest {
         conversation.setUnreadCountBuyer(2);
         conversation.setUnreadCountSupplier(5);
         when(manufacturerRepository.findByUserId("u-buyer")).thenReturn(Optional.empty());
-        when(conversationRepository.findByBuyerIdOrderByLastMessageAtDesc("u-buyer")).thenReturn(List.of(conversation));
+        when(conversationRepository.sumUnreadForBuyer("u-buyer")).thenReturn(2L);
 
         assertThat(service.unreadCount("u-buyer")).isEqualTo(2);
     }

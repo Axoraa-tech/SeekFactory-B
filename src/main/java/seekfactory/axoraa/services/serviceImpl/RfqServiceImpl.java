@@ -138,7 +138,7 @@ public class RfqServiceImpl implements RfqService {
 
     @Override
     public RfqResponse cancel(String userId, String rfqId) {
-        Rfq rfq = findMine(userId, rfqId);
+        Rfq rfq = findMineForUpdate(userId, rfqId);
         requireOpen(rfq);
         rfq.setStatus(RfqStatus.CANCELLED);
         for (RfqQuote quote : rfq.getQuotes()) {
@@ -155,7 +155,7 @@ public class RfqServiceImpl implements RfqService {
 
     @Override
     public RfqResponse acceptQuote(String userId, String rfqId, String quoteId, OrderContactRequest contact) {
-        Rfq rfq = findMine(userId, rfqId);
+        Rfq rfq = findMineForUpdate(userId, rfqId);
         requireOpen(rfq);
         RfqQuote accepted = findPendingQuote(rfq, quoteId);
 
@@ -183,7 +183,7 @@ public class RfqServiceImpl implements RfqService {
 
     @Override
     public RfqResponse rejectQuote(String userId, String rfqId, String quoteId) {
-        Rfq rfq = findMine(userId, rfqId);
+        Rfq rfq = findMineForUpdate(userId, rfqId);
         requireOpen(rfq);
         RfqQuote quote = findPendingQuote(rfq, quoteId);
         quote.setStatus(QuoteStatus.REJECTED);
@@ -199,6 +199,13 @@ public class RfqServiceImpl implements RfqService {
 
     private Rfq findMine(String userId, String rfqId) {
         return rfqRepository.findByIdAndUserId(rfqId, userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Rfq", "id", rfqId));
+    }
+
+    /** Like findMine, but row-locked: stops a double accept (two orders) from concurrent clicks. */
+    private Rfq findMineForUpdate(String userId, String rfqId) {
+        return rfqRepository.findByIdForUpdate(rfqId)
+                .filter(r -> r.getUser() != null && userId.equals(r.getUser().getId()))
                 .orElseThrow(() -> new ResourceNotFoundException("Rfq", "id", rfqId));
     }
 

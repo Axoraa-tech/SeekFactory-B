@@ -3,12 +3,18 @@ package seekfactory.axoraa.config;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 import org.springframework.jdbc.core.JdbcTemplate;
 import java.time.LocalDateTime;
 
+/**
+ * Development only: re-arms the public root admin invitation and deletes the admin it created.
+ * In any other profile this would let anyone claim the admin account after every restart.
+ */
 @Slf4j
 @Component
+@Profile("dev")
 @RequiredArgsConstructor
 public class DataSeeder implements CommandLineRunner {
 

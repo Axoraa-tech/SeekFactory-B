@@ -1,7 +1,9 @@
 // RfqRepository.java
 package seekfactory.axoraa.repository.Rfqs;
 
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 import seekfactory.axoraa.entity.Rfqs.Rfq;
@@ -22,6 +24,11 @@ public interface RfqRepository extends JpaRepository<Rfq, String> {
     List<Rfq> findByCategoryIdInOrCategoryIsNullOrderByCreatedAtDesc(List<String> categoryIds);
 
     Optional<Rfq> findByIdAndUserId(String id, String userId);
+
+    /** Row-locked lookup so concurrent accept/reject/cancel/quote calls on one RFQ run one at a time. */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT r FROM Rfq r WHERE r.id = :id")
+    Optional<Rfq> findByIdForUpdate(String id);
 
     List<Rfq> findAllByOrderByCreatedAtDesc();
 

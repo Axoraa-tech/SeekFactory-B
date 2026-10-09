@@ -40,6 +40,10 @@ public class ProductionSafetyCheck implements BeanFactoryPostProcessor, Environm
     @Override
     public void postProcessBeanFactory(ConfigurableListableBeanFactory beanFactory) {
         List<String> problems = problems(environment.getProperty("JWT_SECRET"), environment.getProperty("app.auth.mock-otp"));
+        // The root invitation token is public; its reset bypass would hand out the admin account
+        if ("true".equalsIgnoreCase(environment.getProperty("app.admin.allow-root-reset"))) {
+            problems.add("app.admin.allow-root-reset is enabled; the public root admin token must never work in production");
+        }
         if (!problems.isEmpty()) {
             throw new IllegalStateException("Refusing to start in production:\n - " + String.join("\n - ", problems));
         }

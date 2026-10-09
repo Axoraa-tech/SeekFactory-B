@@ -43,7 +43,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         String token = extractTokenFromHeader(request);
 
-        if (StringUtils.hasText(token) && jwtTokenProvider.isValidAccessToken(token)) {
+        if (StringUtils.hasText(token)
+                && (jwtTokenProvider.isValidAccessToken(token)
+                    || (isUploadRequest(request) && jwtTokenProvider.isValidUploadToken(token)))) {
             String userId = jwtTokenProvider.getUserIdFromToken(token);
             String role = jwtTokenProvider.getRoleFromToken(token);
 
@@ -63,6 +65,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    /** The only requests an upload pass (see JwtTokenProvider#generateUploadToken) may authorise. */
+    private static boolean isUploadRequest(HttpServletRequest request) {
+        if (!"POST".equals(request.getMethod())) return false;
+        String path = request.getRequestURI();
+        return "/api/v1/factory/media".equals(path) || "/api/v1/media".equals(path);
     }
 
     /**

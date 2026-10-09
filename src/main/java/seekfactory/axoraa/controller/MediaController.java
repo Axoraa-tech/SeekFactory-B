@@ -9,6 +9,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -19,8 +21,10 @@ import seekfactory.axoraa.dto.Response.common.ApiResponse;
 import seekfactory.axoraa.dto.Response.media.MediaUploadResponse;
 import seekfactory.axoraa.exceptions.BadRequestException;
 import seekfactory.axoraa.services.services.MediaStorageService;
+import seekfactory.axoraa.utils.JwtTokenProvider;
 
 import java.net.URI;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
@@ -30,6 +34,7 @@ import java.util.concurrent.TimeUnit;
 public class MediaController {
 
     private final MediaStorageService mediaStorageService;
+    private final JwtTokenProvider jwtTokenProvider;
 
     @PostMapping(value = "/api/v1/factory/media", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasAuthority('ROLE_SUPPLIER')")
@@ -55,6 +60,24 @@ public class MediaController {
         }
         MediaUploadResponse response = mediaStorageService.store(file, kind);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.of(response, "File uploaded"));
+    }
+
+    /**
+     * Issues a 5-minute pass for one of the upload endpoints above. The web app sends files
+     * straight here with it instead of through its proxy, which caps request bodies at 4.5 MB.
+     */
+    @PostMapping("/api/v1/media/upload-token")
+    @Operation(summary = "Get a short-lived token for a direct media upload")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> uploadToken(Authentication authentication) {
+        String role = authentication.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .findFirst()
+                .orElseThrow(() -> new BadRequestException("No role on this session"));
+        String token = jwtTokenProvider.generateUploadToken(authentication.getName(), role);
+        Map<String, Object> body = Map.of(
+                "token", token,
+                "expiresIn", JwtTokenProvider.UPLOAD_TOKEN_EXPIRY_MS / 1000);
+        return ResponseEntity.ok(ApiResponse.of(body, "Upload token issued"));
     }
 
     /**

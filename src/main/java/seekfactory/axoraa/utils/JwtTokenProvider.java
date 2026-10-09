@@ -24,6 +24,9 @@ public class JwtTokenProvider {
     private static final String TYPE_CLAIM = "typ";
     private static final String TYPE_ACCESS = "access";
     private static final String TYPE_REFRESH = "refresh";
+    private static final String TYPE_UPLOAD = "upload";
+    /** Upload passes only need to outlive one file transfer. */
+    public static final long UPLOAD_TOKEN_EXPIRY_MS = 5 * 60 * 1000;
 
     private final JwtConfig jwtConfig;
 
@@ -39,6 +42,19 @@ public class JwtTokenProvider {
      */
     public String generateRefreshToken(String userId, String email, String role) {
         return buildToken(userId, email, role, TYPE_REFRESH, jwtConfig.getRefreshTokenExpiry());
+    }
+
+    /**
+     * Short-lived pass that only authorises a direct media upload. Browsers send files straight to
+     * this API with it, because the web app's own proxy (Vercel) rejects request bodies over 4.5 MB.
+     */
+    public String generateUploadToken(String userId, String role) {
+        return buildToken(userId, null, role, TYPE_UPLOAD, UPLOAD_TOKEN_EXPIRY_MS);
+    }
+
+    /** True for a valid, unexpired upload pass. Only accepted on the upload endpoints. */
+    public boolean isValidUploadToken(String token) {
+        return validateToken(token) && TYPE_UPLOAD.equals(getClaims(token).get(TYPE_CLAIM, String.class));
     }
 
     /**

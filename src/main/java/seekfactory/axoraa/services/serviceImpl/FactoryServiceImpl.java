@@ -706,15 +706,24 @@ public class FactoryServiceImpl implements FactoryService {
     @Override
     public void submitQuote(String userId, String rfqId, RfqQuoteRequest request) {
         Manufacturer manufacturer = getOrCreateManufacturer(userId);
-        Rfq rfq = rfqRepository.findById(rfqId)
+        Rfq rfq = rfqRepository.findByIdForUpdate(rfqId)
                 .orElseThrow(() -> new ResourceNotFoundException("Rfq", "id", rfqId));
+        // Only RFQs routed to this factory may be quoted (same rule as assertRfqRouted)
+        if (findMatchedRfqs(manufacturer).stream().noneMatch(r -> r.getId().equals(rfqId))) {
+            throw new ResourceNotFoundException("Rfq", "id", rfqId);
+        }
         if (rfq.getStatus() != null && !ACTIVE_RFQ_STATUSES.contains(rfq.getStatus())) {
             throw new BadRequestException("This RFQ is closed (" + rfq.getStatus().name() + ") and no longer accepts quotes");
         }
 
-        Currency currency = Currency.USD;
-        if (request.getCurrency() != null && request.getCurrency().equalsIgnoreCase("INR")) {
-            currency = Currency.INR;
+        // Default INR (the UI's currency); reject unknown codes instead of silently using USD
+        Currency currency = Currency.INR;
+        if (request.getCurrency() != null && !request.getCurrency().isBlank()) {
+            try {
+                currency = Currency.valueOf(request.getCurrency().trim().toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException e) {
+                throw new BadRequestException("Unsupported currency: " + request.getCurrency());
+            }
         }
         String incoterm = null;
         if (request.getIncoterm() != null && !request.getIncoterm().isBlank()) {

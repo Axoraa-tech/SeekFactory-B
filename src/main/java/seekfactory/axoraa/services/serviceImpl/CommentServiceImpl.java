@@ -120,6 +120,11 @@ public class CommentServiceImpl implements CommentService {
     public CommentReplyResponse addReply(String commentId, String userId, ReplyCreateRequest request) {
         Comment parentComment = commentRepository.findById(commentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Comment", "id", commentId));
+        // Threads are one level deep: a reply to a reply joins the top-level comment's thread
+        // (otherwise it is saved but never shown, as only top-level comments list their replies)
+        if (parentComment.getParent() != null) {
+            parentComment = parentComment.getParent();
+        }
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
 

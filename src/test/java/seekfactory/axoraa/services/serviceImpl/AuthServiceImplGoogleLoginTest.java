@@ -94,6 +94,7 @@ class AuthServiceImplGoogleLoginTest {
     @Test
     void existingEmailAccountIsLinked() {
         User existing = user(UserRole.ROLE_BUYER);
+        existing.setEmailVerified(true);
         when(googleTokenVerifier.verify("id-token")).thenReturn(VERIFIED);
         when(userRepository.findByGoogleId("g-123")).thenReturn(Optional.empty());
         when(userRepository.findByEmail("buyer@example.com")).thenReturn(Optional.of(existing));
@@ -105,6 +106,21 @@ class AuthServiceImplGoogleLoginTest {
         // Linking keeps the original provider and password
         assertThat(existing.getAuthProvider()).isEqualTo(AuthProvider.LOCAL);
         assertThat(existing.getPasswordHash()).isEqualTo("hash");
+    }
+
+    @Test
+    void linkingUnverifiedAccountDropsItsPassword() {
+        User existing = user(UserRole.ROLE_BUYER);
+        existing.setEmailVerified(false);
+        when(googleTokenVerifier.verify("id-token")).thenReturn(VERIFIED);
+        when(userRepository.findByGoogleId("g-123")).thenReturn(Optional.empty());
+        when(userRepository.findByEmail("buyer@example.com")).thenReturn(Optional.of(existing));
+
+        service.loginWithGoogle(request("Buyer"));
+
+        // Whoever pre-registered the address cannot keep signing in with their password
+        assertThat(existing.getPasswordHash()).isNull();
+        assertThat(existing.getEmailVerified()).isTrue();
     }
 
     @Test

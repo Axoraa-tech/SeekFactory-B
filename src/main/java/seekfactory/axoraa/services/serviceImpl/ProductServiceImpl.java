@@ -83,15 +83,15 @@ public class ProductServiceImpl implements ProductService {
     @Transactional
     @Override
     public Map<String, Object> toggleSave(String productId, String userId) {
-        Product product = productRepository.findById(productId)
-                .filter(ProductServiceImpl::isVisible)
-                .orElseThrow(() -> new ResourceNotFoundException("Product", "id", productId));
-
+        // Un-saving always works, even once the product is paused or removed
         Optional<ProductSave> existing = productSaveRepository.findByProductIdAndUserId(productId, userId);
         if (existing.isPresent()) {
             productSaveRepository.delete(existing.get());
             return Map.of("saved", false);
         }
+        Product product = productRepository.findById(productId)
+                .filter(ProductServiceImpl::isVisible)
+                .orElseThrow(() -> new ResourceNotFoundException("Product", "id", productId));
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
         productSaveRepository.save(ProductSave.builder().product(product).user(user).build());

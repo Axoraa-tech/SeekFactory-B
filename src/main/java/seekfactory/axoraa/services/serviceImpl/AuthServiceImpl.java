@@ -189,6 +189,11 @@ public class AuthServiceImpl implements AuthService {
         User user = userRepository.findByGoogleId(google.subject())
                 .or(() -> userRepository.findByEmail(email).map(existing -> {
                     existing.setGoogleId(google.subject());
+                    // Whoever registered this unverified address may not own it: drop their password so a
+                    // pre-registered account cannot keep access once the real owner signs in with Google
+                    if (!Boolean.TRUE.equals(existing.getEmailVerified())) {
+                        existing.setPasswordHash(null);
+                    }
                     // Google has confirmed the address, so it no longer needs our email verification
                     existing.setEmailVerified(true);
                     // Fill the photo from Google only when the account has none of its own

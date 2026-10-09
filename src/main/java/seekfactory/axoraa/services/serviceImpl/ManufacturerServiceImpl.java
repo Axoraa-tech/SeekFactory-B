@@ -24,6 +24,8 @@ import seekfactory.axoraa.services.services.ManufacturerService;
 import seekfactory.axoraa.services.services.NotificationService;
 import seekfactory.axoraa.services.services.ResponseMetrics;
 
+import org.springframework.data.domain.PageRequest;
+import seekfactory.axoraa.exceptions.BadRequestException;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -49,10 +51,10 @@ public class ManufacturerServiceImpl implements ManufacturerService {
 
     @Override
     public List<ManufacturerResponse> listVerified(int limit) {
-        List<Manufacturer> verified = manufacturerRepository.findByVerifiedTrueOrderByFollowerCountDesc();
-        if (limit > 0 && verified.size() > limit) {
-            verified = verified.subList(0, limit);
-        }
+        // Limit in SQL rather than loading every approved factory first
+        List<Manufacturer> verified = limit > 0
+                ? manufacturerRepository.findByVerifiedTrueOrderByFollowerCountDesc(PageRequest.of(0, limit))
+                : manufacturerRepository.findByVerifiedTrueOrderByFollowerCountDesc();
         return verified.stream()
                 .map(catalogMapper::toManufacturer)
                 .collect(Collectors.toList());
@@ -100,12 +102,15 @@ public class ManufacturerServiceImpl implements ManufacturerService {
     @Transactional
     @Override
     public Map<String, Object> toggleFollow(String manufacturerId, String userId) {
-        Manufacturer manufacturer = manufacturerRepository.findById(manufacturerId)
-                .filter(m -> Boolean.TRUE.equals(m.getVerified()))
-                .orElseThrow(() -> new ResourceNotFoundException("Manufacturer", "id", manufacturerId));
-
         Optional<ManufacturerFollow> existing =
                 manufacturerFollowRepository.findByManufacturerIdAndUserId(manufacturerId, userId);
+        // Unfollowing always works; following needs an approved factory that is not the user's own
+        Manufacturer manufacturer = manufacturerRepository.findById(manufacturerId)
+                .filter(m -> existing.isPresent() || Boolean.TRUE.equals(m.getVerified()))
+                .orElseThrow(() -> new ResourceNotFoundException("Manufacturer", "id", manufacturerId));
+        if (existing.isEmpty() && manufacturer.getUser() != null && userId.equals(manufacturer.getUser().getId())) {
+            throw new BadRequestException("You cannot follow your own factory");
+        }
         boolean following;
         if (existing.isPresent()) {
             manufacturerFollowRepository.delete(existing.get());

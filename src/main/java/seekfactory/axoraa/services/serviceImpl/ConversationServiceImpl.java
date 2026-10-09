@@ -3,6 +3,8 @@ package seekfactory.axoraa.services.serviceImpl;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import seekfactory.axoraa.dto.Request.message.MessageSendRequest;
@@ -75,17 +77,15 @@ public class ConversationServiceImpl implements ConversationService {
 
         List<Conversation> conversations;
         boolean isSupplier = mfgOpt.isPresent();
+        // Limit in the query, not after loading the whole inbox
+        Pageable page = limit > 0 ? PageRequest.of(0, limit) : Pageable.unpaged();
 
         if (isSupplier) {
             conversations = conversationRepository
-                    .findByManufacturerIdOrderByLastMessageAtDesc(mfgOpt.get().getId());
+                    .findByManufacturerIdOrderByLastMessageAtDesc(mfgOpt.get().getId(), page);
         } else {
             conversations = conversationRepository
-                    .findByBuyerIdOrderByLastMessageAtDesc(userId);
-        }
-
-        if (limit > 0 && conversations.size() > limit) {
-            conversations = conversations.subList(0, limit);
+                    .findByBuyerIdOrderByLastMessageAtDesc(userId, page);
         }
 
         return conversations.stream()
@@ -99,11 +99,9 @@ public class ConversationServiceImpl implements ConversationService {
         // Same side as listRecent: a factory account counts its factory inbox
         Optional<Manufacturer> mfgOpt = manufacturerRepository.findByUserId(userId);
         if (mfgOpt.isPresent()) {
-            return conversationRepository.findByManufacturerIdOrderByLastMessageAtDesc(mfgOpt.get().getId())
-                    .stream().mapToLong(Conversation::getUnreadCountSupplier).sum();
+            return conversationRepository.sumUnreadForManufacturer(mfgOpt.get().getId());
         }
-        return conversationRepository.findByBuyerIdOrderByLastMessageAtDesc(userId)
-                .stream().mapToLong(Conversation::getUnreadCountBuyer).sum();
+        return conversationRepository.sumUnreadForBuyer(userId);
     }
 
     @Override
@@ -113,6 +111,9 @@ public class ConversationServiceImpl implements ConversationService {
 
         Manufacturer manufacturer = manufacturerRepository.findById(request.getManufacturerId())
                 .orElseThrow(() -> new ResourceNotFoundException("Manufacturer", "id", request.getManufacturerId()));
+        if (manufacturer.getUser() != null && userId.equals(manufacturer.getUser().getId())) {
+            throw new BadRequestException("You cannot message your own factory");
+        }
 
         Optional<Conversation> existing = conversationRepository.findByBuyerIdAndManufacturerId(userId, manufacturer.getId());
         Conversation conversation;
@@ -261,13 +262,7 @@ public class ConversationServiceImpl implements ConversationService {
 
         conversationRepository.save(conversation);
 
-        List<Message> messages = messageRepository.findByConversationIdOrderByCreatedAtAsc(conversationId);
-        for (Message msg : messages) {
-            if (!msg.getSender().getId().equals(userId) && Boolean.FALSE.equals(msg.getIsRead())) {
-                msg.setIsRead(true);
-                messageRepository.save(msg);
-            }
-        }
+        messageRepository.markReadFor(conversationId, userId);
 
         // Opening the chat also settles its "New message from ..." alert
         notificationService.markReadByReference(userId, NotificationType.MESSAGE, conversationId);

@@ -3,6 +3,7 @@ package seekfactory.axoraa.exceptions;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.catalina.connector.ClientAbortException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -16,6 +17,7 @@ import org.springframework.web.multipart.MultipartException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 import seekfactory.axoraa.dto.Response.common.ErrorResponse;
@@ -37,6 +39,15 @@ import java.util.List;
 public class GlobalExceptionHandler {
 
     private final ErrorLogService errorLogService;
+
+    /**
+     * The viewer scrolled past or closed a seek while its video was streaming. Normal for media, not
+     * an error: nothing to log or store, and no body can be written to a response that is gone.
+     */
+    @ExceptionHandler({AsyncRequestNotUsableException.class, ClientAbortException.class})
+    public void handleClientAbort(Exception ex, HttpServletRequest request) {
+        log.debug("Client closed the connection on {} {}", request.getMethod(), request.getRequestURI());
+    }
 
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ErrorResponse> handleNotFound(ResourceNotFoundException ex) {

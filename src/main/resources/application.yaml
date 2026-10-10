@@ -124,6 +124,12 @@ springdoc:
 # ─── Server ───────────────────────────────────────────────────
 server:
   port: ${PORT:8080}
+  tomcat:
+    threads:
+      # Each request thread costs stack + buffers; 200 (the default) is far more than a 512 MB
+      # instance can hold. Raise TOMCAT_MAX_THREADS on a bigger plan.
+      max: ${TOMCAT_MAX_THREADS:40}
+      min-spare: 4
   error:
     include-message: always
     include-binding-errors: always

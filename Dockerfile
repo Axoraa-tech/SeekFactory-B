@@ -43,7 +43,8 @@ ENV PORT=8080
 EXPOSE 8080
 
 # Run Spring Boot Application on Java 25 with preview features
-# Memory: a 512 MB instance also has to fit metaspace, threads and an ffmpeg process, so the heap
-# gets 50% instead of 75% (75% got the container OOM-killed mid-upload -> 503). SerialGC and C1-only
-# JIT cut JVM overhead and start-up time on the single small CPU.
-ENTRYPOINT ["sh", "-c", "java --enable-preview -XX:+UseContainerSupport -XX:MaxRAMPercentage=50.0 -XX:+UseSerialGC -XX:TieredStopAtLevel=1 -Xss512k -Dserver.port=${PORT} -Djava.security.egd=file:/dev/./urandom -jar app.jar"]
+# Memory budget for Render's 512 MB instance (it was OOM-killed at idle with only the heap capped):
+#   heap 40% (~205 MB) + metaspace <=256 MB (typically ~150) + code cache 48 MB + direct buffers 48 MB + small stacks,
+# leaving headroom for ffmpeg. SerialGC and C1-only JIT cut overhead and start-up time on the small CPU.
+# JAVA_OPTS (Render env var) is appended last, so any of these can be overridden without a rebuild.
+ENTRYPOINT ["sh", "-c", "java --enable-preview -XX:+UseContainerSupport -XX:MaxRAMPercentage=40.0 -XX:MaxMetaspaceSize=256m -XX:ReservedCodeCacheSize=48m -XX:MaxDirectMemorySize=48m -XX:+UseSerialGC -XX:TieredStopAtLevel=1 -Xss384k $JAVA_OPTS -Dserver.port=${PORT} -Djava.security.egd=file:/dev/./urandom -jar app.jar"]

@@ -49,10 +49,10 @@ spring:
     open-in-view: false              # Enterprise best practice: disable OSIV
     properties:
       hibernate:
-        format_sql: true
         default_batch_fetch_size: 16
         jdbc:
           batch_size: 25
+          fetch_size: 100
         order_inserts: true
         order_updates: true
 
@@ -78,6 +78,10 @@ spring:
     repair-on-migrate: true
     locations: classpath:db/migration
 
+  # No MBeans are consumed (actuator is HTTP-only); skipping JMX trims startup and heap
+  jmx:
+    enabled: false
+
   # ─── Jackson ─────────────────────────────────────────────────
   jackson:
     default-property-inclusion: non_null
@@ -90,6 +94,10 @@ app:
     access-token-expiry: 86400000          # 24 hours in milliseconds
     refresh-token-expiry: 604800000        # 7 days in milliseconds
     issuer: seekfactory-axoraa
+
+  logging:
+    # Full request/response body logging is opt-in (buffers and pretty-prints every body)
+    request-bodies: ${APP_LOGGING_REQUEST_BODIES:false}
 
   google:
     client-id: ${GOOGLE_CLIENT_ID:}
@@ -138,5 +146,5 @@ logging:
   pattern:
     console: "%clr(%d{yyyy-MM-dd HH:mm:ss.SSS}){faint} %clr(%5p) %clr(---){faint} %clr([%15.15t]){faint} %clr(%-40.40logger{39}){cyan} %clr(:){faint} %m%n"
   level:
-    seekfactory.axoraa: DEBUG
+    seekfactory.axoraa: INFO
     org.springframework.web: INFO

@@ -4,6 +4,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 import seekfactory.axoraa.entity.Category;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -17,5 +18,7 @@ public interface CategoryRepository extends JpaRepository<Category, String> {
     List<Category> findByParentIdOrderByNameAsc(String parentId); // Children of a parent
 
     List<Category> findByParentSlugOrderByNameAsc(String slug);   // Children by parent slug
+
+    List<Category> findByParentIdIn(Collection<String> parentIds); // Children of several parents, one query
 
 }

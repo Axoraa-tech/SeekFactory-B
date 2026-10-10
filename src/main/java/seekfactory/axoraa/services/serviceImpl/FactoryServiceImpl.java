@@ -250,8 +250,20 @@ public class FactoryServiceImpl implements FactoryService {
     @Override
     @Transactional(readOnly = true)
     public ResponseMetrics getResponseMetrics(Manufacturer manufacturer) {
-        return responseMetrics(findMatchedRfqs(manufacturer), firstQuoteTimes(manufacturer.getId()), Instant.now());
+        // Public profiles read this on every view; it is a 90-day aggregate, so a few minutes stale is fine
+        Instant now = Instant.now();
+        CachedMetrics cached = metricsCache.get(manufacturer.getId());
+        if (cached != null && cached.expiresAt().isAfter(now)) return cached.metrics();
+        ResponseMetrics metrics = responseMetrics(findMatchedRfqs(manufacturer), firstQuoteTimes(manufacturer.getId()), now);
+        if (metricsCache.size() >= METRICS_CACHE_MAX) metricsCache.clear();  // crude bound, keeps memory flat
+        metricsCache.put(manufacturer.getId(), new CachedMetrics(metrics, now.plus(METRICS_TTL)));
+        return metrics;
     }
+
+    private static final Duration METRICS_TTL = Duration.ofMinutes(5);
+    private static final int METRICS_CACHE_MAX = 500;
+    private record CachedMetrics(ResponseMetrics metrics, Instant expiresAt) {}
+    private final Map<String, CachedMetrics> metricsCache = new java.util.concurrent.ConcurrentHashMap<>();
 
     /** Earliest quote this factory sent, per RFQ id. */
     private Map<String, Instant> firstQuoteTimes(String manufacturerId) {
@@ -696,10 +708,9 @@ public class FactoryServiceImpl implements FactoryService {
         // match the factory's categories, their subcategories and their parents.
         // Uncategorised RFQs go to every factory.
         Set<String> categoryIds = new LinkedHashSet<>(categoryTree.withAncestors(manufacturer.getCategories()));
-        for (Category category : manufacturer.getCategories()) {
-            categoryRepository.findByParentIdOrderByNameAsc(category.getId())
-                    .forEach(child -> categoryIds.add(child.getId()));
-        }
+        // One query for all subcategories instead of one per category (~70 ms per round trip)
+        categoryRepository.findByParentIdIn(manufacturer.getCategories().stream().map(Category::getId).toList())
+                .forEach(child -> categoryIds.add(child.getId()));
         return rfqRepository.findByCategoryIdInOrCategoryIsNullOrderByCreatedAtDesc(new ArrayList<>(categoryIds));
     }
 

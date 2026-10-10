@@ -33,18 +33,32 @@ public class CategoryServiceImpl implements CategoryService {
     private final CategoryRepository categoryRepository;
     private final ModelMapper modelMapper;
 
+    // Categories only change through migrations, so every page load needn't pay a DB round trip
+    private static final long CACHE_TTL_MS = 10 * 60 * 1000;
+    private volatile List<CategoryResponse> allCache;
+    private volatile List<CategoryResponse> rootsCache;
+    private volatile long cachedAt;
+
     @Override
     public List<CategoryResponse> listAll() {
-        return categoryRepository.findAll().stream()
+        if (allCache != null && System.currentTimeMillis() - cachedAt < CACHE_TTL_MS) return allCache;
+        List<CategoryResponse> all = categoryRepository.findAll().stream()
                 .map(this::mapToResponse)
-                .collect(Collectors.toList());
+                .toList();
+        allCache = all;
+        cachedAt = System.currentTimeMillis();
+        return all;
     }
 
     @Override
     public List<CategoryResponse> listRoots() {
-        return categoryRepository.findByParentIsNullOrderByNameAsc().stream()
+        if (rootsCache != null && System.currentTimeMillis() - cachedAt < CACHE_TTL_MS) return rootsCache;
+        List<CategoryResponse> roots = categoryRepository.findByParentIsNullOrderByNameAsc().stream()
                 .map(this::mapToResponse)
-                .collect(Collectors.toList());
+                .toList();
+        rootsCache = roots;
+        cachedAt = System.currentTimeMillis();
+        return roots;
     }
 
     @Override

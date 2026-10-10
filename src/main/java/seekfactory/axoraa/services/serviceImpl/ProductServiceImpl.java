@@ -44,9 +44,23 @@ public class ProductServiceImpl implements ProductService {
     @Override
     public List<ProductResponse> listTrending(int limit, String viewerId) {
         int effectiveLimit = limit > 0 ? Math.min(limit, 100) : 20;
+        // Anonymous results carry no per-viewer flags, so they can be shared briefly
+        if (viewerId == null) {
+            TrendingCache cached = trendingCache.get(effectiveLimit);
+            if (cached != null && System.currentTimeMillis() < cached.expiresAt()) return cached.products();
+        }
         List<Product> trending = productRepository.findTrending(PageRequest.of(0, effectiveLimit));
-        return catalogMapper.toProducts(trending, viewerId);
+        List<ProductResponse> products = catalogMapper.toProducts(trending, viewerId);
+        if (viewerId == null) {
+            if (trendingCache.size() >= 16) trendingCache.clear();  // keyed by limit: stays tiny
+            trendingCache.put(effectiveLimit, new TrendingCache(products, System.currentTimeMillis() + TRENDING_TTL_MS));
+        }
+        return products;
     }
+
+    private static final long TRENDING_TTL_MS = 90_000;
+    private record TrendingCache(List<ProductResponse> products, long expiresAt) {}
+    private final java.util.Map<Integer, TrendingCache> trendingCache = new java.util.concurrent.ConcurrentHashMap<>();
 
     @Override
     public ProductDetailResponse getBySlug(String slug, String viewerId) {

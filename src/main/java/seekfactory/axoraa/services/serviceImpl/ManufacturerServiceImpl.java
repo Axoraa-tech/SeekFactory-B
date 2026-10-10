@@ -51,14 +51,24 @@ public class ManufacturerServiceImpl implements ManufacturerService {
 
     @Override
     public List<ManufacturerResponse> listVerified(int limit) {
+        VerifiedCache cached = verifiedCache.get(limit);
+        if (cached != null && System.currentTimeMillis() < cached.expiresAt()) return cached.manufacturers();
         // Limit in SQL rather than loading every approved factory first
         List<Manufacturer> verified = limit > 0
                 ? manufacturerRepository.findByVerifiedTrueOrderByFollowerCountDesc(PageRequest.of(0, limit))
                 : manufacturerRepository.findByVerifiedTrueOrderByFollowerCountDesc();
-        return verified.stream()
+        List<ManufacturerResponse> result = verified.stream()
                 .map(catalogMapper::toManufacturer)
-                .collect(Collectors.toList());
+                .toList();
+        if (verifiedCache.size() >= 16) verifiedCache.clear();  // keyed by limit: stays tiny
+        verifiedCache.put(limit, new VerifiedCache(result, System.currentTimeMillis() + VERIFIED_TTL_MS));
+        return result;
     }
+
+    // Public "verified factories" strip: identical for every viewer and changes rarely
+    private static final long VERIFIED_TTL_MS = 120_000;
+    private record VerifiedCache(List<ManufacturerResponse> manufacturers, long expiresAt) {}
+    private final Map<Integer, VerifiedCache> verifiedCache = new java.util.concurrent.ConcurrentHashMap<>();
 
     @Override
     public ManufacturerDetailResponse getBySlug(String slug, String viewerId) {

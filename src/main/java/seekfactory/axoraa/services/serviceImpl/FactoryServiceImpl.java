@@ -55,7 +55,6 @@ import seekfactory.axoraa.repository.ViewEventRepository;
 import seekfactory.axoraa.services.media.MediaTypes;
 import seekfactory.axoraa.services.services.FactoryService;
 import seekfactory.axoraa.services.services.MediaStorageService;
-import seekfactory.axoraa.services.services.NotificationService;
 import seekfactory.axoraa.services.services.ResponseMetrics;
 import seekfactory.axoraa.utils.SlugUtils;
 import seekfactory.axoraa.utils.CategoryTree;
@@ -91,7 +90,6 @@ public class FactoryServiceImpl implements FactoryService {
     private final NotificationRepository notificationRepository;
     private final ModelMapper modelMapper;
     private final CategoryTree categoryTree;
-    private final NotificationService notificationService;
     private final MediaStorageService mediaStorageService;
 
     /** View KPIs cover this window; change % compares with the window before it. */

@@ -16,7 +16,6 @@ import seekfactory.axoraa.enums.UserRole;
 import seekfactory.axoraa.enums.VerificationStatus;
 import seekfactory.axoraa.exceptions.BadRequestException;
 import seekfactory.axoraa.exceptions.DuplicateResourceException;
-import seekfactory.axoraa.exceptions.ResourceNotFoundException;
 import seekfactory.axoraa.exceptions.ForbiddenException;
 import seekfactory.axoraa.exceptions.UnauthorizedException;
 import seekfactory.axoraa.repository.ManufacturerRepository;

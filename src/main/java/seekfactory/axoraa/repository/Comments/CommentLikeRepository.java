@@ -12,8 +12,6 @@ import java.util.Optional;
 @Repository
 public interface CommentLikeRepository extends JpaRepository<CommentLike, String> {
 
-    boolean existsByCommentIdAndUserId(String commentId, String userId);
-
     Optional<CommentLike> findByCommentIdAndUserId(String commentId, String userId);
 
     @Query("SELECT l.comment.id FROM CommentLike l WHERE l.user.id = :userId AND l.comment.reel.id = :reelId")

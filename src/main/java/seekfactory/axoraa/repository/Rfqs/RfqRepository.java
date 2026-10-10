@@ -18,8 +18,6 @@ public interface RfqRepository extends JpaRepository<Rfq, String> {
 
     List<Rfq> findByUserIdOrderByCreatedAtDesc(String userId);
 
-    List<Rfq> findByCategoryIdInOrderByCreatedAtDesc(List<String> categoryIds);
-
     /** RFQs in any of the given categories, plus uncategorised RFQs that every factory may quote on. */
     List<Rfq> findByCategoryIdInOrCategoryIsNullOrderByCreatedAtDesc(List<String> categoryIds);
 

@@ -7,11 +7,6 @@ import seekfactory.axoraa.dto.Response.auth.AuthResponse;
 public interface AdminAuthService {
     
     /**
-     * Generates a TOTP secret and QR code for an admin who hasn't set up 2FA yet.
-     */
-    AdminSetupResponse setupTotp(String adminEmail);
-
-    /**
      * Verifies the email, password, and 6-digit TOTP code, then issues a JWT.
      */
     AuthResponse login(AdminAuthRequest request);

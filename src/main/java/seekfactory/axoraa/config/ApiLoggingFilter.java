@@ -29,8 +29,11 @@ public class ApiLoggingFilter extends OncePerRequestFilter {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    /** Bodies carry personal data (names, phones, addresses, chats); prod turns this off. */
-    @Value("${app.logging.request-bodies:true}")
+    /**
+     * Bodies carry personal data (names, phones, addresses, chats) and buffering + pretty-printing
+     * them costs memory and CPU on every call, so it is opt-in everywhere (APP_LOGGING_REQUEST_BODIES=true).
+     */
+    @Value("${app.logging.request-bodies:false}")
     private boolean logBodies;
 
     @Override
@@ -38,10 +41,23 @@ public class ApiLoggingFilter extends OncePerRequestFilter {
                                     HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
 
+        long startTime = System.currentTimeMillis();
+
+        // Without body logging nothing needs buffering: log one concise line and stream as usual
+        if (!logBodies) {
+            try {
+                filterChain.doFilter(request, response);
+            } finally {
+                long duration = System.currentTimeMillis() - startTime;
+                int status = response.getStatus();
+                String line = String.format("%s %s -> %d (%d ms)", request.getMethod(), request.getRequestURI(), status, duration);
+                if (status >= 400) log.warn(line); else log.info(line);
+            }
+            return;
+        }
+
         ContentCachingRequestWrapper reqWrapper = new ContentCachingRequestWrapper(request, 1024 * 1024);
         ContentCachingResponseWrapper resWrapper = new ContentCachingResponseWrapper(response);
-
-        long startTime = System.currentTimeMillis();
 
         try {
             filterChain.doFilter(reqWrapper, resWrapper);

@@ -29,7 +29,7 @@ app:
     allowed-origin-patterns: ${CORS_ALLOWED_ORIGINS}
   logging:
     # Request/response bodies carry names, phones, addresses and chats: never log them in prod
-    request-bodies: false
+    request-bodies: ${APP_LOGGING_REQUEST_BODIES:false}
 
 # API docs are for development only
 springdoc:

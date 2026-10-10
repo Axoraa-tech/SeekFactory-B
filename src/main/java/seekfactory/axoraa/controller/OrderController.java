@@ -12,7 +12,6 @@ import seekfactory.axoraa.dto.Request.order.CartCheckoutRequest;
 import seekfactory.axoraa.dto.Request.order.CartItemRequest;
 import seekfactory.axoraa.dto.Request.order.CartQuantityRequest;
 import seekfactory.axoraa.dto.Request.order.OrderCancelRequest;
-import seekfactory.axoraa.dto.Request.order.OrderContactRequest;
 import seekfactory.axoraa.dto.Request.order.OrderCreateRequest;
 import seekfactory.axoraa.dto.Response.order.CartResponse;
 import seekfactory.axoraa.dto.Request.order.OrderStatusUpdateRequest;

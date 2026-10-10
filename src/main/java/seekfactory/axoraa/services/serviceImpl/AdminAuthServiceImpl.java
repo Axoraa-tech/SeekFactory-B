@@ -1,6 +1,5 @@
 package seekfactory.axoraa.services.serviceImpl;
 
-import dev.samstevens.totp.code.CodeVerifier;
 import dev.samstevens.totp.code.DefaultCodeGenerator;
 import dev.samstevens.totp.code.DefaultCodeVerifier;
 import dev.samstevens.totp.code.HashingAlgorithm;
@@ -56,8 +55,7 @@ public class AdminAuthServiceImpl implements AdminAuthService {
     @Value("${app.admin.allow-root-reset:false}")
     private boolean allowRootReset;
 
-    @Override
-    public AdminSetupResponse setupTotp(String adminEmail) {
+    private AdminSetupResponse setupTotp(String adminEmail) {
         User admin = userRepository.findByEmail(adminEmail)
                 .orElseThrow(() -> new ResourceNotFoundException("Admin", "email", adminEmail));
 

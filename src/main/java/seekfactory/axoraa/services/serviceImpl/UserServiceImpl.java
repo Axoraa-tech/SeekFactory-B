@@ -95,14 +95,6 @@ public class UserServiceImpl implements UserService {
         return mapToResponse(userRepository.save(user));
     }
 
-    @Override
-    public void deactivateUser(String userId) {
-        User user = findUserOrThrow(userId);
-        user.setIsActive(false);
-        userRepository.save(user);
-        log.info("User deactivated: {}", userId);
-    }
-
     // ─── Private Helpers ──────────────────────────────────────
 
     private User findUserOrThrow(String userId) {

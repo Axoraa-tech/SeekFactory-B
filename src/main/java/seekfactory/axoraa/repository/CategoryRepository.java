@@ -17,8 +17,6 @@ public interface CategoryRepository extends JpaRepository<Category, String> {
 
     List<Category> findByParentIdOrderByNameAsc(String parentId); // Children of a parent
 
-    List<Category> findByParentSlugOrderByNameAsc(String slug);   // Children by parent slug
-
     List<Category> findByParentIdIn(Collection<String> parentIds); // Children of several parents, one query
 
 }

@@ -24,7 +24,7 @@ import java.util.concurrent.TimeUnit;
  *   <li>AAC 128 kbit/s stereo audio; metadata (GPS, device) stripped.</li>
  *   <li>{@code +faststart} moves the index to the front so playback starts before download ends.</li>
  * </ul>
- * One video is encoded at a time so uploads never starve the API of CPU. When ffmpeg is not
+ * One video is encoded at a time, single-threaded, so uploads never starve the API of CPU or memory. When ffmpeg is not
  * installed (e.g. a developer laptop) the transcoder reports unavailable and originals are kept.
  */
 @Slf4j
@@ -77,7 +77,11 @@ public class VideoTranscoder implements AutoCloseable {
                     ffmpeg, "-hide_banner", "-loglevel", "error", "-y",
                     "-i", source.toString(),
                     "-map", "0:v:0", "-map", "0:a:0?",
+                    // One thread and a short lookahead keep ffmpeg to roughly 100-150 MB, so it fits next
+                    // to the JVM on a 512 MB instance instead of getting the whole container OOM-killed
+                    "-threads", "1",
                     "-c:v", "libx264", "-preset", preset, "-crf", String.valueOf(crf),
+                    "-x264-params", "rc-lookahead=10",
                     "-maxrate", "6M", "-bufsize", "12M",
                     "-profile:v", "high", "-pix_fmt", "yuv420p",
                     "-vf", "scale=w='min(iw,if(gte(iw,ih),1920,1080))':h='min(ih,if(gte(iw,ih),1080,1920))'"

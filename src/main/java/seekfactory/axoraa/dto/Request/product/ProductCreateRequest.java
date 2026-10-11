@@ -45,4 +45,7 @@ public class ProductCreateRequest {
 
     private String datasheetUrl;
     private String datasheetName;
+
+    /** Optional stock indicator; defaults to IN_STOCK on create, unchanged on update when omitted. */
+    private seekfactory.axoraa.enums.ProductStockStatus stockStatus;
 }

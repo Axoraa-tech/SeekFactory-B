@@ -5,8 +5,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 import seekfactory.axoraa.dto.Request.manufacturer.ManufacturerUpdateRequest;
 import seekfactory.axoraa.dto.Request.manufacturer.VerificationSubmitRequest;
 import seekfactory.axoraa.dto.Request.product.ProductUpdateRequest;
@@ -36,6 +34,7 @@ import seekfactory.axoraa.enums.NotificationType;
 import seekfactory.axoraa.enums.Incoterm;
 import seekfactory.axoraa.enums.QuoteStatus;
 import seekfactory.axoraa.enums.RfqStatus;
+import seekfactory.axoraa.enums.ProductStockStatus;
 import seekfactory.axoraa.enums.ViewEntityType;
 import seekfactory.axoraa.exceptions.BadRequestException;
 import seekfactory.axoraa.exceptions.ForbiddenException;
@@ -52,9 +51,7 @@ import seekfactory.axoraa.repository.Rfqs.RfqQuoteRepository;
 import seekfactory.axoraa.repository.Rfqs.RfqRepository;
 import seekfactory.axoraa.repository.UserRepository;
 import seekfactory.axoraa.repository.ViewEventRepository;
-import seekfactory.axoraa.services.media.MediaTypes;
 import seekfactory.axoraa.services.services.FactoryService;
-import seekfactory.axoraa.services.services.MediaStorageService;
 import seekfactory.axoraa.services.services.ResponseMetrics;
 import seekfactory.axoraa.utils.SlugUtils;
 import seekfactory.axoraa.utils.CategoryTree;
@@ -90,7 +87,7 @@ public class FactoryServiceImpl implements FactoryService {
     private final NotificationRepository notificationRepository;
     private final ModelMapper modelMapper;
     private final CategoryTree categoryTree;
-    private final MediaStorageService mediaStorageService;
+    private final ReelRemover reelRemover;
 
     /** View KPIs cover this window; change % compares with the window before it. */
     private static final Duration STATS_PERIOD = Duration.ofDays(30);
@@ -347,6 +344,7 @@ public class FactoryServiceImpl implements FactoryService {
                 .specs(request.getSpecs() != null ? request.getSpecs() : new HashMap<>())
                 .isActive(true)
                 .listed(true)
+                .stockStatus(request.getStockStatus() != null ? request.getStockStatus() : ProductStockStatus.IN_STOCK)
                 .build();
         applyDatasheet(product, request.getDatasheetUrl(), request.getDatasheetName());
 
@@ -387,6 +385,7 @@ public class FactoryServiceImpl implements FactoryService {
                     .orElseThrow(() -> new BadRequestException("Unknown category: " + request.getCategoryId())));
         }
         if (request.getSpecs() != null) product.setSpecs(new HashMap<>(request.getSpecs()));
+        if (request.getStockStatus() != null) product.setStockStatus(request.getStockStatus());
         if (request.getDatasheetUrl() != null) {
             applyDatasheet(product, request.getDatasheetUrl(), request.getDatasheetName());
         }
@@ -398,6 +397,13 @@ public class FactoryServiceImpl implements FactoryService {
     public ProductResponse setProductListed(String userId, String productId, boolean listed) {
         Product product = ownedProduct(userId, productId);
         product.setListed(listed);
+        return mapToProductResponse(productRepository.save(product));
+    }
+
+    @Override
+    public ProductResponse setProductStockStatus(String userId, String productId, ProductStockStatus stockStatus) {
+        Product product = ownedProduct(userId, productId);
+        product.setStockStatus(stockStatus);
         return mapToProductResponse(productRepository.save(product));
     }
 
@@ -528,28 +534,7 @@ public class FactoryServiceImpl implements FactoryService {
             throw new ForbiddenException("You cannot delete reels belonging to another factory");
         }
 
-        String videoUrl = reel.getVideoUrl();
-        boolean shared = videoUrl == null || reelRepository.existsByVideoUrlAndIdNot(videoUrl, reel.getId());
-        reelRepository.delete(reel);
-        if (!shared && videoUrl.startsWith(MediaTypes.PUBLIC_PATH)) {
-            // Remove the video file too, once the delete is committed. Thumbnails are left alone:
-            // they are often product photos still in use.
-            String key = videoUrl.substring(MediaTypes.PUBLIC_PATH.length());
-            afterCommit(() -> mediaStorageService.delete(key));
-        }
-    }
-
-    private static void afterCommit(Runnable action) {
-        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
-            action.run();
-            return;
-        }
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                action.run();
-            }
-        });
+        reelRemover.delete(reel);
     }
 
     @Override
@@ -903,6 +888,7 @@ public class FactoryServiceImpl implements FactoryService {
         res.setCategoryId(p.getCategory() != null ? p.getCategory().getId() : null);
         res.setImageUrls(p.gallery());
         res.setListed(!Boolean.FALSE.equals(p.getListed()));
+        res.setStockStatus(p.getStockStatus() != null ? p.getStockStatus().name() : ProductStockStatus.IN_STOCK.name());
         return res;
     }
 

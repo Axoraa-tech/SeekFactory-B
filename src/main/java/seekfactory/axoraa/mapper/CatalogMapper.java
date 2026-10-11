@@ -54,7 +54,12 @@ public class CatalogMapper {
         response.setCategoryId(product.getCategory() != null ? product.getCategory().getId() : null);
         response.setImageUrls(product.gallery());
         response.setPriceTiers(sortedTiers(product.getPriceTiers()));
+        response.setStockStatus(stockStatusOf(product));
         return response;
+    }
+
+    private static String stockStatusOf(Product product) {
+        return product.getStockStatus() != null ? product.getStockStatus().name() : "IN_STOCK";
     }
 
     public List<ProductResponse> toProducts(List<Product> products, String viewerId) {

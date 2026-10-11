@@ -5,6 +5,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import seekfactory.axoraa.dto.Response.admin.AdminManagementDtos.AdminProductRow;
+import seekfactory.axoraa.dto.Response.admin.AdminManagementDtos.AdminSeekRow;
 import seekfactory.axoraa.dto.Response.admin.AdminManagementDtos.ManufacturerDetail;
 import seekfactory.axoraa.dto.Response.admin.AdminManagementDtos.ManufacturerRow;
 import seekfactory.axoraa.dto.Response.admin.AdminManagementDtos.Page;
@@ -22,7 +24,11 @@ import seekfactory.axoraa.enums.UserRole;
 import seekfactory.axoraa.enums.VerificationStatus;
 import seekfactory.axoraa.exceptions.BadRequestException;
 import seekfactory.axoraa.exceptions.ResourceNotFoundException;
+import seekfactory.axoraa.entity.Product;
+import seekfactory.axoraa.entity.Reels.Reel;
 import seekfactory.axoraa.repository.ManufacturerRepository;
+import seekfactory.axoraa.repository.ProductRepository;
+import seekfactory.axoraa.repository.Reels.ReelRepository;
 import seekfactory.axoraa.repository.Rfqs.RfqRepository;
 import seekfactory.axoraa.repository.SubscriptionPlanRepository;
 import seekfactory.axoraa.repository.UserRepository;
@@ -55,6 +61,9 @@ public class AdminManagementServiceImpl implements AdminManagementService {
     private final ManufacturerRepository manufacturerRepository;
     private final RfqRepository rfqRepository;
     private final SubscriptionPlanRepository subscriptionPlanRepository;
+    private final ReelRepository reelRepository;
+    private final ProductRepository productRepository;
+    private final ReelRemover reelRemover;
 
     /* ─────────────────────────── Users ─────────────────────────── */
 
@@ -340,6 +349,88 @@ public class AdminManagementServiceImpl implements AdminManagementService {
                     + " manufacturer(s). Move them to another plan before deleting it.");
         }
         subscriptionPlanRepository.deleteById(planId);
+    }
+
+    /* ─────────────────────────── Content moderation ─────────────────────────── */
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<AdminSeekRow> listSeeks(String q, int page, int size) {
+        Where w = new Where();
+        w.search(q, "r.title", "m.name");
+
+        String from = " FROM reels r JOIN manufacturers m ON m.id = r.manufacturer_id ";
+        List<AdminSeekRow> items = jdbcTemplate.query("""
+                SELECT r.id, r.title, r.description, r.poster_url, r.video_url, r.listed, r.views_count, r.created_at,
+                       m.id AS manufacturer_id, m.name AS manufacturer_name, m.slug AS manufacturer_slug,
+                       (SELECT count(*) FROM reel_likes l WHERE l.reel_id = r.id) AS likes,
+                       (SELECT count(*) FROM comments c WHERE c.reel_id = r.id) AS comments
+                """ + from + w.sql() + " ORDER BY r.created_at DESC NULLS LAST LIMIT ? OFFSET ?",
+                (rs, i) -> new AdminSeekRow(
+                        rs.getString("id"), rs.getString("title"), rs.getString("description"),
+                        rs.getString("poster_url"), rs.getString("video_url"),
+                        rs.getString("manufacturer_id"), rs.getString("manufacturer_name"),
+                        rs.getString("manufacturer_slug"), rs.getBoolean("listed"),
+                        rs.getLong("views_count"), rs.getLong("likes"), rs.getLong("comments"),
+                        toInstant(rs.getTimestamp("created_at"))),
+                w.params(pageSize(size), offset(page, size)));
+
+        long total = count("SELECT count(*)" + from + w.sql(), w.params());
+        Map<String, Long> counts = counts("""
+                SELECT count(*) AS all_count,
+                       count(*) FILTER (WHERE listed)     AS listed,
+                       count(*) FILTER (WHERE NOT listed) AS paused
+                FROM reels
+                """, "all_count", "listed", "paused");
+        return new Page<>(items, total, Math.max(page, 0), pageSize(size), counts);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<AdminProductRow> listProducts(String q, int page, int size) {
+        Where w = new Where();
+        w.and("p.is_active");
+        w.search(q, "p.name", "m.name");
+
+        String from = " FROM products p JOIN manufacturers m ON m.id = p.manufacturer_id ";
+        List<AdminProductRow> items = jdbcTemplate.query("""
+                SELECT p.id, p.name, p.slug, p.image_url, p.price_inr, p.unit, p.listed, p.stock_status, p.created_at,
+                       m.id AS manufacturer_id, m.name AS manufacturer_name, m.slug AS manufacturer_slug
+                """ + from + w.sql() + " ORDER BY p.created_at DESC NULLS LAST LIMIT ? OFFSET ?",
+                (rs, i) -> new AdminProductRow(
+                        rs.getString("id"), rs.getString("name"), rs.getString("slug"), rs.getString("image_url"),
+                        rs.getString("manufacturer_id"), rs.getString("manufacturer_name"),
+                        rs.getString("manufacturer_slug"), rs.getBigDecimal("price_inr"), rs.getString("unit"),
+                        rs.getBoolean("listed"), rs.getString("stock_status"),
+                        toInstant(rs.getTimestamp("created_at"))),
+                w.params(pageSize(size), offset(page, size)));
+
+        long total = count("SELECT count(*)" + from + w.sql(), w.params());
+        Map<String, Long> counts = counts("""
+                SELECT count(*) AS all_count,
+                       count(*) FILTER (WHERE listed)     AS listed,
+                       count(*) FILTER (WHERE NOT listed) AS paused
+                FROM products WHERE is_active
+                """, "all_count", "listed", "paused");
+        return new Page<>(items, total, Math.max(page, 0), pageSize(size), counts);
+    }
+
+    @Override
+    public void deleteSeek(String reelId) {
+        Reel reel = reelRepository.findById(reelId)
+                .orElseThrow(() -> new ResourceNotFoundException("Reel", "id", reelId));
+        reelRemover.delete(reel);
+        log.info("Admin {} deleted seek {}", SecurityUtils.getCurrentUserId(), reelId);
+    }
+
+    @Override
+    public void deleteProduct(String productId) {
+        Product product = productRepository.findById(productId)
+                .filter(p -> Boolean.TRUE.equals(p.getIsActive()))
+                .orElseThrow(() -> new ResourceNotFoundException("Product", "id", productId));
+        product.setIsActive(false);
+        productRepository.save(product);
+        log.info("Admin {} deleted product {}", SecurityUtils.getCurrentUserId(), productId);
     }
 
     /* ─────────────────────────── helpers ─────────────────────────── */

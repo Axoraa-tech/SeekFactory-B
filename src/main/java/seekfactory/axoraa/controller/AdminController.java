@@ -8,6 +8,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import seekfactory.axoraa.dto.Response.admin.AdminManagementDtos.AdminProductRow;
+import seekfactory.axoraa.dto.Response.admin.AdminManagementDtos.AdminSeekRow;
 import seekfactory.axoraa.dto.Response.admin.AdminManagementDtos.BuyerPlanPriceRequest;
 import seekfactory.axoraa.dto.Response.admin.AdminManagementDtos.ManufacturerDetail;
 import seekfactory.axoraa.dto.Response.admin.AdminManagementDtos.ManufacturerRow;
@@ -108,6 +110,40 @@ public class AdminController {
     public ResponseEntity<ApiResponse<Void>> setPlan(@PathVariable String id, @RequestParam(required = false) String planId) {
         adminManagementService.setManufacturerPlan(id, planId);
         return ResponseEntity.ok(ApiResponse.ok("Subscription plan updated successfully"));
+    }
+
+    /* ─── Content moderation ─── */
+
+    @GetMapping("/content/seeks")
+    @Operation(summary = "Search and page all video seeks (listed and paused), newest first")
+    public ResponseEntity<ApiResponse<Page<AdminSeekRow>>> listSeeks(
+            @RequestParam(required = false) String q,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(ApiResponse.of(adminManagementService.listSeeks(q, page, size)));
+    }
+
+    @DeleteMapping("/content/seeks/{id}")
+    @Operation(summary = "Permanently delete a video seek")
+    public ResponseEntity<ApiResponse<Void>> deleteSeek(@PathVariable String id) {
+        adminManagementService.deleteSeek(id);
+        return ResponseEntity.ok(ApiResponse.ok("Seek deleted successfully"));
+    }
+
+    @GetMapping("/content/products")
+    @Operation(summary = "Search and page live products (listed and paused), newest first")
+    public ResponseEntity<ApiResponse<Page<AdminProductRow>>> listProducts(
+            @RequestParam(required = false) String q,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(ApiResponse.of(adminManagementService.listProducts(q, page, size)));
+    }
+
+    @DeleteMapping("/content/products/{id}")
+    @Operation(summary = "Remove a product from the marketplace (soft delete)")
+    public ResponseEntity<ApiResponse<Void>> deleteProduct(@PathVariable String id) {
+        adminManagementService.deleteProduct(id);
+        return ResponseEntity.ok(ApiResponse.ok("Product deleted successfully"));
     }
 
     /* ─── RFQs ─── */

@@ -9,6 +9,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import seekfactory.axoraa.dto.Request.common.ListingStatusRequest;
+import seekfactory.axoraa.dto.Request.product.ProductStockStatusRequest;
 import seekfactory.axoraa.dto.Request.manufacturer.ManufacturerUpdateRequest;
 import seekfactory.axoraa.dto.Request.manufacturer.VerificationSubmitRequest;
 import seekfactory.axoraa.dto.Request.product.ProductUpdateRequest;
@@ -97,6 +98,15 @@ public class FactoryController {
         String userId = SecurityUtils.getCurrentUserId();
         ProductResponse response = factoryService.setProductListed(userId, id, request.getListed());
         return ResponseEntity.ok(ApiResponse.of(response, request.getListed() ? "Product relisted" : "Product paused"));
+    }
+
+    @PatchMapping("/products/{id}/stock")
+    @Operation(summary = "Set a product's stock status (IN_STOCK, LOW_STOCK, OUT_OF_STOCK)")
+    public ResponseEntity<ApiResponse<ProductResponse>> setProductStockStatus(
+            @PathVariable String id, @Valid @RequestBody ProductStockStatusRequest request) {
+        String userId = SecurityUtils.getCurrentUserId();
+        ProductResponse response = factoryService.setProductStockStatus(userId, id, request.getStockStatus());
+        return ResponseEntity.ok(ApiResponse.of(response, "Stock status updated"));
     }
 
     @DeleteMapping("/products/{id}")

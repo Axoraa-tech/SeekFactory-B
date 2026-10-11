@@ -1,5 +1,7 @@
 package seekfactory.axoraa.services.services;
 
+import seekfactory.axoraa.dto.Response.admin.AdminManagementDtos.AdminProductRow;
+import seekfactory.axoraa.dto.Response.admin.AdminManagementDtos.AdminSeekRow;
 import seekfactory.axoraa.dto.Response.admin.AdminManagementDtos.ManufacturerDetail;
 import seekfactory.axoraa.dto.Response.admin.AdminManagementDtos.ManufacturerRow;
 import seekfactory.axoraa.dto.Response.admin.AdminManagementDtos.Page;
@@ -39,4 +41,16 @@ public interface AdminManagementService {
     void updatePlan(String planId, PlanRequest request);
 
     void deletePlan(String planId);
+
+    /* Content moderation */
+
+    Page<AdminSeekRow> listSeeks(String q, int page, int size);
+
+    Page<AdminProductRow> listProducts(String q, int page, int size);
+
+    /** Hard delete, same cleanup as a seller deleting their own seek. */
+    void deleteSeek(String reelId);
+
+    /** Soft delete (isActive=false), same as a seller deleting their own product. */
+    void deleteProduct(String productId);
 }

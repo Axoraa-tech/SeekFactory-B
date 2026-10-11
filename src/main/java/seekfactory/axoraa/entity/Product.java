@@ -5,6 +5,7 @@ import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
+import seekfactory.axoraa.enums.ProductStockStatus;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -82,6 +83,12 @@ public class Product extends BaseEntity{
     @Column(name = "listed", nullable = false)
     @Builder.Default
     private Boolean listed = true;
+
+    /** Seller-set stock indicator shown to buyers. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "stock_status", length = 16, nullable = false)
+    @Builder.Default
+    private ProductStockStatus stockStatus = ProductStockStatus.IN_STOCK;
 
     /** Gallery in display order; imageUrl mirrors the first entry as the cover. */
     @ElementCollection

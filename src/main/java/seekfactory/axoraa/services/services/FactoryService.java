@@ -1,5 +1,6 @@
 package seekfactory.axoraa.services.services;
 
+import seekfactory.axoraa.enums.ProductStockStatus;
 import seekfactory.axoraa.dto.Request.manufacturer.ManufacturerUpdateRequest;
 import seekfactory.axoraa.dto.Request.manufacturer.VerificationSubmitRequest;
 import seekfactory.axoraa.dto.Request.product.ProductUpdateRequest;
@@ -30,6 +31,9 @@ public interface FactoryService {
     ProductResponse addProduct(String userId, ProductCreateRequest request);
 
     void deleteProduct(String userId, String productId);
+
+    /** Set the stock indicator of one of this supplier's live products. */
+    ProductResponse setProductStockStatus(String userId, String productId, ProductStockStatus stockStatus);
 
     ProductResponse updateProduct(String userId, String productId, ProductUpdateRequest request);
 

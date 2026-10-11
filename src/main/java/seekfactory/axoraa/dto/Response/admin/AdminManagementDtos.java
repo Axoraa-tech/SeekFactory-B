@@ -63,6 +63,18 @@ public final class AdminManagementDtos {
             String categoryName, String buyerName, String buyerEmail, String status,
             long quoteCount, Instant createdAt) {}
 
+    /** A video seek as listed on the admin content-moderation screen. */
+    public record AdminSeekRow(
+            String id, String title, String description, String posterUrl, String videoUrl,
+            String manufacturerId, String manufacturerName, String manufacturerSlug,
+            boolean listed, long views, long likes, long comments, Instant createdAt) {}
+
+    /** A live (not deleted) product as listed on the admin content-moderation screen. */
+    public record AdminProductRow(
+            String id, String name, String slug, String imageUrl,
+            String manufacturerId, String manufacturerName, String manufacturerSlug,
+            BigDecimal priceInr, String unit, boolean listed, String stockStatus, Instant createdAt) {}
+
     public record PlanRow(
             String id, String name, BigDecimal priceUsd, String featuresJson,
             long manufacturerCount, Instant createdAt) {}

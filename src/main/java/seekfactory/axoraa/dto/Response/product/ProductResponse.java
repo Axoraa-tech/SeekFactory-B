@@ -34,6 +34,8 @@ public class ProductResponse {
     private String datasheetName;
     /** false when the seller has paused the listing. */
     private Boolean listed;
+    /** IN_STOCK | LOW_STOCK | OUT_OF_STOCK. */
+    private String stockStatus;
     /** Bulk price breaks, ascending by minQty; empty when the factory set none. */
     private List<PriceTier> priceTiers;
     /** Viewer's own state; omitted for guests. */

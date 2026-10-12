@@ -1,0 +1,2 @@
+require("dotenv").config({path:__dirname+"/../../.env",quiet:true});const {Client}=require("pg");
+module.exports=async(env="DEV")=>{const u=new URL(process.env[env+"_DB_URL"].replace(/^jdbc:/,""));const c=new Client({host:u.hostname,port:+u.port,database:u.pathname.slice(1),user:process.env[env+"_DB_USERNAME"],password:process.env[env+"_DB_PASSWORD"],ssl:{rejectUnauthorized:false}});await c.connect();return c};

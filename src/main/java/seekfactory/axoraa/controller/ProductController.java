@@ -8,7 +8,9 @@ import org.springframework.web.bind.annotation.*;
 import seekfactory.axoraa.dto.Response.common.ApiResponse;
 import seekfactory.axoraa.dto.Response.product.ProductDetailResponse;
 import seekfactory.axoraa.dto.Response.product.ProductResponse;
+import seekfactory.axoraa.dto.Response.product.RecommendedProductsResponse;
 import seekfactory.axoraa.services.services.ProductService;
+import seekfactory.axoraa.services.services.RecommendationService;
 import seekfactory.axoraa.utils.SecurityUtils;
 
 import java.util.List;
@@ -29,12 +31,23 @@ import java.util.Map;
 public class ProductController {
 
     private final ProductService productService;
+    private final RecommendationService recommendationService;
 
     @GetMapping("/trending")
     @Operation(summary = "List trending products")
     public ResponseEntity<ApiResponse<List<ProductResponse>>> listTrending(
             @RequestParam(defaultValue = "20") int limit) {
         return ResponseEntity.ok(ApiResponse.of(productService.listTrending(limit, viewerId())));
+    }
+
+    @GetMapping("/recommended")
+    @Operation(summary = "Products for the viewer: their interests first (activity and recent searches), then trending")
+    public ResponseEntity<ApiResponse<RecommendedProductsResponse>> recommended(
+            @RequestParam(defaultValue = "60") int limit,
+            @RequestParam(required = false) String viewerId,
+            @RequestParam(name = "q", required = false) List<String> searchTerms) {
+        return ResponseEntity.ok(ApiResponse.of(
+                recommendationService.recommend(viewerId(), viewerId, searchTerms, limit)));
     }
 
     @GetMapping("/{slug}")

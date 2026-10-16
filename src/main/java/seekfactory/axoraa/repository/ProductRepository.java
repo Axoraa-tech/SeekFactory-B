@@ -43,5 +43,14 @@ public interface ProductRepository extends JpaRepository<Product, String> {
     @Query("SELECT p FROM Product p WHERE p.isActive = true AND p.listed = true AND p.manufacturer.verified = true ORDER BY p.createdAt DESC")
     List<Product> findTrending(Pageable pageable);
 
+    /** Buyer-visible products in any of the categories, newest first. */
+    @Query("""
+            SELECT p FROM Product p
+            WHERE p.isActive = true AND p.listed = true AND p.manufacturer.verified = true
+              AND p.category.id IN :categoryIds
+            ORDER BY p.createdAt DESC
+            """)
+    List<Product> findVisibleInCategories(@Param("categoryIds") Collection<String> categoryIds, Pageable pageable);
+
     List<Product> findByManufacturerIdAndIdNot(String manufacturerId, String excludeId);
 }

@@ -7,6 +7,8 @@ import seekfactory.axoraa.entity.OrderRequest;
 import seekfactory.axoraa.entity.User;
 import seekfactory.axoraa.enums.SenderType;
 
+import java.time.Instant;
+
 /**
  * An individual message within a B2B conversation.
  */
@@ -57,4 +59,12 @@ public class Message extends BaseEntity {
     @Column(name = "is_read", nullable = false)
     @Builder.Default
     private Boolean isRead = false;
+
+    /** Last time the sender changed the text; null when never edited. Added in V21. */
+    @Column(name = "edited_at")
+    private Instant editedAt;
+
+    /** Set when the sender deleted it for everyone (text and attachment are cleared). Added in V21. */
+    @Column(name = "deleted_at")
+    private Instant deletedAt;
 }

@@ -247,6 +247,79 @@ public class ConversationServiceImpl implements ConversationService {
         return response;
     }
 
+    /** Like WhatsApp: a message can be edited for a short while after it was sent. */
+    static final java.time.Duration EDIT_WINDOW = java.time.Duration.ofMinutes(15);
+    static final String DELETED_PREVIEW = "\uD83D\uDEAB This message was deleted";
+
+    @Override
+    public MessageResponse editMessage(String conversationId, String messageId, String userId, String newText) {
+        Message message = ownMessage(conversationId, messageId, userId);
+        if (message.getDeletedAt() != null) {
+            throw new BadRequestException("This message was deleted");
+        }
+        if (message.getCreatedAt() != null
+                && message.getCreatedAt().plus(EDIT_WINDOW).isBefore(java.time.Instant.now())) {
+            throw new BadRequestException("Messages can only be edited within 15 minutes of sending");
+        }
+        String text = newText == null ? "" : newText.trim();
+        if (text.isEmpty()) {
+            throw new BadRequestException("Message can't be empty");
+        }
+        if (text.equals(message.getMessageText())) {
+            return mapToMessageResponse(message);
+        }
+        message.setMessageText(text);
+        message.setEditedAt(java.time.Instant.now());
+        message = messageRepository.save(message);
+        refreshPreviewIfLatest(message.getConversation(), message, text);
+
+        MessageResponse response = mapToMessageResponse(message);
+        sseService.pushMessageToConversation(conversationId, response);
+        return response;
+    }
+
+    @Override
+    public MessageResponse deleteMessage(String conversationId, String messageId, String userId) {
+        Message message = ownMessage(conversationId, messageId, userId);
+        if (message.getDeletedAt() == null) {
+            message.setDeletedAt(java.time.Instant.now());
+            message.setMessageText("");
+            message.setAttachmentName(null);
+            message.setAttachmentSize(null);
+            message.setAttachmentUrl(null);
+            message.setAttachmentContentType(null);
+            message.setOrder(null);
+            message = messageRepository.save(message);
+            refreshPreviewIfLatest(message.getConversation(), message, DELETED_PREVIEW);
+        }
+        MessageResponse response = mapToMessageResponse(message);
+        sseService.pushMessageToConversation(conversationId, response);
+        return response;
+    }
+
+    /** A message of this conversation that the user sent; anything else is forbidden. */
+    private Message ownMessage(String conversationId, String messageId, String userId) {
+        Message message = messageRepository.findById(messageId)
+                .orElseThrow(() -> new ResourceNotFoundException("Message", "id", messageId));
+        if (!message.getConversation().getId().equals(conversationId)) {
+            throw new ResourceNotFoundException("Message", "id", messageId);
+        }
+        if (!message.getSender().getId().equals(userId)) {
+            throw new ForbiddenException("You can only change messages you sent");
+        }
+        return message;
+    }
+
+    /** Keeps the inbox preview in step when the newest message changes. */
+    private void refreshPreviewIfLatest(Conversation conversation, Message changed, String preview) {
+        messageRepository.findFirstByConversationIdOrderByCreatedAtDesc(conversation.getId())
+                .filter(latest -> latest.getId().equals(changed.getId()))
+                .ifPresent(latest -> {
+                    conversation.setLastMessageText(preview);
+                    conversationRepository.save(conversation);
+                });
+    }
+
     @Override
     public void markAsRead(String conversationId, String userId) {
         Conversation conversation = conversationRepository.findById(conversationId)
@@ -458,6 +531,8 @@ public class ConversationServiceImpl implements ConversationService {
                 .order(toOrderContext(message.getOrder()))
                 .isRead(Boolean.TRUE.equals(message.getIsRead()))
                 .createdAt(message.getCreatedAt() != null ? message.getCreatedAt().toString() : OffsetDateTime.now().toString())
+                .editedAt(message.getEditedAt() != null ? message.getEditedAt().toString() : null)
+                .deleted(message.getDeletedAt() != null)
                 .build();
     }
 }

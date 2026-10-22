@@ -27,6 +27,12 @@ public interface ConversationService {
 
     void markAsRead(String conversationId, String userId);
 
+    /** The sender changes the text of their own message, within the edit window. */
+    MessageResponse editMessage(String conversationId, String messageId, String userId, String newText);
+
+    /** The sender deletes their own message for everyone; it stays in the thread as "deleted". */
+    MessageResponse deleteMessage(String conversationId, String messageId, String userId);
+
     /** Seller opens (or reuses) the chat with the buyer of one of their orders. */
     ConversationResponse openForOrder(String supplierUserId, String orderId);
 

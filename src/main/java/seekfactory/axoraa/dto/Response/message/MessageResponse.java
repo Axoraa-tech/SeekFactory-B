@@ -24,6 +24,10 @@ public class MessageResponse {
     private String attachmentContentType;
     private boolean isRead;
     private String createdAt;
+    /** ISO time of the last edit; null when never edited. */
+    private String editedAt;
+    /** True once the sender deleted it for everyone. */
+    private boolean deleted;
 
     /** The order this message is about, if the sender picked one. */
     private OrderContext order;

@@ -14,6 +14,9 @@ public interface MessageRepository extends JpaRepository<Message, String> {
 
     List<Message> findByConversationIdOrderByCreatedAtAsc(String conversationId);
 
+    /** Newest message of a conversation (for the inbox preview). */
+    java.util.Optional<Message> findFirstByConversationIdOrderByCreatedAtDesc(String conversationId);
+
     /** Marks the other participant's unread messages in a conversation as read, in one statement. */
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("UPDATE Message m SET m.isRead = true WHERE m.conversation.id = :conversationId "

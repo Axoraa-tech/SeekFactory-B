@@ -233,4 +233,74 @@ class ConversationServiceImplTest {
 
         assertThat(service.unreadCount("u-buyer")).isEqualTo(2);
     }
+
+    // ─── Edit / delete ──────────────────────────────────────
+
+    private Message sentByBuyer(String text, Instant at) {
+        Message m = Message.builder().conversation(conversation).sender(buyer)
+                .senderType(seekfactory.axoraa.enums.SenderType.USER).messageText(text)
+                .attachmentName("drawing.pdf").attachmentUrl("/api/v1/conversations/c-1/attachments/x.pdf").build();
+        m.setId("m-9");
+        m.setCreatedAt(at);
+        when(messageRepository.findById("m-9")).thenReturn(Optional.of(m));
+        return m;
+    }
+
+    @Test
+    void senderEditsTextWithinWindowAndLatestPreviewFollows() {
+        Message m = sentByBuyer("Need 50 pcs", Instant.now().minusSeconds(60));
+        when(messageRepository.findFirstByConversationIdOrderByCreatedAtDesc("c-1")).thenReturn(Optional.of(m));
+
+        MessageResponse res = service.editMessage("c-1", "m-9", "u-buyer", "  Need 80 pcs ");
+
+        assertThat(res.getMessageText()).isEqualTo("Need 80 pcs");
+        assertThat(res.getEditedAt()).isNotNull();
+        assertThat(conversation.getLastMessageText()).isEqualTo("Need 80 pcs");
+        verify(sseService).pushMessageToConversation(eq("c-1"), any());
+    }
+
+    @Test
+    void editAfterWindowIsRejected() {
+        sentByBuyer("Old", Instant.now().minus(java.time.Duration.ofMinutes(16)));
+
+        assertThatThrownBy(() -> service.editMessage("c-1", "m-9", "u-buyer", "New"))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("15 minutes");
+    }
+
+    @Test
+    void onlyTheSenderCanEditOrDelete() {
+        sentByBuyer("Mine", Instant.now());
+
+        assertThatThrownBy(() -> service.editMessage("c-1", "m-9", "u-supplier", "Hijack"))
+                .isInstanceOf(ForbiddenException.class);
+        assertThatThrownBy(() -> service.deleteMessage("c-1", "m-9", "u-supplier"))
+                .isInstanceOf(ForbiddenException.class);
+    }
+
+    @Test
+    void deleteClearsContentForEveryoneAndCannotBeEditedAfter() {
+        Message m = sentByBuyer("Secret price", Instant.now());
+        when(messageRepository.findFirstByConversationIdOrderByCreatedAtDesc("c-1")).thenReturn(Optional.of(m));
+
+        MessageResponse res = service.deleteMessage("c-1", "m-9", "u-buyer");
+
+        assertThat(res.isDeleted()).isTrue();
+        assertThat(res.getMessageText()).isEmpty();
+        assertThat(res.getAttachmentUrl()).isNull();
+        assertThat(conversation.getLastMessageText()).contains("deleted");
+        assertThatThrownBy(() -> service.editMessage("c-1", "m-9", "u-buyer", "Back"))
+                .isInstanceOf(BadRequestException.class);
+    }
+
+    @Test
+    void messageFromAnotherConversationIsNotFound() {
+        Message m = sentByBuyer("Hi", Instant.now());
+        Conversation other = Conversation.builder().buyer(buyer).manufacturer(factory).build();
+        other.setId("c-2");
+        m.setConversation(other);
+
+        assertThatThrownBy(() -> service.deleteMessage("c-1", "m-9", "u-buyer"))
+                .isInstanceOf(seekfactory.axoraa.exceptions.ResourceNotFoundException.class);
+    }
 }

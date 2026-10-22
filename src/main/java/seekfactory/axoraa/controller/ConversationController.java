@@ -8,6 +8,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+import seekfactory.axoraa.dto.Request.message.MessageEditRequest;
 import seekfactory.axoraa.dto.Request.message.MessageSendRequest;
 import seekfactory.axoraa.dto.Request.message.StartConversationRequest;
 import seekfactory.axoraa.dto.Response.common.ApiResponse;
@@ -137,6 +138,27 @@ public class ConversationController {
         String userId = SecurityUtils.getCurrentUserId();
         MessageResponse response = conversationService.sendMessage(id, userId, request);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.of(response, "Message sent"));
+    }
+
+    @PutMapping("/{id}/messages/{messageId}")
+    @Operation(summary = "Edit the text of a message you sent (within 15 minutes)")
+    public ResponseEntity<ApiResponse<MessageResponse>> editMessage(
+            @PathVariable String id,
+            @PathVariable String messageId,
+            @Valid @RequestBody MessageEditRequest request) {
+        String userId = SecurityUtils.getCurrentUserId();
+        MessageResponse response = conversationService.editMessage(id, messageId, userId, request.getMessageText());
+        return ResponseEntity.ok(ApiResponse.of(response, "Message edited"));
+    }
+
+    @DeleteMapping("/{id}/messages/{messageId}")
+    @Operation(summary = "Delete a message you sent, for everyone in the conversation")
+    public ResponseEntity<ApiResponse<MessageResponse>> deleteMessage(
+            @PathVariable String id,
+            @PathVariable String messageId) {
+        String userId = SecurityUtils.getCurrentUserId();
+        MessageResponse response = conversationService.deleteMessage(id, messageId, userId);
+        return ResponseEntity.ok(ApiResponse.of(response, "Message deleted"));
     }
 
     @PutMapping("/{id}/read")

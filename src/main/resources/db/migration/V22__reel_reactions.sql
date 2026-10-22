@@ -1,4 +1,4 @@
--- V21__reel_reactions.sql
+-- V22__reel_reactions.sql
 -- A seek "like" now carries a reaction type: LIKE (thumbs up), LOVE (heart) or STAR.
 -- Existing likes become LIKE; one reaction per user per reel (the existing unique key).
 ALTER TABLE reel_likes

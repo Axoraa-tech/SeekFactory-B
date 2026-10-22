@@ -11,6 +11,7 @@ import seekfactory.axoraa.entity.Reels.ReelLike;
 import seekfactory.axoraa.entity.Reels.ReelSave;
 import seekfactory.axoraa.entity.User;
 import seekfactory.axoraa.enums.FeedTab;
+import seekfactory.axoraa.exceptions.BadRequestException;
 import seekfactory.axoraa.exceptions.ResourceNotFoundException;
 import seekfactory.axoraa.mapper.CatalogMapper;
 import seekfactory.axoraa.repository.Reels.ReelLikeRepository;
@@ -19,9 +20,12 @@ import seekfactory.axoraa.repository.Reels.ReelSaveRepository;
 import seekfactory.axoraa.repository.UserRepository;
 import seekfactory.axoraa.services.services.ReelService;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Manages the video reels feed — the core discovery mechanism of SeekFactory.
@@ -57,31 +61,53 @@ public class ReelServiceImpl implements ReelService {
 
     @Transactional
     @Override
-    public Map<String, Object> toggleLike(String reelId, String userId) {
+    public Map<String, Object> toggleLike(String reelId, String userId, String reaction) {
         Reel reel = reelRepository.findById(reelId)
                 .orElseThrow(() -> new ResourceNotFoundException("Reel", "id", reelId));
+        String chosen = normaliseReaction(reaction);
 
         Optional<ReelLike> existing = reelLikeRepository.findByReelIdAndUserId(reelId, userId);
-        boolean liked;
+        String current;
 
-        if (existing.isPresent()) {
+        if (existing.isPresent() && existing.get().getReaction().equals(chosen)) {
+            // Same reaction again: take it back
             reelLikeRepository.delete(existing.get());
             reel.setLikesCount(Math.max(0, reel.getLikesCount() - 1));
-            liked = false;
+            current = null;
+        } else if (existing.isPresent()) {
+            // A different reaction replaces the old one; the total count is unchanged
+            existing.get().setReaction(chosen);
+            reelLikeRepository.save(existing.get());
+            current = chosen;
         } else {
             User user = userRepository.findById(userId)
                     .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
             ReelLike like = ReelLike.builder()
                     .reel(reel)
                     .user(user)
+                    .reaction(chosen)
                     .build();
             reelLikeRepository.save(like);
             reel.setLikesCount(reel.getLikesCount() + 1);
-            liked = true;
+            current = chosen;
         }
 
         reelRepository.save(reel);
-        return Map.of("liked", liked, "likesCount", reel.getLikesCount());
+        Map<String, Object> result = new HashMap<>();
+        result.put("liked", current != null);
+        result.put("likesCount", reel.getLikesCount());
+        result.put("reaction", current);
+        return result;
+    }
+
+    private static final Set<String> REACTIONS = Set.of("LIKE", "LOVE", "STAR");
+
+    /** LIKE when absent (older clients); anything else must be one of the known reactions. */
+    private static String normaliseReaction(String reaction) {
+        if (reaction == null || reaction.isBlank()) return "LIKE";
+        String value = reaction.trim().toUpperCase(Locale.ROOT);
+        if (!REACTIONS.contains(value)) throw new BadRequestException("Unknown reaction: " + reaction);
+        return value;
     }
 
     @Transactional

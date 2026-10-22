@@ -40,10 +40,11 @@ public class FeedController {
     }
 
     @PostMapping("/{id}/like")
-    @Operation(summary = "Toggle like on a reel")
-    public ResponseEntity<ApiResponse<Map<String, Object>>> toggleLike(@PathVariable String id) {
+    @Operation(summary = "React to a reel (LIKE, LOVE or STAR); the same reaction again removes it")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> toggleLike(@PathVariable String id,
+                                                                       @RequestParam(required = false) String reaction) {
         String userId = SecurityUtils.getCurrentUserId();
-        return ResponseEntity.ok(ApiResponse.of(reelService.toggleLike(id, userId)));
+        return ResponseEntity.ok(ApiResponse.of(reelService.toggleLike(id, userId, reaction)));
     }
 
     @PostMapping("/{id}/save")

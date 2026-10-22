@@ -18,9 +18,10 @@ public interface ReelLikeRepository extends JpaRepository<ReelLike, String> {
 
     boolean existsByReelIdAndUserId(String reelId, String userId);
 
-    @Query("SELECT l.reel.id FROM ReelLike l WHERE l.user.id = :userId AND l.reel.id IN :reelIds")
-    List<String> findLikedReelIds(@Param("userId") String userId,
-                                            @Param("reelIds") Collection<String> reelIds);
+    /** (reelId, reaction) rows for the viewer's reactions among the given reels. */
+    @Query("SELECT l.reel.id, l.reaction FROM ReelLike l WHERE l.user.id = :userId AND l.reel.id IN :reelIds")
+    List<Object[]> findReactions(@Param("userId") String userId,
+                                 @Param("reelIds") Collection<String> reelIds);
 
     /** (reelId, count) rows for the given reels; reels with none are absent. */
     @Query("SELECT l.reel.id, COUNT(l) FROM ReelLike l WHERE l.reel.id IN :reelIds GROUP BY l.reel.id")

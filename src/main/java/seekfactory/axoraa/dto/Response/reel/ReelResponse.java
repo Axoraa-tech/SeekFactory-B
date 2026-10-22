@@ -33,5 +33,7 @@ public class ReelResponse {
     private Boolean listed;
     /** Viewer's own state; omitted for guests. */
     private Boolean likedByMe;
+    /** The viewer's reaction (LIKE, LOVE, STAR) or null; null for guests. */
+    private String myReaction;
     private Boolean savedByMe;
 }

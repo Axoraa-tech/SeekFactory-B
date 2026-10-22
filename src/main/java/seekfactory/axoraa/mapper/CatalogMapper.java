@@ -96,13 +96,16 @@ public class CatalogMapper {
     public List<FeedItemResponse> toFeedItems(List<Reel> reels, String viewerId) {
         if (reels.isEmpty()) return List.of();
 
-        Set<String> liked = Set.of();
+        Map<String, String> reactions = Map.of();
         Set<String> saved = Set.of();
         Set<String> followed = Set.of();
         Set<String> savedProducts = Set.of();
         if (viewerId != null) {
             List<String> reelIds = reels.stream().map(Reel::getId).toList();
-            liked = new HashSet<>(reelLikeRepository.findLikedReelIds(viewerId, reelIds));
+            reactions = new HashMap<>();
+            for (Object[] row : reelLikeRepository.findReactions(viewerId, reelIds)) {
+                reactions.put((String) row[0], (String) row[1]);
+            }
             saved = new HashSet<>(reelSaveRepository.findSavedReelIds(viewerId, reelIds));
             followed = new HashSet<>(manufacturerFollowRepository.findFollowedManufacturerIds(viewerId,
                     reels.stream().map(r -> r.getManufacturer().getId()).collect(Collectors.toSet())));
@@ -122,7 +125,8 @@ public class CatalogMapper {
             List<Product> products = activeProducts(reel);
             List<ProductResponse> productResponses = products.stream().map(this::toProduct).collect(Collectors.toList());
             if (viewerId != null) {
-                reelResponse.setLikedByMe(liked.contains(reel.getId()));
+                reelResponse.setLikedByMe(reactions.containsKey(reel.getId()));
+                reelResponse.setMyReaction(reactions.get(reel.getId()));
                 reelResponse.setSavedByMe(saved.contains(reel.getId()));
                 Set<String> savedIds = savedProducts;
                 productResponses.forEach(p -> p.setSavedByMe(savedIds.contains(p.getId())));

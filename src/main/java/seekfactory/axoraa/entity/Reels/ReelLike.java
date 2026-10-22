@@ -25,4 +25,9 @@ public class ReelLike extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
+
+    /** LIKE (thumbs up), LOVE (heart) or STAR; one reaction per user per reel. */
+    @Column(name = "reaction", nullable = false, length = 16)
+    @Builder.Default
+    private String reaction = "LIKE";
 }

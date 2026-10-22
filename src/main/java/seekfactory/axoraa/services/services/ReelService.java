@@ -14,7 +14,8 @@ public interface ReelService {
      */
     List<FeedItemResponse> getFeed(FeedTab tab, String viewerId, int page, int size);
 
-    Map<String, Object> toggleLike(String reelId, String userId);
+    /** reaction: LIKE, LOVE or STAR (null = LIKE). Same reaction again removes it; another one replaces it. */
+    Map<String, Object> toggleLike(String reelId, String userId, String reaction);
 
     Map<String, Object> toggleSave(String reelId, String userId);
 

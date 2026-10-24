@@ -61,12 +61,13 @@ public final class MediaTypes {
                 "webm", "video/webm",
                 "mov", "video/quicktime"));
         types.putAll(DOCUMENT_EXTENSIONS);
+        types.put("avif", "image/avif");
         EXTENSION_TYPES = Map.copyOf(types);
     }
 
     public static final Pattern KEY_PATTERN = Pattern.compile(
             "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\."
-                    + "(png|jpg|webp|gif|mp4|webm|mov|pdf|dwg|dxf|step|stp|igs|iges|stl|zip|xlsx|docx)$");
+                    + "(png|jpg|webp|gif|avif|mp4|webm|mov|pdf|dwg|dxf|step|stp|igs|iges|stl|zip|xlsx|docx)$");
 
     public static final Pattern PRIVATE_KEY_PATTERN = Pattern.compile(
             "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\.(png|jpg|webp|gif|pdf|dwg|dxf|step|stp|igs|iges|stl|zip|xlsx|docx)$");
@@ -103,8 +104,11 @@ public final class MediaTypes {
     public static Accepted validatePublic(MultipartFile file, String kind, Limits limits) {
         requireFile(file);
         if ("document".equals(kind)) {
+            Accepted raster = PublicDocumentRaster.validateIfSupported(file, limits);
+            if (raster != null) return raster;
             return new Accepted("document", documentExtension(file, limits.document(),
-                    "Unsupported document type. Allowed: " + String.join(", ", new TreeSet<>(DOCUMENT_EXTENSIONS.keySet()))));
+                    "Unsupported document type. Allowed: PNG, JPEG, WebP, GIF, AVIF, "
+                            + String.join(", ", new TreeSet<>(DOCUMENT_EXTENSIONS.keySet()))));
         }
         Map<String, String> allowed;
         long maxBytes;

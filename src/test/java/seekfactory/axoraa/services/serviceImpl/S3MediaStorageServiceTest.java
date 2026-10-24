@@ -4,12 +4,15 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.ArgumentCaptor;
 import org.springframework.mock.web.MockMultipartFile;
 import seekfactory.axoraa.dto.Response.media.MediaUploadResponse;
 import seekfactory.axoraa.exceptions.BadRequestException;
 import seekfactory.axoraa.exceptions.ResourceNotFoundException;
 import seekfactory.axoraa.services.media.ImageCompressor;
+import seekfactory.axoraa.services.media.DocumentRasterFixtures;
 import seekfactory.axoraa.services.media.MediaTypes;
 import seekfactory.axoraa.services.media.VideoTranscoder;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
@@ -29,6 +32,8 @@ import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -39,6 +44,34 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class S3MediaStorageServiceTest {
+
+    static Stream<DocumentRasterFixtures.Scan> scans() throws Exception { return DocumentRasterFixtures.scans(); }
+
+    @ParameterizedTest
+    @MethodSource("scans")
+    void documentScansUploadOriginalBytesToTheConfiguredBucket(DocumentRasterFixtures.Scan scan) throws Exception {
+        AtomicReference<byte[]> uploadedBytes = new AtomicReference<>();
+        when(s3.putObject(any(PutObjectRequest.class), any(RequestBody.class))).thenAnswer(call -> {
+            RequestBody body = call.getArgument(1);
+            try (var in = body.contentStreamProvider().newStream()) { uploadedBytes.set(in.readAllBytes()); }
+            return software.amazon.awssdk.services.s3.model.PutObjectResponse.builder().build();
+        });
+        var storage = service("https://media.example.com");
+        try {
+            var res = storage.store(new MockMultipartFile("file", "scan." + scan.extension(), scan.contentType(), scan.bytes()), "document");
+            String key = res.getUrl().substring(MediaTypes.PUBLIC_PATH.length());
+            assertThat(uploadedBytes.get()).isEqualTo(scan.bytes());
+            assertThat(res.getSize()).isEqualTo(scan.bytes().length);
+            assertThat(res.getContentType()).isEqualTo(scan.contentType());
+            var put = lastPut();
+            assertThat(put.bucket()).isEqualTo("seek-media");
+            assertThat(put.key()).isEqualTo("media/" + key);
+            assertThat(put.contentType()).isEqualTo(scan.contentType());
+            assertThat(storage.publicUrl(key)).contains("https://media.example.com/media/" + key);
+            storage.delete(key);
+            verify(s3).deleteObject(any(DeleteObjectRequest.class));
+        } finally { storage.shutdown(); }
+    }
 
     private static final MediaTypes.Limits LIMITS = new MediaTypes.Limits(20 << 20, 100 << 20, 50 << 20);
 

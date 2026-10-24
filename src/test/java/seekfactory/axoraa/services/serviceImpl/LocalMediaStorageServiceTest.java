@@ -2,9 +2,12 @@ package seekfactory.axoraa.services.serviceImpl;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.util.unit.DataSize;
 import seekfactory.axoraa.dto.Response.media.MediaUploadResponse;
+import seekfactory.axoraa.services.media.DocumentRasterFixtures;
 
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
@@ -14,11 +17,30 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 class LocalMediaStorageServiceTest {
+
+    static Stream<DocumentRasterFixtures.Scan> scans() throws Exception { return DocumentRasterFixtures.scans(); }
+
+    @ParameterizedTest
+    @MethodSource("scans")
+    void documentScansKeepOriginalBytesAndAreReadable(DocumentRasterFixtures.Scan scan, @TempDir Path dir) throws Exception {
+        LocalMediaStorageService storage = service(dir, dir.resolve("no-ffmpeg").toString());
+        try {
+            MediaUploadResponse res = storage.store(new MockMultipartFile("file", "scan." + scan.extension(), scan.contentType(), scan.bytes()), "document");
+            assertThat(res.getSize()).isEqualTo(scan.bytes().length);
+            assertThat(res.getContentType()).isEqualTo(scan.contentType());
+            assertThat(res.getUrl()).endsWith("." + (scan.extension().equals("jpeg") ? "jpg" : scan.extension()));
+            assertThat(storage.load(key(res)).getContentAsByteArray()).isEqualTo(scan.bytes());
+            assertThat(storage.contentTypeOf(key(res))).isEqualTo(scan.contentType());
+            storage.delete(key(res));
+            assertThat(Files.exists(dir.resolve(key(res)))).isFalse();
+        } finally { storage.shutdown(); }
+    }
 
     private static final String FFMPEG = System.getenv().getOrDefault("FFMPEG_PATH", "ffmpeg");
 

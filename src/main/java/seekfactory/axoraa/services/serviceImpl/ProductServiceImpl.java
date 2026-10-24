@@ -11,11 +11,13 @@ import seekfactory.axoraa.entity.Category;
 import seekfactory.axoraa.entity.Manufacturer;
 import seekfactory.axoraa.entity.Product;
 import seekfactory.axoraa.entity.ProductSave;
+import seekfactory.axoraa.entity.ProductLike;
 import seekfactory.axoraa.entity.User;
 import seekfactory.axoraa.exceptions.ResourceNotFoundException;
 import seekfactory.axoraa.mapper.CatalogMapper;
 import seekfactory.axoraa.repository.ProductRepository;
 import seekfactory.axoraa.repository.ProductSaveRepository;
+import seekfactory.axoraa.repository.ProductLikeRepository;
 import seekfactory.axoraa.repository.UserRepository;
 import seekfactory.axoraa.services.services.ProductService;
 import seekfactory.axoraa.utils.CategoryTree;
@@ -37,6 +39,7 @@ public class ProductServiceImpl implements ProductService {
 
     private final ProductRepository productRepository;
     private final ProductSaveRepository productSaveRepository;
+    private final ProductLikeRepository productLikeRepository;
     private final UserRepository userRepository;
     private final CatalogMapper catalogMapper;
     private final CategoryTree categoryTree;
@@ -119,6 +122,29 @@ public class ProductServiceImpl implements ProductService {
                 .filter(ProductServiceImpl::isVisible)
                 .toList();
         return catalogMapper.toProducts(products, userId);
+    }
+
+    @Transactional
+    @Override
+    public Map<String, Object> toggleLike(String productId, String userId) {
+        Product product = productRepository.findForLike(productId)
+                .orElseThrow(() -> new ResourceNotFoundException("Product", "id", productId));
+        Optional<ProductLike> existing = productLikeRepository.findByProductIdAndUserId(productId, userId);
+        boolean liked;
+        if (existing.isPresent()) {
+            // Taking back a like stays possible if the seller pauses the product afterwards.
+            productLikeRepository.delete(existing.get());
+            liked = false;
+        } else {
+            if (!isVisible(product)) throw new ResourceNotFoundException("Product", "id", productId);
+            User user = userRepository.findById(userId)
+                    .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
+            productLikeRepository.save(ProductLike.builder().product(product).user(user).build());
+            liked = true;
+        }
+        productLikeRepository.flush();
+        trendingCache.clear();
+        return Map.of("liked", liked, "likesCount", productLikeRepository.countByProductId(productId));
     }
 
     /** Buyers only see products that are not deleted, not paused by the seller, and from an approved factory. */

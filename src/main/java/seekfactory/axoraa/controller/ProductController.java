@@ -17,7 +17,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Product catalog — ALL PUBLIC.
+ * Public product catalog, with authenticated save/like mutations.
  *
  * The detail endpoint (/products/{slug}) returns:
  * - Full product info with specs (JSONB)
@@ -72,5 +72,11 @@ public class ProductController {
 
     private static String viewerId() {
         return SecurityUtils.findCurrentUserId().orElse(null);
+    }
+
+    @PostMapping("/{id}/like")
+    @Operation(summary = "Toggle like on a product; returns persisted viewer state and total likes")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> toggleLike(@PathVariable String id) {
+        return ResponseEntity.ok(ApiResponse.of(productService.toggleLike(id, SecurityUtils.getCurrentUserId())));
     }
 }

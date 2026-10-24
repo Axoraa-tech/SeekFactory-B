@@ -40,4 +40,8 @@ public class ProductResponse {
     private List<PriceTier> priceTiers;
     /** Viewer's own state; omitted for guests. */
     private Boolean savedByMe;
+    /** Count of persisted product likes, populated by buyer catalog mapping. */
+    private Long likesCount;
+    /** Viewer's own product like; null for guests. */
+    private Boolean likedByMe;
 }

@@ -21,6 +21,7 @@ import seekfactory.axoraa.dto.Response.common.ApiResponse;
 import seekfactory.axoraa.dto.Response.media.MediaUploadResponse;
 import seekfactory.axoraa.exceptions.BadRequestException;
 import seekfactory.axoraa.services.services.MediaStorageService;
+import seekfactory.axoraa.services.media.MediaTypes;
 import seekfactory.axoraa.utils.JwtTokenProvider;
 
 import java.net.URI;
@@ -90,9 +91,15 @@ public class MediaController {
         // Bucket storage: send the browser to the CDN (old links stored before the switch keep working)
         Optional<String> location = mediaStorageService.publicUrl(key);
         if (location.isPresent()) {
+            String type = MediaTypes.contentTypeOf(key);
+            long maxAge = (type.startsWith("image/") || type.startsWith("video/"))
+                    && !mediaStorageService.isProcessing(key)
+                    ? mediaStorageService.publicRedirectMaxAgeSeconds() : 0;
             return ResponseEntity.status(HttpStatus.FOUND)
                     .location(URI.create(location.get()))
-                    .cacheControl(CacheControl.noCache())
+                    .cacheControl(maxAge > 0
+                            ? CacheControl.maxAge(maxAge, TimeUnit.SECONDS).cachePrivate().mustRevalidate()
+                            : CacheControl.noCache())
                     .build();
         }
         Resource resource = mediaStorageService.load(key);

@@ -249,6 +249,15 @@ public class S3MediaStorageService implements MediaStorageService {
         return Optional.of(presign(PUBLIC_PREFIX + key, MediaTypes.contentTypeOf(key), "inline"));
     }
 
+    @Override
+    public long publicRedirectMaxAgeSeconds() {
+        // A short browser-only redirect cache prevents signed URL churn. Never retain a redirect
+        // until its signature expires; leave time for clock skew and the subsequent object request.
+        return settings.publicBaseUrl().isBlank()
+                ? Math.max(0, Math.min(300, settings.signedUrlTtl().getSeconds() - 30))
+                : 300;
+    }
+
     /** Only used when a caller asks for the bytes; browsers are redirected via {@link #publicUrl}. */
     @Override
     public Resource load(String key) {

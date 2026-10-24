@@ -96,10 +96,29 @@ class S3MediaStorageServiceTest {
     }
 
     private S3MediaStorageService service(String publicBaseUrl) {
+        return service(publicBaseUrl, Duration.ofMinutes(10));
+    }
+
+    private S3MediaStorageService service(String publicBaseUrl, Duration ttl) {
         return new S3MediaStorageService(s3, presigner,
-                new S3MediaStorageService.Settings("seek-media", publicBaseUrl, Duration.ofMinutes(10)),
+                new S3MediaStorageService.Settings("seek-media", publicBaseUrl, ttl),
                 LIMITS, new ImageCompressor(2048, 0.85f),
                 new VideoTranscoder(work.resolve("no-ffmpeg").toString(), 23, "veryfast"), work);
+    }
+
+    @Test
+    void publicRedirectLifetimeIsBoundedBySignatureAndNeverImmutable() {
+        assertThat(service("").publicRedirectMaxAgeSeconds()).isEqualTo(300);
+        assertThat(service("", Duration.ofSeconds(90)).publicRedirectMaxAgeSeconds()).isEqualTo(60);
+        assertThat(service("", Duration.ofSeconds(30)).publicRedirectMaxAgeSeconds()).isZero();
+        assertThat(service("", Duration.ofSeconds(10)).publicRedirectMaxAgeSeconds()).isZero();
+        assertThat(service("https://media.example.com", Duration.ofSeconds(10)).publicRedirectMaxAgeSeconds()).isEqualTo(300);
+        verifyNoBucketReads();
+    }
+
+    private void verifyNoBucketReads() {
+        verify(s3, never()).headObject(any(HeadObjectRequest.class));
+        verify(s3, never()).getObject(any(software.amazon.awssdk.services.s3.model.GetObjectRequest.class));
     }
 
     private PutObjectRequest lastPut() {

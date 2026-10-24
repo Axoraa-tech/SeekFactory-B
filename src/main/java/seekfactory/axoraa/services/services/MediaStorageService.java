@@ -49,6 +49,11 @@ public interface MediaStorageService {
         return Optional.empty();
     }
 
+    /** Browser lifetime for a public redirect; zero keeps unknown storage implementations revalidating. */
+    default long publicRedirectMaxAgeSeconds() {
+        return 0;
+    }
+
     /**
      * A short-lived signed link to a private file, for storage that supports it. The caller must
      * have checked the user's access first. Empty means "stream it through {@link #loadPrivate}".

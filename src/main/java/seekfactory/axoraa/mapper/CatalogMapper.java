@@ -13,6 +13,7 @@ import seekfactory.axoraa.entity.Product;
 import seekfactory.axoraa.entity.Reels.Reel;
 import seekfactory.axoraa.repository.ManufacturerFollowRepository;
 import seekfactory.axoraa.repository.ProductSaveRepository;
+import seekfactory.axoraa.repository.ProductLikeRepository;
 import seekfactory.axoraa.repository.Reels.ReelLikeRepository;
 import seekfactory.axoraa.repository.Reels.ReelSaveRepository;
 
@@ -35,6 +36,7 @@ public class CatalogMapper {
     private final ReelLikeRepository reelLikeRepository;
     private final ReelSaveRepository reelSaveRepository;
     private final ProductSaveRepository productSaveRepository;
+    private final ProductLikeRepository productLikeRepository;
     private final ManufacturerFollowRepository manufacturerFollowRepository;
 
     public ManufacturerResponse toManufacturer(Manufacturer manufacturer) {
@@ -69,7 +71,23 @@ public class CatalogMapper {
                     responses.stream().map(ProductResponse::getId).toList()));
             responses.forEach(p -> p.setSavedByMe(saved.contains(p.getId())));
         }
+        enrichProductLikes(responses, viewerId);
         return responses;
+    }
+
+    /** One grouped count query plus one viewer query for the whole page, never per card. */
+    private void enrichProductLikes(List<ProductResponse> responses, String viewerId) {
+        if (responses.isEmpty()) return;
+        List<String> ids = responses.stream().map(ProductResponse::getId).distinct().toList();
+        Map<String, Long> counts = new HashMap<>();
+        for (Object[] row : productLikeRepository.countForProducts(ids)) {
+            counts.put((String) row[0], ((Number) row[1]).longValue());
+        }
+        Set<String> liked = viewerId == null ? Set.of() : new HashSet<>(productLikeRepository.findLikedProductIds(viewerId, ids));
+        responses.forEach(response -> {
+            response.setLikesCount(counts.getOrDefault(response.getId(), 0L));
+            response.setLikedByMe(viewerId == null ? null : liked.contains(response.getId()));
+        });
     }
 
     public ReelResponse toReel(Reel reel) {
@@ -139,6 +157,7 @@ public class CatalogMapper {
                     .followingManufacturer(viewerId == null ? null : followed.contains(manufacturer.getId()))
                     .build());
         }
+        enrichProductLikes(items.stream().flatMap(item -> item.getProducts().stream()).toList(), viewerId);
         return items;
     }
 

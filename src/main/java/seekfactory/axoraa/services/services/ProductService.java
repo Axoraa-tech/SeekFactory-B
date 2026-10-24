@@ -17,6 +17,8 @@ public interface ProductService {
 
     Map<String, Object> toggleSave(String productId, String userId);
 
+    Map<String, Object> toggleLike(String productId, String userId);
+
     /** Products the user saved, most recently saved first. */
     List<ProductResponse> listSaved(String userId);
 }

@@ -220,6 +220,71 @@ public class LocalMediaStorageService implements MediaStorageService {
     }
 
     @Override
+    public void downloadPublic(String key, Path target) {
+        try {
+            Files.copy(load(key).getFile().toPath(), target, StandardCopyOption.REPLACE_EXISTING);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    @Override
+    public void replacePublic(String key, Path source) {
+        if (key == null || !MediaTypes.KEY_PATTERN.matcher(key).matches()) throw new ResourceNotFoundException("Media", "key", key);
+        Path target = root.resolve(key).normalize();
+        try {
+            // Copy next to it, then swap: a reader sees the old file or the new one, never half
+            Path temp = Files.createTempFile(root, "replace", ".tmp");
+            Files.copy(source, temp, StandardCopyOption.REPLACE_EXISTING);
+            Files.move(temp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    // ---- image variants: <root>/variants/<name> ----
+
+    private Path variantPath(String name) {
+        Path file = root.resolve("variants").resolve(name).normalize();
+        if (!file.startsWith(root.resolve("variants"))) throw new ResourceNotFoundException("Media", "key", name);
+        return file;
+    }
+
+    @Override
+    public byte[] readPublic(String key) {
+        try {
+            return load(key).getContentAsByteArray();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    @Override
+    public boolean variantExists(String name) {
+        return Files.isRegularFile(variantPath(name));
+    }
+
+    @Override
+    public void storeVariant(String name, byte[] bytes, String contentType) {
+        Path file = variantPath(name);
+        try {
+            Files.createDirectories(file.getParent());
+            // Write then move, so a concurrent reader never sees half a file
+            Path temp = Files.createTempFile(file.getParent(), "variant", ".tmp");
+            Files.write(temp, bytes);
+            Files.move(temp, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    @Override
+    public Optional<Resource> loadVariant(String name) {
+        Path file = variantPath(name);
+        return Files.isRegularFile(file) ? Optional.of(new PathResource(file)) : Optional.empty();
+    }
+
+    @Override
     public Resource load(String key) {
         if (key == null || !MediaTypes.KEY_PATTERN.matcher(key).matches()) {
             throw new ResourceNotFoundException("Media", "key", key);

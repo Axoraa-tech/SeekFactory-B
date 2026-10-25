@@ -29,8 +29,12 @@ public class SearchController {
     public ResponseEntity<ApiResponse<SearchResponse>> search(
             @RequestParam(defaultValue = "") String q,
             @RequestParam(defaultValue = "") String category,
-            @RequestParam(defaultValue = "30") int limit) {
+            @RequestParam(defaultValue = "30") int limit,
+            // e.g. "products,manufacturers": a page that shows no seeks skips searching them
+            @RequestParam(required = false) String types) {
         String viewerId = SecurityUtils.findCurrentUserId().orElse(null);
-        return ResponseEntity.ok(ApiResponse.of(searchService.search(q, category, limit, viewerId)));
+        boolean includeReels = types == null || types.isBlank() || java.util.Arrays.stream(types.split(","))
+                .map(String::trim).anyMatch("reels"::equalsIgnoreCase);
+        return ResponseEntity.ok(ApiResponse.of(searchService.search(q, category, limit, viewerId, includeReels)));
     }
 }

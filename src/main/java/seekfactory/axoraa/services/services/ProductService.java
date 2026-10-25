@@ -12,6 +12,12 @@ public interface ProductService {
 
     ProductDetailResponse getBySlug(String slug, String viewerId);
 
+    /**
+     * Every buyer-visible product (the home feed's complete catalogue) in one response, newest
+     * first, with the viewer's saved/liked state; replaces one request per top-level category.
+     */
+    List<ProductResponse> listCatalog(String viewerId);
+
     /** Products in the category or any of its subcategories (id or slug accepted). */
     List<ProductResponse> listByCategory(String categoryIdOrSlug, String viewerId);
 

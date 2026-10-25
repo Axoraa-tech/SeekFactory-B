@@ -49,7 +49,9 @@ spring:
     open-in-view: false              # Enterprise best practice: disable OSIV
     properties:
       hibernate:
-        default_batch_fetch_size: 16
+        # Lazy collections of a whole list load in one IN (...) query per 100 rows: catalogue
+        # lists (~300 factories, ~700 products) otherwise cost dozens of round trips each
+        default_batch_fetch_size: 100
         jdbc:
           batch_size: 25
           fetch_size: 100
@@ -132,6 +134,12 @@ springdoc:
 # ─── Server ───────────────────────────────────────────────────
 server:
   port: ${PORT:8080}
+  # JSON lists (catalogue, feed, search) shrink ~5-10x on the wire. Media is already compressed
+  # and served with its own types, so only text responses are gzipped.
+  compression:
+    enabled: true
+    mime-types: application/json,application/problem+json,text/plain,text/html,text/css,application/javascript
+    min-response-size: 2KB
   tomcat:
     threads:
       # Each request thread costs stack + buffers; 200 (the default) is far more than a 512 MB

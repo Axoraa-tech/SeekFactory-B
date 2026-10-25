@@ -50,6 +50,12 @@ public class ProductController {
                 recommendationService.recommend(viewerId(), viewerId, searchTerms, limit)));
     }
 
+    @GetMapping("/catalog")
+    @Operation(summary = "Every buyer-visible product in one response (the feed's complete catalogue)")
+    public ResponseEntity<ApiResponse<List<ProductResponse>>> catalog() {
+        return ResponseEntity.ok(ApiResponse.of(productService.listCatalog(viewerId())));
+    }
+
     @GetMapping("/{slug}")
     @Operation(summary = "Get product detail by slug (includes manufacturer and related products)")
     public ResponseEntity<ApiResponse<ProductDetailResponse>> getBySlug(

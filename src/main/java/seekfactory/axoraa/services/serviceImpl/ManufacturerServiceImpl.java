@@ -102,12 +102,40 @@ public class ManufacturerServiceImpl implements ManufacturerService {
 
     @Override
     public List<ManufacturerResponse> listAll() {
-        // Buyer-facing: only approved factories, filtered in SQL rather than after
-        // loading every manufacturer into memory.
-        return manufacturerRepository.findByVerifiedTrue().stream()
-                .map(catalogMapper::toManufacturer)
-                .collect(Collectors.toList());
+        // Identical for every viewer and changes rarely, but costly to build (every approved
+        // factory with its categories, certificates and export markets): rebuilt in the
+        // background every couple of minutes, so requests never wait for it
+        return allCache.get("all", () -> inReadOnlyTx(() ->
+                // Buyer-facing: only approved factories, filtered in SQL rather than after
+                // loading every manufacturer into memory.
+                manufacturerRepository.findByVerifiedTrue().stream()
+                        .map(catalogMapper::toManufacturer)
+                        .collect(Collectors.toList())));
     }
+
+    private final seekfactory.axoraa.utils.RefreshingCache<String, List<ManufacturerResponse>> allCache =
+            new seekfactory.axoraa.utils.RefreshingCache<>(VERIFIED_TTL_MS, 30 * 60_000, 1);
+
+    /** A product, seek, factory or category changed: serve the old copy once and rebuild behind it. */
+    @org.springframework.context.event.EventListener
+    void onCatalogChanged(seekfactory.axoraa.config.CatalogChangeListener.CatalogChangedEvent event) {
+        allCache.markStale();
+        verifiedCache.clear();
+    }
+
+    /** Background cache rebuilds run outside any request: they open their own read-only transaction. */
+    private org.springframework.transaction.support.TransactionTemplate readOnlyTx;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void setTransactionManager(org.springframework.transaction.PlatformTransactionManager transactionManager) {
+        readOnlyTx = new org.springframework.transaction.support.TransactionTemplate(transactionManager);
+        readOnlyTx.setReadOnly(true);
+    }
+
+    private <T> T inReadOnlyTx(java.util.function.Supplier<T> work) {
+        return readOnlyTx == null ? work.get() : readOnlyTx.execute(status -> work.get());
+    }
+
 
     @Transactional
     @Override

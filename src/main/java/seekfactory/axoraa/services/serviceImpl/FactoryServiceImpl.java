@@ -154,6 +154,29 @@ public class FactoryServiceImpl implements FactoryService {
 
     @Override
     public FactoryStatsResponse getStats(String userId) {
+        // About ten queries (counts, views, RFQs, quotes, weekly trend): a dashboard can be a few
+        // seconds behind, so each seller's numbers are shared briefly and rebuilt in the background
+        if (statsTx == null) return computeStats(userId);
+        return statsCache.get(userId, () -> statsTx.execute(status -> computeStats(userId)));
+    }
+
+    /** Per seller; fresh for 30 s. Off when there is no transaction manager (plain unit tests). */
+    private final seekfactory.axoraa.utils.RefreshingCache<String, FactoryStatsResponse> statsCache =
+            new seekfactory.axoraa.utils.RefreshingCache<>(30_000, 10 * 60_000, 2_000);
+    private org.springframework.transaction.support.TransactionTemplate statsTx;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void setTransactionManager(org.springframework.transaction.PlatformTransactionManager transactionManager) {
+        statsTx = new org.springframework.transaction.support.TransactionTemplate(transactionManager);
+    }
+
+    /** Product and seek counts are part of the numbers. */
+    @org.springframework.context.event.EventListener
+    void onCatalogChanged(seekfactory.axoraa.config.CatalogChangeListener.CatalogChangedEvent event) {
+        statsCache.markStale();
+    }
+
+    private FactoryStatsResponse computeStats(String userId) {
         Manufacturer manufacturer = getOrCreateManufacturer(userId);
         String mfrId = manufacturer.getId();
 

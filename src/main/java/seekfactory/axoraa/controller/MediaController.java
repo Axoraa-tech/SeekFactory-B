@@ -22,6 +22,7 @@ import seekfactory.axoraa.dto.Response.media.MediaUploadResponse;
 import seekfactory.axoraa.exceptions.BadRequestException;
 import seekfactory.axoraa.services.services.MediaStorageService;
 import seekfactory.axoraa.services.media.MediaTypes;
+import seekfactory.axoraa.services.media.MediaVariantService;
 import seekfactory.axoraa.utils.JwtTokenProvider;
 
 import java.net.URI;
@@ -36,6 +37,7 @@ public class MediaController {
 
     private final MediaStorageService mediaStorageService;
     private final JwtTokenProvider jwtTokenProvider;
+    private final MediaVariantService variantService;
 
     @PostMapping(value = "/api/v1/factory/media", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasAuthority('ROLE_SUPPLIER')")
@@ -86,8 +88,15 @@ public class MediaController {
      * Keys are random UUIDs and never reused, so responses can be cached indefinitely.
      */
     @GetMapping("/api/v1/media/{key}")
-    @Operation(summary = "Serve an uploaded media file (supports HTTP Range for video seeking)")
-    public ResponseEntity<Resource> serve(@PathVariable String key) {
+    @Operation(summary = "Serve an uploaded media file (supports HTTP Range for video seeking); "
+            + "?w=160|640|1280 serves a smaller copy of a photo")
+    public ResponseEntity<Resource> serve(@PathVariable String key,
+                                          @RequestParam(name = "w", required = false) Integer width) {
+        // Lists and cards ask for a small copy; anything not resizable falls through to the original
+        if (variantService.supports(key, width)) {
+            Optional<ResponseEntity<Resource>> variant = variantService.variantFor(key, width).flatMap(this::serveVariant);
+            if (variant.isPresent()) return variant.get();
+        }
         // Bucket storage: send the browser to the CDN (old links stored before the switch keep working)
         Optional<String> location = mediaStorageService.publicUrl(key);
         if (location.isPresent()) {
@@ -113,5 +122,24 @@ public class MediaController {
                 .header("Content-Disposition", "inline")
                 .header("X-Content-Type-Options", "nosniff")
                 .body(resource);
+    }
+
+    /** A stored copy: redirect to the CDN when storage has one, otherwise stream it (never changes). */
+    private Optional<ResponseEntity<Resource>> serveVariant(String name) {
+        Optional<String> location = mediaStorageService.variantUrl(name);
+        if (location.isPresent()) {
+            long maxAge = mediaStorageService.publicRedirectMaxAgeSeconds();
+            return Optional.of(ResponseEntity.status(HttpStatus.FOUND)
+                    .location(URI.create(location.get()))
+                    .cacheControl(maxAge > 0
+                            ? CacheControl.maxAge(maxAge, TimeUnit.SECONDS).cachePrivate().mustRevalidate()
+                            : CacheControl.noCache())
+                    .build());
+        }
+        return mediaStorageService.loadVariant(name).map(resource -> ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(MediaTypes.contentTypeOf(name)))
+                .cacheControl(CacheControl.maxAge(365, TimeUnit.DAYS).cachePublic().immutable())
+                .header("X-Content-Type-Options", "nosniff")
+                .body(resource));
     }
 }

@@ -272,6 +272,52 @@ public class S3MediaStorageService implements MediaStorageService {
     }
 
     @Override
+    public void downloadPublic(String key, java.nio.file.Path target) {
+        requirePublicKey(key);
+        try {
+            Files.deleteIfExists(target);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        s3.getObject(GetObjectRequest.builder().bucket(settings.bucket()).key(PUBLIC_PREFIX + key).build(), target);
+    }
+
+    @Override
+    public void replacePublic(String key, java.nio.file.Path source) {
+        requirePublicKey(key);
+        put(PUBLIC_PREFIX + key, MediaTypes.contentTypeOf(key), IMMUTABLE, RequestBody.fromFile(source));
+    }
+
+    // ---- image variants: <bucket>/media/variants/<name>, served by the CDN like any public file ----
+
+    private static final String VARIANT_PREFIX = PUBLIC_PREFIX + "variants/";
+
+    @Override
+    public byte[] readPublic(String key) {
+        requirePublicKey(key);
+        return s3.getObjectAsBytes(GetObjectRequest.builder().bucket(settings.bucket()).key(PUBLIC_PREFIX + key).build())
+                .asByteArray();
+    }
+
+    @Override
+    public boolean variantExists(String name) {
+        return exists(VARIANT_PREFIX + name);
+    }
+
+    @Override
+    public void storeVariant(String name, byte[] bytes, String contentType) {
+        put(VARIANT_PREFIX + name, contentType, IMMUTABLE, RequestBody.fromBytes(bytes));
+    }
+
+    @Override
+    public Optional<String> variantUrl(String name) {
+        if (!settings.publicBaseUrl().isBlank()) {
+            return Optional.of(settings.publicBaseUrl() + "/" + VARIANT_PREFIX + name);
+        }
+        return Optional.of(presign(VARIANT_PREFIX + name, MediaTypes.contentTypeOf(name), "inline"));
+    }
+
+    @Override
     public boolean isProcessing(String key) {
         if (key == null || !MediaTypes.KEY_PATTERN.matcher(key).matches() || !key.endsWith(".mp4")) return false;
         String id = key.substring(0, key.length() - ".mp4".length());

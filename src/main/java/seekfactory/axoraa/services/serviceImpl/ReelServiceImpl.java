@@ -53,10 +53,61 @@ public class ReelServiceImpl implements ReelService {
         PageRequest pageable = PageRequest.of(Math.max(page, 0), safeSize > 0 ? safeSize : MAX_PAGE_SIZE);
         // Approval is filtered in SQL and the manufacturer is joined in, so the feed
         // costs one query instead of one lazy load per reel.
-        List<Reel> reels = tab == FeedTab.FOLLOWING && viewerId != null
-                ? reelRepository.findFollowingFeed(viewerId, pageable)
-                : reelRepository.findVisibleFeed(pageable);
-        return catalogMapper.toFeedItems(reels, viewerId);
+        if (tab == FeedTab.FOLLOWING && viewerId != null) {
+            return catalogMapper.toFeedItems(reelRepository.findFollowingFeed(viewerId, pageable), viewerId);
+        }
+        // "For You" pages are the same for everyone: shared briefly (rebuilt in the background),
+        // with the viewer's reactions/saves/follows and current counters added per request
+        List<FeedItemResponse> base = forYouCache.get(pageable.getPageNumber() + "x" + pageable.getPageSize(),
+                () -> inReadOnlyTx(() -> catalogMapper.toNeutralFeedItems(reelRepository.findVisibleFeed(pageable))));
+        List<FeedItemResponse> items = catalogMapper.copyFeedWithViewerState(base, viewerId);
+        applyCurrentCounters(items);
+        return items;
+    }
+
+    /** Likes, views, comments... change all the time: one query keeps a shared page's numbers live. */
+    private void applyCurrentCounters(List<FeedItemResponse> items) {
+        if (items.isEmpty()) return;
+        java.util.Map<String, Object[]> counters = new java.util.HashMap<>();
+        for (Object[] row : reelRepository.findCounters(items.stream().map(item -> item.getReel().getId()).toList())) {
+            counters.put((String) row[0], row);
+        }
+        for (FeedItemResponse item : items) {
+            Object[] row = counters.get(item.getReel().getId());
+            if (row == null) continue;
+            var reel = item.getReel();
+            reel.setViews(asLong(row[1]));
+            reel.setLikes((int) asLong(row[2]));
+            reel.setComments((int) asLong(row[3]));
+            reel.setShares((int) asLong(row[4]));
+            reel.setSaves((int) asLong(row[5]));
+        }
+    }
+
+    private static long asLong(Object value) {
+        return value instanceof Number n ? n.longValue() : 0L;
+    }
+
+    /** Pages of the "For You" feed (page x size). */
+    private final seekfactory.axoraa.utils.RefreshingCache<String, List<FeedItemResponse>> forYouCache =
+            new seekfactory.axoraa.utils.RefreshingCache<>(60_000, 15 * 60_000, 64);
+
+    @org.springframework.context.event.EventListener
+    void onCatalogChanged(seekfactory.axoraa.config.CatalogChangeListener.CatalogChangedEvent event) {
+        forYouCache.markStale();
+    }
+
+    /** Background cache rebuilds run outside any request: they open their own read-only transaction. */
+    private org.springframework.transaction.support.TransactionTemplate readOnlyTx;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void setTransactionManager(org.springframework.transaction.PlatformTransactionManager transactionManager) {
+        readOnlyTx = new org.springframework.transaction.support.TransactionTemplate(transactionManager);
+        readOnlyTx.setReadOnly(true);
+    }
+
+    private <T> T inReadOnlyTx(java.util.function.Supplier<T> work) {
+        return readOnlyTx == null ? work.get() : readOnlyTx.execute(status -> work.get());
     }
 
     @Transactional

@@ -130,6 +130,41 @@ public class VideoTranscoder implements AutoCloseable {
         }
     }
 
+    /**
+     * Lossless rewrite with the MP4 index ("moov") moved to the front, so playback can start before
+     * the whole file has downloaded. Same streams, same quality; true when target holds the result.
+     */
+    boolean moveIndexToFront(Path source, Path target) {
+        if (!available) return false;
+        Path temp = target.resolveSibling(target.getFileName() + ".part.mp4");
+        try {
+            Process process = new ProcessBuilder(ffmpeg, "-hide_banner", "-loglevel", "error", "-y",
+                    "-i", source.toString(), "-map", "0", "-c", "copy", "-movflags", "+faststart", temp.toString())
+                    .redirectErrorStream(true)
+                    .redirectOutput(ProcessBuilder.Redirect.DISCARD)
+                    .start();
+            if (!process.waitFor(TIMEOUT_MINUTES, TimeUnit.MINUTES)) {
+                process.destroyForcibly();
+                return false;
+            }
+            if (process.exitValue() != 0 || !Files.isRegularFile(temp) || Files.size(temp) == 0) return false;
+            Files.move(temp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            return true;
+        } catch (IOException e) {
+            log.warn("Could not move the index of {} to the front: {}", source.getFileName(), e.getMessage());
+            return false;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return false;
+        } finally {
+            try {
+                Files.deleteIfExists(temp);
+            } catch (IOException ignored) {
+                // best effort
+            }
+        }
+    }
+
     private static boolean probe(String ffmpegPath) {
         try {
             Process p = new ProcessBuilder(ffmpegPath, "-hide_banner", "-encoders")

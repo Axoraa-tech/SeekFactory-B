@@ -121,6 +121,25 @@ works: it loads through the API, which redirects to the bucket.
 The migration is safe to re-run, because it skips files already in the bucket. Local files are not
 deleted; remove `uploads/` yourself once everything checks out.
 
+## 6b. Photo sizes and video fix-up (one time, after moving files)
+
+Photos are served in three extra sizes for lists and cards: `/api/v1/media/<key>?w=160|640|1280`
+(logos and avatars, cards, large views). Each size is made the first time it is asked for and
+stored next to the originals (`media/variants/` in the bucket, `uploads/variants/` locally), so
+the web app never downloads a multi-MB original for a 400 px card. Older backends ignore `?w=`
+and serve the original, so the web app can be deployed first.
+
+Two optional jobs run in the background once, on start, when their flag is set; turn the flag
+off again afterwards:
+
+- `APP_MEDIA_WARM_VARIANTS=true` makes every size for every product photo, factory logo/cover and
+  seek poster ahead of time, so no visitor waits for the first copy (about 7 minutes for 2,500
+  photos on a laptop).
+- `APP_MEDIA_OPTIMIZE_VIDEOS=true` checks every seek video: when the MP4 index sits at the end
+  (playback waits for most of the download), it is moved to the front without re-encoding; videos
+  above ~5 Mbps are re-encoded with the upload settings. Keys stay the same, so no link changes.
+  Needs ffmpeg (`APP_MEDIA_FFMPEG_PATH`). Copies already cached by a CDN or browser keep playing.
+
 ## 7. Check it works
 
 - [ ] Upload a product photo: it appears under `media/` in the bucket, and the page loads it from

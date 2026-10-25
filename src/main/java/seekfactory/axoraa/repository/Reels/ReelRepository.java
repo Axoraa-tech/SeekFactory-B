@@ -22,6 +22,10 @@ public interface ReelRepository extends JpaRepository<Reel, String> {
     boolean existsByVideoUrlAndIdNot(String videoUrl, String id);
 
     List<Reel> findByManufacturerIdAndListedTrueOrderByCreatedAtDesc(String manufacturerId);
+    /** (id, views, likes, comments, shares, saves) for these seeks: current counters for a cached page. */
+    @Query("SELECT r.id, r.viewsCount, r.likesCount, r.commentsCount, r.sharesCount, r.savesCount FROM Reel r WHERE r.id IN :ids")
+    List<Object[]> findCounters(@Param("ids") java.util.Collection<String> ids);
+
     /** "For You": every seek from an approved factory, newest first. */
     // The manufacturer is joined in: one query per page instead of one lazy load per seek
     @Query("SELECT r FROM Reel r JOIN FETCH r.manufacturer m WHERE m.verified = true AND r.listed = true ORDER BY r.createdAt DESC")

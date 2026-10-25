@@ -14,7 +14,7 @@ import java.util.List;
  * This is what the frontend FeedRepository.list() returns.
  */
 @Data
-@Builder
+@Builder(toBuilder = true)
 @NoArgsConstructor
 @AllArgsConstructor
 public class FeedItemResponse {

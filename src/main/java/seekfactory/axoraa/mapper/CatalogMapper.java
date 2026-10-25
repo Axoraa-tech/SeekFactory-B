@@ -65,7 +65,18 @@ public class CatalogMapper {
     }
 
     public List<ProductResponse> toProducts(List<Product> products, String viewerId) {
-        List<ProductResponse> responses = products.stream().map(this::toProduct).collect(Collectors.toList());
+        return withViewerState(products.stream().map(this::toProduct).collect(Collectors.toList()), viewerId);
+    }
+
+    /**
+     * Copies of viewer-neutral product responses (e.g. a cached list) with this viewer's saved and
+     * like state and current like counts filled in. The given list and its items are not changed.
+     */
+    public List<ProductResponse> copyWithViewerState(List<ProductResponse> base, String viewerId) {
+        return withViewerState(base.stream().map(p -> p.toBuilder().build()).collect(Collectors.toList()), viewerId);
+    }
+
+    private List<ProductResponse> withViewerState(List<ProductResponse> responses, String viewerId) {
         if (viewerId != null && !responses.isEmpty()) {
             Set<String> saved = new HashSet<>(productSaveRepository.findSavedProductIds(viewerId,
                     responses.stream().map(ProductResponse::getId).toList()));
@@ -112,50 +123,64 @@ public class CatalogMapper {
     }
 
     public List<FeedItemResponse> toFeedItems(List<Reel> reels, String viewerId) {
+        return feedWithViewerState(toNeutralFeedItems(reels), viewerId);
+    }
+
+    /** Feed items without anything viewer-specific: the same for everyone, so they can be shared. */
+    public List<FeedItemResponse> toNeutralFeedItems(List<Reel> reels) {
         if (reels.isEmpty()) return List.of();
-
-        Map<String, String> reactions = Map.of();
-        Set<String> saved = Set.of();
-        Set<String> followed = Set.of();
-        Set<String> savedProducts = Set.of();
-        if (viewerId != null) {
-            List<String> reelIds = reels.stream().map(Reel::getId).toList();
-            reactions = new HashMap<>();
-            for (Object[] row : reelLikeRepository.findReactions(viewerId, reelIds)) {
-                reactions.put((String) row[0], (String) row[1]);
-            }
-            saved = new HashSet<>(reelSaveRepository.findSavedReelIds(viewerId, reelIds));
-            followed = new HashSet<>(manufacturerFollowRepository.findFollowedManufacturerIds(viewerId,
-                    reels.stream().map(r -> r.getManufacturer().getId()).collect(Collectors.toSet())));
-            List<String> productIds = reels.stream().flatMap(r -> activeProducts(r).stream())
-                    .map(Product::getId).distinct().toList();
-            if (!productIds.isEmpty()) {
-                savedProducts = new HashSet<>(productSaveRepository.findSavedProductIds(viewerId, productIds));
-            }
-        }
-
         // A factory usually appears many times in one page; map it once
         Map<String, ManufacturerResponse> manufacturers = new HashMap<>();
         List<FeedItemResponse> items = new ArrayList<>(reels.size());
         for (Reel reel : reels) {
             Manufacturer manufacturer = reel.getManufacturer();
-            ReelResponse reelResponse = toReel(reel);
             List<Product> products = activeProducts(reel);
-            List<ProductResponse> productResponses = products.stream().map(this::toProduct).collect(Collectors.toList());
-            if (viewerId != null) {
-                reelResponse.setLikedByMe(reactions.containsKey(reel.getId()));
-                reelResponse.setMyReaction(reactions.get(reel.getId()));
-                reelResponse.setSavedByMe(saved.contains(reel.getId()));
-                Set<String> savedIds = savedProducts;
-                productResponses.forEach(p -> p.setSavedByMe(savedIds.contains(p.getId())));
-            }
             items.add(FeedItemResponse.builder()
-                    .reel(reelResponse)
+                    .reel(toReel(reel))
                     .manufacturer(manufacturers.computeIfAbsent(manufacturer.getId(), id -> toManufacturer(manufacturer)))
                     .primaryProductSlug(products.stream().findFirst().map(Product::getSlug).orElse(null))
-                    .products(productResponses)
-                    .followingManufacturer(viewerId == null ? null : followed.contains(manufacturer.getId()))
+                    .products(products.stream().map(this::toProduct).collect(Collectors.toList()))
                     .build());
+        }
+        return items;
+    }
+
+    /**
+     * Copies of viewer-neutral feed items (e.g. a cached page) with this viewer's reactions, saves
+     * and follows and current product like counts. The given items are not changed.
+     */
+    public List<FeedItemResponse> copyFeedWithViewerState(List<FeedItemResponse> base, String viewerId) {
+        List<FeedItemResponse> copies = base.stream().map(item -> item.toBuilder()
+                        .reel(item.getReel().toBuilder().build())
+                        .products(item.getProducts().stream().map(p -> p.toBuilder().build()).collect(Collectors.toList()))
+                        .build())
+                .collect(Collectors.toList());
+        return feedWithViewerState(copies, viewerId);
+    }
+
+    private List<FeedItemResponse> feedWithViewerState(List<FeedItemResponse> items, String viewerId) {
+        if (items.isEmpty()) return items;
+        if (viewerId != null) {
+            List<String> reelIds = items.stream().map(item -> item.getReel().getId()).toList();
+            Map<String, String> reactions = new HashMap<>();
+            for (Object[] row : reelLikeRepository.findReactions(viewerId, reelIds)) {
+                reactions.put((String) row[0], (String) row[1]);
+            }
+            Set<String> saved = new HashSet<>(reelSaveRepository.findSavedReelIds(viewerId, reelIds));
+            Set<String> followed = new HashSet<>(manufacturerFollowRepository.findFollowedManufacturerIds(viewerId,
+                    items.stream().map(item -> item.getManufacturer().getId()).collect(Collectors.toSet())));
+            List<String> productIds = items.stream().flatMap(item -> item.getProducts().stream())
+                    .map(ProductResponse::getId).distinct().toList();
+            Set<String> savedProducts = productIds.isEmpty() ? Set.of()
+                    : new HashSet<>(productSaveRepository.findSavedProductIds(viewerId, productIds));
+            for (FeedItemResponse item : items) {
+                ReelResponse reel = item.getReel();
+                reel.setLikedByMe(reactions.containsKey(reel.getId()));
+                reel.setMyReaction(reactions.get(reel.getId()));
+                reel.setSavedByMe(saved.contains(reel.getId()));
+                item.getProducts().forEach(p -> p.setSavedByMe(savedProducts.contains(p.getId())));
+                item.setFollowingManufacturer(followed.contains(item.getManufacturer().getId()));
+            }
         }
         enrichProductLikes(items.stream().flatMap(item -> item.getProducts().stream()).toList(), viewerId);
         return items;

@@ -13,4 +13,9 @@ public interface SearchService {
      * @param viewerId signed-in viewer (nullable) for saved / liked state
      */
     SearchResponse search(String query, String category, int limit, String viewerId);
+
+    /** As above; {@code includeReels} false leaves seeks out (an empty list), for pages that don't show them. */
+    default SearchResponse search(String query, String category, int limit, String viewerId, boolean includeReels) {
+        return search(query, category, limit, viewerId);
+    }
 }

@@ -91,11 +91,53 @@ public class ProductServiceImpl implements ProductService {
     public List<ProductResponse> listByCategory(String categoryIdOrSlug, String viewerId) {
         Optional<Category> category = categoryTree.resolve(categoryIdOrSlug);
         if (category.isEmpty()) return List.of();
-        List<Product> products = productRepository
-                .findByCategoryIdInAndIsActiveTrueAndListedTrueAndManufacturerVerifiedTrueOrderByCreatedAtDesc(
-                        categoryTree.withDescendants(category.get().getId()));
-        return catalogMapper.toProducts(products, viewerId);
+        String categoryId = category.get().getId();
+        // Loading and mapping a whole category is the costly part and the same for everyone (rebuilt
+        // in the background, so requests never wait); the viewer's saved/liked state and like
+        // counts are added fresh on every request
+        List<ProductResponse> base = categoryCache.get(categoryId, () -> inReadOnlyTx(() ->
+                productRepository
+                        .findByCategoryIdInAndIsActiveTrueAndListedTrueAndManufacturerVerifiedTrueOrderByCreatedAtDesc(
+                                categoryTree.withDescendants(categoryId))
+                        .stream().map(catalogMapper::toProduct).toList()));
+        return catalogMapper.copyWithViewerState(base, viewerId);
     }
+
+    @Override
+    public List<ProductResponse> listCatalog(String viewerId) {
+        List<ProductResponse> base = catalogCache.get("all", () -> inReadOnlyTx(() ->
+                productRepository.findAllVisible().stream().map(catalogMapper::toProduct).toList()));
+        return catalogMapper.copyWithViewerState(base, viewerId);
+    }
+
+    private final seekfactory.axoraa.utils.RefreshingCache<String, List<ProductResponse>> catalogCache =
+            new seekfactory.axoraa.utils.RefreshingCache<>(120_000, 30 * 60_000, 1);
+
+    /** A product, seek, factory or category changed: serve the old copy once and rebuild behind it. */
+    @org.springframework.context.event.EventListener
+    void onCatalogChanged(seekfactory.axoraa.config.CatalogChangeListener.CatalogChangedEvent event) {
+        catalogCache.markStale();
+        categoryCache.markStale();
+        trendingCache.clear();
+    }
+
+    /** One entry per category (~200). */
+    private final seekfactory.axoraa.utils.RefreshingCache<String, List<ProductResponse>> categoryCache =
+            new seekfactory.axoraa.utils.RefreshingCache<>(120_000, 30 * 60_000, 512);
+
+    /** Background cache rebuilds run outside any request: they open their own read-only transaction. */
+    private org.springframework.transaction.support.TransactionTemplate readOnlyTx;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void setTransactionManager(org.springframework.transaction.PlatformTransactionManager transactionManager) {
+        readOnlyTx = new org.springframework.transaction.support.TransactionTemplate(transactionManager);
+        readOnlyTx.setReadOnly(true);
+    }
+
+    private <T> T inReadOnlyTx(java.util.function.Supplier<T> work) {
+        return readOnlyTx == null ? work.get() : readOnlyTx.execute(status -> work.get());
+    }
+
 
     @Transactional
     @Override

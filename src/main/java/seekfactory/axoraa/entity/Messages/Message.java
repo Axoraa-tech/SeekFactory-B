@@ -23,6 +23,13 @@ import java.time.Instant;
 @Builder
 public class Message extends BaseEntity {
 
+    @Column(name = "client_message_id", length = 64)
+    private String clientMessageId;
+
+    @Column(name = "change_revision", nullable = false)
+    @Builder.Default
+    private long changeRevision = 0;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "conversation_id", nullable = false)
     private Conversation conversation;

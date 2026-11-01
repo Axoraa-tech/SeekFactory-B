@@ -16,6 +16,30 @@ import java.util.concurrent.CopyOnWriteArrayList;
 @Service
 public class SseServiceImpl implements SseService {
 
+    private final java.util.concurrent.Semaphore streamSlots = new java.util.concurrent.Semaphore(1024);
+    private final java.util.concurrent.ScheduledExecutorService heartbeat =
+            java.util.concurrent.Executors.newSingleThreadScheduledExecutor(r -> {
+                Thread t = new Thread(r, "chat-heartbeat"); t.setDaemon(true); return t;
+            });
+
+    public SseServiceImpl() {
+        heartbeat.scheduleWithFixedDelay(this::heartbeat, 15, 15, java.util.concurrent.TimeUnit.SECONDS);
+    }
+
+    private void heartbeat() {
+        emitters.forEach((id, watchers) -> watchers.forEach(w -> {
+            try { w.emitter().send(SseEmitter.event().comment("keepalive")); }
+            catch (IOException | IllegalStateException closed) { removeEmitter(id, w.emitter()); }
+        }));
+    }
+
+    @jakarta.annotation.PreDestroy
+    public void shutdown() {
+        heartbeat.shutdownNow();
+        emitters.values().forEach(list -> list.forEach(w -> w.emitter().complete()));
+        emitters.clear();
+    }
+
     /** A connected stream and the participant who opened it. */
     private record Watcher(String userId, SseEmitter emitter) {}
 
@@ -24,19 +48,27 @@ public class SseServiceImpl implements SseService {
 
     @Override
     public SseEmitter subscribe(String conversationId, String userId) {
+        if (!streamSlots.tryAcquire()) throw new java.util.concurrent.RejectedExecutionException("Too many chat streams");
         // Timeout set to 0 (infinite) or something large like 30 mins
         SseEmitter emitter = new SseEmitter(1800000L); // 30 minutes
 
-        emitters.computeIfAbsent(conversationId, k -> new CopyOnWriteArrayList<>()).add(new Watcher(userId, emitter));
+        try {
+            emitters.compute(conversationId, (id, list) -> {
+                if (list == null) list = new CopyOnWriteArrayList<>();
+                if (list.size() >= 20) throw new java.util.concurrent.RejectedExecutionException("Too many streams for this chat");
+                list.add(new Watcher(userId, emitter));
+                return list;
+            });
+        } catch (RuntimeException rejected) { streamSlots.release(); throw rejected; }
 
         emitter.onCompletion(() -> removeEmitter(conversationId, emitter));
-        emitter.onTimeout(() -> removeEmitter(conversationId, emitter));
+        emitter.onTimeout(() -> { removeEmitter(conversationId, emitter); emitter.complete(); });
         emitter.onError((e) -> removeEmitter(conversationId, emitter));
 
         // Send an initial event to establish connection successfully
         try {
             emitter.send(SseEmitter.event().name("INIT").data("Connected"));
-        } catch (IOException e) {
+        } catch (IOException | IllegalStateException e) {
             removeEmitter(conversationId, emitter);
         }
 
@@ -52,7 +84,7 @@ public class SseServiceImpl implements SseService {
                     watcher.emitter().send(SseEmitter.event()
                             .name("message")
                             .data(message));
-                } catch (IOException e) {
+                } catch (IOException | IllegalStateException e) {
                     removeEmitter(conversationId, watcher.emitter());
                 }
             }
@@ -66,12 +98,9 @@ public class SseServiceImpl implements SseService {
     }
 
     private void removeEmitter(String conversationId, SseEmitter emitter) {
-        List<Watcher> conversationEmitters = emitters.get(conversationId);
-        if (conversationEmitters != null) {
-            conversationEmitters.removeIf(w -> w.emitter() == emitter);
-            if (conversationEmitters.isEmpty()) {
-                emitters.remove(conversationId);
-            }
-        }
+        emitters.computeIfPresent(conversationId, (id, watchers) -> {
+            if (watchers.removeIf(w -> w.emitter() == emitter)) streamSlots.release();
+            return watchers.isEmpty() ? null : watchers;
+        });
     }
 }

@@ -12,7 +12,13 @@ import java.util.List;
 @Repository
 public interface MessageRepository extends JpaRepository<Message, String> {
 
+    java.util.Optional<Message> findByConversationIdAndSenderIdAndClientMessageId(
+            String conversationId, String senderId, String clientMessageId);
+
     List<Message> findByConversationIdOrderByCreatedAtAsc(String conversationId);
+
+    List<Message> findByConversationIdAndChangeRevisionGreaterThanOrderByChangeRevisionAsc(
+            String conversationId, long after, org.springframework.data.domain.Pageable pageable);
 
     /** Newest message of a conversation (for the inbox preview). */
     java.util.Optional<Message> findFirstByConversationIdOrderByCreatedAtDesc(String conversationId);

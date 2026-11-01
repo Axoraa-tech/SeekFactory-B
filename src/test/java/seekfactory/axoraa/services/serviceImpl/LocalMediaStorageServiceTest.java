@@ -87,6 +87,9 @@ class LocalMediaStorageServiceTest {
 
     @Test
     void videoServesOriginalWhileProcessingThenTheCompressedFile(@TempDir Path dir) throws Exception {
+        try (var probe = new seekfactory.axoraa.services.media.VideoTranscoder(FFMPEG, 23, "medium")) {
+            assumeTrue(probe.isAvailable(), "ffmpeg not installed");
+        }
         LocalMediaStorageService storage = service(dir, FFMPEG);
         try {
             Path clip = dir.resolve("clip.mov");

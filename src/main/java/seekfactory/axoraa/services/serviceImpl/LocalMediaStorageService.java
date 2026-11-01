@@ -51,6 +51,7 @@ public class LocalMediaStorageService implements MediaStorageService {
     private final Path pending;
     private final ImageCompressor imageCompressor;
     private final VideoTranscoder videoTranscoder;
+    private final java.util.Set<Path> queuedVideos = java.util.concurrent.ConcurrentHashMap.newKeySet();
 
     public LocalMediaStorageService(
             @Value("${app.media.storage-dir:uploads}") String storageDir,
@@ -126,12 +127,18 @@ public class LocalMediaStorageService implements MediaStorageService {
         String id = UUID.randomUUID().toString();
         String key = id + ".mp4";
         Path source = pending.resolve(id + "." + extension);
-        try (InputStream in = file.getInputStream()) {
-            Files.copy(in, source, StandardCopyOption.REPLACE_EXISTING);
+        try (VideoTranscoder.Admission admission = videoTranscoder.reserve(pending, file.getSize())) {
+            try (InputStream in = file.getInputStream()) {
+                Files.copy(in, source, StandardCopyOption.REPLACE_EXISTING);
+            }
+            queueVideo(admission, source, key);
         } catch (IOException e) {
+            try { Files.deleteIfExists(source); } catch (IOException ignored) { }
             throw new UncheckedIOException("Failed to store upload", e);
+        } catch (RuntimeException e) {
+            try { Files.deleteIfExists(source); } catch (IOException ignored) { }
+            throw e;
         }
-        queueVideo(source, key);
         return MediaUploadResponse.builder()
                 .url(PUBLIC_PATH + key)
                 .contentType("video/mp4")
@@ -140,8 +147,19 @@ public class LocalMediaStorageService implements MediaStorageService {
     }
 
     private void queueVideo(Path source, String key) {
+        if (queuedVideos.contains(source)) return;
+        try (var admission = videoTranscoder.reserve()) { queueVideo(admission, source, key); }
+    }
+
+    private void queueVideo(VideoTranscoder.Admission admission, Path source, String key) {
+        if (!queuedVideos.add(source)) return;
         Path target = root.resolve(key);
-        videoTranscoder.submit(source, target, compressed -> finishVideo(source, target, compressed));
+        try {
+            videoTranscoder.submit(admission, source, target, compressed -> {
+                try { finishVideo(source, target, compressed); }
+                finally { queuedVideos.remove(source); }
+            });
+        } catch (RuntimeException failure) { queuedVideos.remove(source); throw failure; }
     }
 
     /**
@@ -162,7 +180,8 @@ public class LocalMediaStorageService implements MediaStorageService {
     }
 
     /** Re-queues videos whose compression was interrupted by a restart; cleans up finished ones. */
-    private void resumePendingVideos() {
+    @org.springframework.scheduling.annotation.Scheduled(fixedDelay = 60000, initialDelay = 60000)
+    public void resumePendingVideos() {
         try (Stream<Path> files = Files.list(pending)) {
             files.filter(Files::isRegularFile).forEach(source -> {
                 String name = source.getFileName().toString();
@@ -176,7 +195,11 @@ public class LocalMediaStorageService implements MediaStorageService {
                     }
                 } else if (videoTranscoder.isAvailable()) {
                     log.info("Resuming compression of video {}", id);
-                    queueVideo(source, id + ".mp4");
+                    try {
+                        queueVideo(source, id + ".mp4");
+                    } catch (java.util.concurrent.RejectedExecutionException busy) {
+                        log.debug("Video queue full; pending file retained for the next scan");
+                    }
                 }
             });
         } catch (IOException e) {

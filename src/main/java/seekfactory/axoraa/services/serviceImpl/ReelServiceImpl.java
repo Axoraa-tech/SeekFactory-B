@@ -113,7 +113,7 @@ public class ReelServiceImpl implements ReelService {
     @Transactional
     @Override
     public Map<String, Object> toggleLike(String reelId, String userId, String reaction) {
-        Reel reel = reelRepository.findById(reelId)
+        Reel reel = reelRepository.findForUpdate(reelId)
                 .orElseThrow(() -> new ResourceNotFoundException("Reel", "id", reelId));
         String chosen = normaliseReaction(reaction);
 
@@ -164,7 +164,7 @@ public class ReelServiceImpl implements ReelService {
     @Transactional
     @Override
     public Map<String, Object> toggleSave(String reelId, String userId) {
-        Reel reel = reelRepository.findById(reelId)
+        Reel reel = reelRepository.findForUpdate(reelId)
                 .orElseThrow(() -> new ResourceNotFoundException("Reel", "id", reelId));
 
         Optional<ReelSave> existing = reelSaveRepository.findByReelIdAndUserId(reelId, userId);
@@ -196,7 +196,7 @@ public class ReelServiceImpl implements ReelService {
         if (reelRepository.incrementSharesCount(reelId) == 0) {
             throw new ResourceNotFoundException("Reel", "id", reelId);
         }
-        int shares = reelRepository.findById(reelId).map(Reel::getSharesCount).orElse(0);
+        int shares = reelRepository.findForUpdate(reelId).map(Reel::getSharesCount).orElse(0);
         return Map.of("sharesCount", shares);
     }
 

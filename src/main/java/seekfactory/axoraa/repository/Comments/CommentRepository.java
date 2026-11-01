@@ -13,6 +13,10 @@ import java.util.List;
 @Repository
 public interface CommentRepository extends JpaRepository<Comment, String> {
 
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT c FROM Comment c WHERE c.id = :id")
+    java.util.Optional<Comment> findForUpdate(String id);
+
     List<seekfactory.axoraa.entity.Comments.Comment> findByReelIdAndParentIsNullOrderByCreatedAtDesc(String reelId);
 
     /** (reelId, count) rows for the given reels; reels with none are absent. */

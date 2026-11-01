@@ -16,6 +16,10 @@ import org.springframework.data.domain.Pageable;
 @Repository
 public interface ReelRepository extends JpaRepository<Reel, String> {
 
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT r FROM Reel r WHERE r.id = :id")
+    java.util.Optional<Reel> findForUpdate(String id);
+
     List<Reel> findByManufacturerIdOrderByCreatedAtDesc(String manufacturerId);
 
     /** Whether another seek still uses this video (before deleting its file). */

@@ -22,6 +22,7 @@ import java.util.Set;
  */
 
 @Entity
+@org.hibernate.annotations.DynamicUpdate
 @Table(name = "reels", indexes = { @Index(name = "idx_reels_manufacturer_id", columnList = "manufacturer_id"), @Index(name = "idx_reels_feed_tab", columnList = "feed_tab")})
 @Getter
 @Setter

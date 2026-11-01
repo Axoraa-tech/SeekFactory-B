@@ -25,6 +25,10 @@ import java.util.List;
 @Builder
 public class Conversation extends BaseEntity {
 
+    @Column(name = "message_revision", nullable = false)
+    @Builder.Default
+    private long messageRevision = 0;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "buyer_id", nullable = false)
     private User buyer;

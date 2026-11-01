@@ -45,6 +45,13 @@ public class ConversationController {
     private final SseService sseService;
     private final MediaStorageService mediaStorageService;
 
+    @GetMapping("/{id}/messages/sync")
+    public ResponseEntity<ApiResponse<ConversationService.MessageSync>> syncMessages(
+            @PathVariable String id, @RequestParam(defaultValue = "0") long after) {
+        return ResponseEntity.ok(ApiResponse.of(
+                conversationService.syncMessages(id, SecurityUtils.getCurrentUserId(), after)));
+    }
+
     @GetMapping(value = "/{id}/stream", produces = org.springframework.http.MediaType.TEXT_EVENT_STREAM_VALUE)
     @Operation(summary = "Subscribe to real-time message stream via Server-Sent Events (SSE)")
     public SseEmitter streamMessages(@PathVariable String id) {

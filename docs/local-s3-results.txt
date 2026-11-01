@@ -1,0 +1,2 @@
+Loopback S3rver: real H264 upload/compression, SDK PUT/GET, range206/100 bytes, immutable cache, allowed/blocked origins, Range preflight, signed-link expiry403 and renewal200 passed.
+S3rver does not verify SigV4 signatures or enforce production bucket ACLs; no R2/CDN/provider security certification.

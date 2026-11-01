@@ -1,0 +1,9 @@
+[
+  {
+    "AllowedOrigins": ["https://staging.seekfactory.com"],
+    "AllowedMethods": ["GET", "HEAD"],
+    "AllowedHeaders": ["Range"],
+    "ExposeHeaders": ["Accept-Ranges", "Content-Range", "Content-Length", "ETag", "Cache-Control"],
+    "MaxAgeSeconds": 3600
+  }
+]

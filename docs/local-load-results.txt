@@ -1,0 +1,9 @@
+Local-only HTTP load; PostgreSQL 14; synthetic data; backend and load generator share this laptop.
+available_processors=20 max_heap_mib=4002
+20 duplicate sends => 1 message; 100 distinct concurrent sends => 101 total messages/unread.
+Cursor pagination and edit/delete recovery passed.
+concurrency=25 requests=125 errors=0 p95_ms=107 elapsed_ms=312 heap_used_mib=199
+concurrency=100 requests=500 errors=0 p95_ms=219 elapsed_ms=703 heap_used_mib=249
+concurrency=250 requests=1250 errors=0 p95_ms=426 elapsed_ms=1307 heap_used_mib=224
+concurrency=500 requests=2500 errors=0 p95_ms=652 elapsed_ms=1930 heap_used_mib=155
+mixed_500 duration_ms=20919 requests=10000 errors=0 p95_ms=199

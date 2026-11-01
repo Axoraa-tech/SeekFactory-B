@@ -41,6 +41,13 @@ public class GlobalExceptionHandler {
 
     private final ErrorLogService errorLogService;
 
+    @ExceptionHandler(java.util.concurrent.RejectedExecutionException.class)
+    public ResponseEntity<ErrorResponse> handleBusy(java.util.concurrent.RejectedExecutionException ex) {
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).header("Retry-After", "30")
+                .body(ErrorResponse.builder().status(429)
+                        .message("Service is busy. Please retry in 30 seconds.").build());
+    }
+
     /**
      * The viewer scrolled past or closed a seek while its video was streaming. Normal for media, not
      * an error: nothing to log or store, and no body can be written to a response that is gone.

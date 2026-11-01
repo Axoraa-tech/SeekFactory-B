@@ -1,0 +1,10 @@
+Local-only HTTP load; PostgreSQL 14; synthetic data; backend and load generator share this laptop.
+available_processors=2 max_heap_mib=618
+next_production_proxy=true
+HTTP H264 upload/compression, Range206/100 bytes, immutable cache, allowed/blocked CORS, Range preflight and full-queue429/Retry-After passed.
+20 duplicate sends => 1 message; 100 distinct concurrent sends => 101 total messages/unread.
+Cursor pagination and edit/delete recovery passed.
+diagnostic=node-baseline requests=2500 p95_ms=506 elapsed_ms=1078 outcomes={HTTP_200=2500}
+diagnostic=backend-direct requests=2500 p95_ms=3256 elapsed_ms=11398 outcomes={HTTP_200=2500}
+diagnostic=next-proxy requests=2500 p95_ms=4522 elapsed_ms=11046 outcomes={HTTP_200=1393, ClosedChannelException:null=1107}
+diagnostic=next-proxy-fresh-client requests=2500 p95_ms=2948 elapsed_ms=8509 outcomes={HTTP_200=1368, ClosedChannelException:null=1132}

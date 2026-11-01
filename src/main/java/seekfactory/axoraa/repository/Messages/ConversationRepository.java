@@ -13,6 +13,10 @@ import java.util.Optional;
 @Repository
 public interface ConversationRepository extends JpaRepository<Conversation, String> {
 
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT c FROM Conversation c WHERE c.id = :id")
+    Optional<Conversation> findForUpdate(String id);
+
     List<Conversation> findByBuyerIdOrderByLastMessageAtDesc(String buyerId);
 
     List<Conversation> findByManufacturerIdOrderByLastMessageAtDesc(String manufacturerId);

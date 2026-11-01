@@ -88,6 +88,7 @@ public class S3MediaStorageService implements MediaStorageService {
     /** Local copies of videos being compressed: {@code pending/<uuid>.<ext>} and {@code out/<uuid>.mp4}. */
     private final Path pending;
     private final Path out;
+    private final java.util.Set<Path> queuedVideos = java.util.concurrent.ConcurrentHashMap.newKeySet();
 
     @Autowired
     public S3MediaStorageService(
@@ -110,7 +111,7 @@ public class S3MediaStorageService implements MediaStorageService {
             @Value("${app.media.video-preset:medium}") String videoPreset) {
         this(buildClient(endpoint, region, accessKey, secretKey, pathStyle),
                 buildPresigner(endpoint, region, accessKey, secretKey, pathStyle),
-                new Settings(requireBucket(bucket), publicBaseUrl, signedUrlTtl),
+                new Settings(requireBucket(bucket), safePublicBaseUrl(endpoint, publicBaseUrl), signedUrlTtl),
                 new MediaTypes.Limits(maxImageSize.toBytes(), maxVideoSize.toBytes(), maxDocumentSize.toBytes()),
                 new ImageCompressor(imageMaxDimension, imageQuality),
                 new VideoTranscoder(ffmpegPath, videoCrf, videoPreset),
@@ -184,14 +185,20 @@ public class S3MediaStorageService implements MediaStorageService {
         String id = UUID.randomUUID().toString();
         String key = id + ".mp4";
         Path source = pending.resolve(id + "." + extension);
-        try (InputStream in = file.getInputStream()) {
-            Files.copy(in, source, StandardCopyOption.REPLACE_EXISTING);
+        try (VideoTranscoder.Admission admission = videoTranscoder.reserve(pending, file.getSize())) {
+            try (InputStream in = file.getInputStream()) {
+                Files.copy(in, source, StandardCopyOption.REPLACE_EXISTING);
+            }
+            put(PUBLIC_PREFIX + key, MediaTypes.contentTypeOf(source.getFileName().toString()), NO_CACHE,
+                    RequestBody.fromFile(source));
+            queueVideo(admission, source, key);
         } catch (IOException e) {
+            try { Files.deleteIfExists(source); } catch (IOException ignored) { }
             throw new UncheckedIOException("Failed to store upload", e);
+        } catch (RuntimeException e) {
+            try { Files.deleteIfExists(source); } catch (IOException ignored) { }
+            throw e;
         }
-        put(PUBLIC_PREFIX + key, MediaTypes.contentTypeOf(source.getFileName().toString()), NO_CACHE,
-                RequestBody.fromFile(source));
-        queueVideo(source, key);
         return MediaUploadResponse.builder()
                 .url(MediaTypes.PUBLIC_PATH + key)
                 .contentType("video/mp4")
@@ -200,8 +207,19 @@ public class S3MediaStorageService implements MediaStorageService {
     }
 
     private void queueVideo(Path source, String key) {
+        if (queuedVideos.contains(source)) return;
+        try (var admission = videoTranscoder.reserve()) { queueVideo(admission, source, key); }
+    }
+
+    private void queueVideo(VideoTranscoder.Admission admission, Path source, String key) {
+        if (!queuedVideos.add(source)) return;
         Path target = out.resolve(key);
-        videoTranscoder.submit(source, target, compressed -> finishVideo(source, target, key, compressed));
+        try {
+            videoTranscoder.submit(admission, source, target, compressed -> {
+                try { finishVideo(source, target, key, compressed); }
+                finally { queuedVideos.remove(source); }
+            });
+        } catch (RuntimeException failure) { queuedVideos.remove(source); throw failure; }
     }
 
     /**
@@ -225,14 +243,19 @@ public class S3MediaStorageService implements MediaStorageService {
     }
 
     /** Re-queues videos whose compression was interrupted by a restart. */
-    private void resumePendingVideos() {
+    @org.springframework.scheduling.annotation.Scheduled(fixedDelay = 60000, initialDelay = 60000)
+    public void resumePendingVideos() {
         if (!videoTranscoder.isAvailable()) return;
         try (Stream<Path> files = Files.list(pending)) {
             files.filter(Files::isRegularFile).forEach(source -> {
                 String name = source.getFileName().toString();
                 String id = name.substring(0, name.indexOf('.'));
                 log.info("Resuming compression of video {}", id);
-                queueVideo(source, id + ".mp4");
+                try {
+                    queueVideo(source, id + ".mp4");
+                } catch (java.util.concurrent.RejectedExecutionException busy) {
+                    log.debug("Video queue full; pending file retained for the next scan");
+                }
             });
         } catch (IOException e) {
             log.warn("Could not scan pending videos: {}", e.getMessage());
@@ -465,6 +488,16 @@ public class S3MediaStorageService implements MediaStorageService {
             throw new IllegalStateException("app.media.storage=s3 needs APP_MEDIA_S3_BUCKET");
         }
         return bucket;
+    }
+
+    /** This bucket also contains private chat attachments; an R2 public domain exposes the whole bucket. */
+    static String safePublicBaseUrl(String endpoint, String publicBaseUrl) {
+        String host = endpoint.isBlank() ? "" : Optional.ofNullable(URI.create(endpoint).getHost()).orElse("");
+        if (host.toLowerCase(java.util.Locale.ROOT).endsWith(".r2.cloudflarestorage.com") && !publicBaseUrl.isBlank()) {
+            throw new IllegalStateException("Keep this R2 bucket private and APP_MEDIA_S3_PUBLIC_BASE_URL empty: "
+                    + "the same bucket contains private chat attachments. Public delivery needs a separate reviewed design.");
+        }
+        return publicBaseUrl;
     }
 
     private static String stripTrailingSlash(String url) {

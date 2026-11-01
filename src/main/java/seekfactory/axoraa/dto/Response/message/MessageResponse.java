@@ -12,6 +12,7 @@ import lombok.NoArgsConstructor;
 public class MessageResponse {
 
     private String id;
+    private long changeRevision;
     private String conversationId;
     private String senderId;
     private String senderType; // "USER" or "FACTORY"

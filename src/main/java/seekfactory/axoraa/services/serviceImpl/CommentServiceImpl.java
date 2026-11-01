@@ -68,7 +68,7 @@ public class CommentServiceImpl implements CommentService {
 
     @Override
     public Map<String, Object> toggleLike(String commentId, String userId) {
-        Comment comment = commentRepository.findById(commentId)
+        Comment comment = commentRepository.findForUpdate(commentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Comment", "id", commentId));
 
         Optional<CommentLike> existing = commentLikeRepository.findByCommentIdAndUserId(commentId, userId);
@@ -90,7 +90,7 @@ public class CommentServiceImpl implements CommentService {
 
     @Override
     public CommentResponse addComment(String reelId, String userId, CommentCreateRequest request) {
-        Reel reel = reelRepository.findById(reelId)
+        Reel reel = reelRepository.findForUpdate(reelId)
                 .orElseThrow(() -> new ResourceNotFoundException("Reel", "id", reelId));
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));

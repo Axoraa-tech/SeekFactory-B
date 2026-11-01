@@ -9,6 +9,10 @@ import java.util.Optional;
 @Repository
 public interface UserRepository extends JpaRepository<User, String> {
 
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @org.springframework.data.jpa.repository.Query("SELECT u FROM User u WHERE u.id = :id")
+    Optional<User> findForUpdate(String id);
+
     Optional<User> findByEmail(String email);
 
     Optional<User> findByPhone(String phone);

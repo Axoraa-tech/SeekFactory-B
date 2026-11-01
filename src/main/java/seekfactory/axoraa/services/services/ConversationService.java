@@ -23,6 +23,9 @@ public interface ConversationService {
 
     List<MessageResponse> getMessages(String conversationId, String userId);
 
+    record MessageSync(List<MessageResponse> messages, long cursor, boolean hasMore) {}
+    MessageSync syncMessages(String conversationId, String userId, long after);
+
     MessageResponse sendMessage(String conversationId, String userId, MessageSendRequest request);
 
     void markAsRead(String conversationId, String userId);

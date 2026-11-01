@@ -16,6 +16,10 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class MessageSendRequest {
 
+    /** Reuse this ID when retrying an uncertain send. Older clients may omit it. */
+    @jakarta.validation.constraints.Pattern(regexp = "[A-Za-z0-9_-]{1,64}")
+    private String clientMessageId;
+
     /** May be empty when an attachment is sent on its own. */
     @Size(max = 5000, message = "Message is too long")
     private String messageText;

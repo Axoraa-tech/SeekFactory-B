@@ -57,6 +57,11 @@ public class SecurityConfig {
                         // ─── PUBLIC ENDPOINTS (no auth required) ──────────────
                         // Error forwards keep the original status (403 stays 403, not 401)
                         .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
+                        // SSE completion resumes an already-authorized request. Its initial REQUEST still
+                        // requires JWT + conversation membership; only this internal ASYNC path is exempt.
+                        .requestMatchers(request -> request.getDispatcherType() == DispatcherType.ASYNC
+                                && request.getRequestURI().startsWith(request.getContextPath() + "/api/v1/conversations/")
+                                && request.getRequestURI().endsWith("/stream")).permitAll()
                         // Keep-alive pinger (prod exposes only "health", without details)
                         .requestMatchers(HttpMethod.GET, "/actuator/health").permitAll()
                         .requestMatchers("/api/v1/auth/**").permitAll()

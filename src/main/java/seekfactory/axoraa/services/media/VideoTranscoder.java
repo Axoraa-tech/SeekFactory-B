@@ -12,6 +12,10 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.RejectedExecutionException;
 
 /**
  * Re-encodes uploaded seek videos with ffmpeg so they take far less storage and bandwidth
@@ -36,7 +40,10 @@ public class VideoTranscoder implements AutoCloseable {
     private final int crf;
     private final String preset;
     private final boolean available;
-    private final ExecutorService worker = Executors.newSingleThreadExecutor(r -> {
+    private final Semaphore slots = new Semaphore(8);
+    private final java.util.concurrent.atomic.AtomicLong reservedDisk = new java.util.concurrent.atomic.AtomicLong();
+    private final ExecutorService worker = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS,
+            new ArrayBlockingQueue<>(8), r -> {
         Thread t = new Thread(r, "video-transcoder");
         t.setDaemon(true);
         return t;
@@ -64,7 +71,53 @@ public class VideoTranscoder implements AutoCloseable {
      * a smaller file was written to target (atomically), false when the original should stay.
      */
     public Future<?> submit(Path source, Path target, java.util.function.Consumer<Boolean> onDone) {
-        return worker.submit(() -> onDone.accept(transcode(source, target)));
+        try (Admission admission = reserve()) {
+            return submit(admission, source, target, onDone);
+        }
+    }
+
+    /** Reserve before writing a work copy: a full queue must not fill the disk. */
+    public Admission reserve() {
+        if (!slots.tryAcquire()) throw new RejectedExecutionException("Video processing is busy; retry later");
+        return new Admission();
+    }
+
+    /** Keep headroom for inputs, encoded outputs and ffmpeg's temporary file across all admitted jobs. */
+    public synchronized Admission reserve(Path workDirectory, long inputBytes) throws IOException {
+        Admission admission = reserve();
+        long required = Math.multiplyExact(inputBytes, 3);
+        try {
+            if (Files.getFileStore(workDirectory).getUsableSpace() < reservedDisk.get() + required + 256L*1024*1024)
+                throw new RejectedExecutionException("Insufficient video work space");
+            admission.diskBytes = required;
+            reservedDisk.addAndGet(required);
+            return admission;
+        } catch (IOException | RuntimeException failure) { admission.close(); throw failure; }
+    }
+
+    public final class Admission implements AutoCloseable {
+        private boolean transferred;
+        private boolean closed;
+        private long diskBytes;
+        private Admission() {}
+        private void release() { reservedDisk.addAndGet(-diskBytes); slots.release(); }
+        @Override public synchronized void close() {
+            if (!closed && !transferred) release();
+            closed = true;
+        }
+    }
+
+    public Future<?> submit(Admission admission, Path source, Path target,
+                            java.util.function.Consumer<Boolean> onDone) {
+        synchronized (admission) {
+            if (admission.closed || admission.transferred) throw new IllegalStateException("Admission already used");
+            Future<?> future = worker.submit(() -> {
+                try { onDone.accept(transcode(source, target)); }
+                finally { admission.release(); }
+            });
+            admission.transferred = true;
+            return future;
+        }
     }
 
     /** Synchronous encode; true when target now holds a smaller, valid MP4. */

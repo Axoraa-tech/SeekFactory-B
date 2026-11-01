@@ -69,6 +69,20 @@ public class ConversationServiceImpl implements ConversationService {
     private final RfqRepository rfqRepository;
     private final NotificationService notificationService;
     private final PresenceService presenceService;
+    private final seekfactory.axoraa.services.ChatEventBus chatEventBus;
+    private final org.springframework.transaction.PlatformTransactionManager transactionManager;
+
+    @org.springframework.context.event.EventListener
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.NOT_SUPPORTED)
+    public void onCommittedMessage(seekfactory.axoraa.services.ChatEventBus.Committed event) {
+        var read = new org.springframework.transaction.support.TransactionTemplate(transactionManager);
+        read.setReadOnly(true);
+        MessageResponse response = read.execute(status -> messageRepository.findById(event.messageId())
+                .filter(m -> m.getConversation().getId().equals(event.conversationId()))
+                .map(this::mapToMessageResponse).orElse(null));
+        // A slow SSE client must not hold a database connection while bytes are written.
+        if (response != null) sseService.pushMessageToConversation(event.conversationId(), response);
+    }
 
     @Override
     @Transactional(readOnly = true)
@@ -106,7 +120,7 @@ public class ConversationServiceImpl implements ConversationService {
 
     @Override
     public ConversationResponse getOrCreateConversation(String userId, StartConversationRequest request) {
-        User buyer = userRepository.findById(userId)
+        User buyer = userRepository.findForUpdate(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
 
         Manufacturer manufacturer = manufacturerRepository.findById(request.getManufacturerId())
@@ -131,20 +145,7 @@ public class ConversationServiceImpl implements ConversationService {
         }
 
         if (request.getInitialMessage() != null && !request.getInitialMessage().isBlank()) {
-            Message message = Message.builder()
-                    .conversation(conversation)
-                    .sender(buyer)
-                    .senderType(SenderType.USER)
-                    .messageText(request.getInitialMessage().trim())
-                    .isRead(false)
-                    .build();
-            messageRepository.save(message);
-
-            conversation.setLastMessageText(message.getMessageText());
-            conversation.setLastMessageAt(OffsetDateTime.now());
-            conversation.setUnreadCountSupplier(conversation.getUnreadCountSupplier() + 1);
-            conversation = conversationRepository.save(conversation);
-            notifyRecipient(conversation, buyer, SenderType.USER, message.getMessageText());
+            sendMessage(conversation.getId(), userId, MessageSendRequest.builder().messageText(request.getInitialMessage()).build());
         }
 
         return mapToResponse(conversation, false);
@@ -165,33 +166,50 @@ public class ConversationServiceImpl implements ConversationService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public ConversationService.MessageSync syncMessages(String conversationId, String userId, long after) {
+        assertParticipant(conversationId, userId);
+        if (after < 0) throw new BadRequestException("Invalid message cursor");
+        List<Message> changes = messageRepository
+                .findByConversationIdAndChangeRevisionGreaterThanOrderByChangeRevisionAsc(
+                        conversationId, after, PageRequest.of(0, 100));
+        long cursor = changes.isEmpty() ? after : changes.getLast().getChangeRevision();
+        return new ConversationService.MessageSync(changes.stream().map(this::mapToMessageResponse).toList(),
+                cursor, changes.size() == 100);
+    }
+
+    private void stampChange(Conversation conversation, Message message) {
+        conversation.setMessageRevision(conversation.getMessageRevision() + 1);
+        message.setChangeRevision(conversation.getMessageRevision());
+    }
+
+    @Override
     public MessageResponse sendMessage(String conversationId, String userId, MessageSendRequest request) {
-        Conversation conversation = conversationRepository.findById(conversationId)
+        Conversation conversation = conversationRepository.findForUpdate(conversationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Conversation", "id", conversationId));
 
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
 
         SenderType senderType;
-        User recipient;
         if (conversation.getBuyer().getId().equals(userId)) {
             senderType = SenderType.USER;
-            recipient = conversation.getManufacturer().getUser();
         } else if (conversation.getManufacturer().getUser() != null &&
                 conversation.getManufacturer().getUser().getId().equals(userId)) {
             senderType = SenderType.FACTORY;
-            recipient = conversation.getBuyer();
         } else {
             throw new ForbiddenException("You are not a participant of this conversation");
         }
-        // A recipient with this chat open reads the message live: no unread count, no alert
-        boolean recipientWatching = recipient != null && sseService.isWatching(conversationId, recipient.getId());
-        if (!recipientWatching) {
-            if (senderType == SenderType.USER) {
-                conversation.setUnreadCountSupplier(conversation.getUnreadCountSupplier() + 1);
-            } else {
-                conversation.setUnreadCountBuyer(conversation.getUnreadCountBuyer() + 1);
-            }
+        if (request.getClientMessageId() != null) {
+            Optional<Message> previous = messageRepository.findByConversationIdAndSenderIdAndClientMessageId(
+                    conversationId, userId, request.getClientMessageId());
+            if (previous.isPresent()) return mapToMessageResponse(previous.get());
+        }
+        // An open stream is not a delivery/read acknowledgment. The reader explicitly marks read.
+        if (senderType == SenderType.USER) {
+            conversation.setUnreadCountSupplier(conversation.getUnreadCountSupplier() + 1);
+        } else {
+            conversation.setUnreadCountBuyer(conversation.getUnreadCountBuyer() + 1);
         }
 
         String text = request.getMessageText() == null ? "" : request.getMessageText().trim();
@@ -223,6 +241,7 @@ public class ConversationServiceImpl implements ConversationService {
         Message message = Message.builder()
                 .conversation(conversation)
                 .sender(user)
+                .clientMessageId(request.getClientMessageId())
                 .senderType(senderType)
                 .messageText(text)
                 .attachmentName(attachmentUrl != null ? truncate(request.getAttachmentName(), 255) : null)
@@ -230,20 +249,19 @@ public class ConversationServiceImpl implements ConversationService {
                 .attachmentUrl(attachmentUrl)
                 .attachmentContentType(attachmentContentType)
                 .order(order)
-                .isRead(recipientWatching)
+                .isRead(false)
                 .build();
+        stampChange(conversation, message);
         message = messageRepository.save(message);
         conversation.setLastMessageText(!text.isEmpty() ? text
                 : "\uD83D\uDCCE " + (message.getAttachmentName() != null ? message.getAttachmentName() : "Attachment"));
         conversation.setLastMessageAt(OffsetDateTime.now());
         conversationRepository.save(conversation);
 
-        if (!recipientWatching) {
-            notifyRecipient(conversation, user, senderType, conversation.getLastMessageText());
-        }
+        notifyRecipient(conversation, user, senderType, conversation.getLastMessageText());
 
         MessageResponse response = mapToMessageResponse(message);
-        sseService.pushMessageToConversation(conversationId, response);
+        chatEventBus.publish(conversationId, response.getId());
         return response;
     }
 
@@ -253,6 +271,8 @@ public class ConversationServiceImpl implements ConversationService {
 
     @Override
     public MessageResponse editMessage(String conversationId, String messageId, String userId, String newText) {
+        conversationRepository.findForUpdate(conversationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Conversation", "id", conversationId));
         Message message = ownMessage(conversationId, messageId, userId);
         if (message.getDeletedAt() != null) {
             throw new BadRequestException("This message was deleted");
@@ -270,18 +290,22 @@ public class ConversationServiceImpl implements ConversationService {
         }
         message.setMessageText(text);
         message.setEditedAt(java.time.Instant.now());
+        stampChange(message.getConversation(), message);
         message = messageRepository.save(message);
         refreshPreviewIfLatest(message.getConversation(), message, text);
 
         MessageResponse response = mapToMessageResponse(message);
-        sseService.pushMessageToConversation(conversationId, response);
+        chatEventBus.publish(conversationId, response.getId());
         return response;
     }
 
     @Override
     public MessageResponse deleteMessage(String conversationId, String messageId, String userId) {
+        conversationRepository.findForUpdate(conversationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Conversation", "id", conversationId));
         Message message = ownMessage(conversationId, messageId, userId);
         if (message.getDeletedAt() == null) {
+            stampChange(message.getConversation(), message);
             message.setDeletedAt(java.time.Instant.now());
             message.setMessageText("");
             message.setAttachmentName(null);
@@ -293,7 +317,7 @@ public class ConversationServiceImpl implements ConversationService {
             refreshPreviewIfLatest(message.getConversation(), message, DELETED_PREVIEW);
         }
         MessageResponse response = mapToMessageResponse(message);
-        sseService.pushMessageToConversation(conversationId, response);
+        chatEventBus.publish(conversationId, response.getId());
         return response;
     }
 
@@ -322,7 +346,7 @@ public class ConversationServiceImpl implements ConversationService {
 
     @Override
     public void markAsRead(String conversationId, String userId) {
-        Conversation conversation = conversationRepository.findById(conversationId)
+        Conversation conversation = conversationRepository.findForUpdate(conversationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Conversation", "id", conversationId));
 
         validateParticipant(conversation, userId);
@@ -372,6 +396,8 @@ public class ConversationServiceImpl implements ConversationService {
 
     /** One conversation per buyer-factory pair. */
     private Conversation findOrCreate(User buyer, Manufacturer manufacturer) {
+        userRepository.findForUpdate(buyer.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", buyer.getId()));
         return conversationRepository
                 .findByBuyerIdAndManufacturerId(buyer.getId(), manufacturer.getId())
                 .orElseGet(() -> conversationRepository.save(Conversation.builder()
@@ -518,6 +544,7 @@ public class ConversationServiceImpl implements ConversationService {
     private MessageResponse mapToMessageResponse(Message message) {
         return MessageResponse.builder()
                 .id(message.getId())
+                .changeRevision(message.getChangeRevision())
                 .conversationId(message.getConversation().getId())
                 .senderId(message.getSender().getId())
                 .senderType(message.getSenderType().name())

@@ -1,0 +1,37 @@
+# Only loaded explicitly by LocalConcurrencyTest. No .env, shared database, bucket or SMTP.
+spring:
+  profiles:
+    active: local-load
+  datasource:
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 2
+      connection-timeout: 10000
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    open-in-view: false
+  flyway:
+    enabled: false
+server:
+  address: 127.0.0.1
+  port: 0
+  tomcat:
+    threads:
+      max: 40
+      min-spare: 4
+app:
+  jwt:
+    secret: bG9jYWwtc3ludGhldGljLXRlc3Qtb25seS1rZXktMzItYnl0ZXM=
+    issuer: seekfactory-local-test
+    access-token-expiry: 3600000
+    refresh-token-expiry: 3600000
+  media:
+    storage: local
+    ffmpeg-path: unavailable-for-local-http-load
+  logging:
+    request-bodies: false
+logging:
+  level:
+    root: WARN

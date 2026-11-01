@@ -60,6 +60,7 @@ class ConversationServiceImplTest {
     @Mock private MediaStorageService mediaStorageService;
     @Mock private NotificationService notificationService;
     @Mock private PresenceService presenceService;
+    @Mock private seekfactory.axoraa.services.ChatEventBus chatEventBus;
 
     @InjectMocks private ConversationServiceImpl service;
 
@@ -84,6 +85,8 @@ class ConversationServiceImplTest {
         order.setId("o-1");
 
         lenient().when(conversationRepository.findById("c-1")).thenReturn(Optional.of(conversation));
+        lenient().when(conversationRepository.findForUpdate("c-1")).thenReturn(Optional.of(conversation));
+        lenient().when(userRepository.findForUpdate("u-buyer")).thenReturn(Optional.of(buyer));
         lenient().when(userRepository.findById("u-supplier")).thenReturn(Optional.of(supplierUser));
         lenient().when(userRepository.findById("u-buyer")).thenReturn(Optional.of(buyer));
         lenient().when(messageRepository.save(any(Message.class))).thenAnswer(inv -> {
@@ -113,7 +116,7 @@ class ConversationServiceImplTest {
         assertThat(res.getOrder().getReferenceNumber()).isEqualTo("ORD-2026-AAAAAA");
         assertThat(res.getAttachmentContentType()).isEqualTo("application/pdf");
         assertThat(conversation.getUnreadCountBuyer()).isEqualTo(1);
-        verify(sseService).pushMessageToConversation(eq("c-1"), any());
+        verify(chatEventBus).publish(eq("c-1"), any());
     }
 
     @Test
@@ -183,14 +186,14 @@ class ConversationServiceImplTest {
     }
 
     @Test
-    void messageToSomeoneWatchingTheChatIsReadLiveWithoutAlert() {
-        when(sseService.isWatching("c-1", "u-buyer")).thenReturn(true);
+    void anOpenStreamDoesNotAcknowledgeDelivery() {
+
 
         MessageResponse res = service.sendMessage("c-1", "u-supplier", MessageSendRequest.builder().messageText("Hi").build());
 
-        assertThat(res.isRead()).isTrue();
-        assertThat(conversation.getUnreadCountBuyer()).isZero();
-        verify(notificationService, never()).notifyOnce(any(), any(), anyString(), anyString(), anyString());
+        assertThat(res.isRead()).isFalse();
+        assertThat(conversation.getUnreadCountBuyer()).isEqualTo(1);
+        verify(notificationService).notifyOnce(eq(buyer), eq(NotificationType.MESSAGE), anyString(), eq("Hi"), eq("c-1"));
     }
 
     @Test
@@ -256,7 +259,7 @@ class ConversationServiceImplTest {
         assertThat(res.getMessageText()).isEqualTo("Need 80 pcs");
         assertThat(res.getEditedAt()).isNotNull();
         assertThat(conversation.getLastMessageText()).isEqualTo("Need 80 pcs");
-        verify(sseService).pushMessageToConversation(eq("c-1"), any());
+        verify(chatEventBus).publish(eq("c-1"), any());
     }
 
     @Test

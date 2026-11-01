@@ -3,6 +3,10 @@
 This is the concrete remaining approval boundary, not permission already granted or a production plan.
 The total production hosting target remains INR4,000/month for the hybrid Azure VM/self-managed
 PostgreSQL plus R2 design. Local tests do not prove500 production users within that budget.
+The final one-CPU/2GiB local gradual-arrival500-client test failed its existing ten-second latency
+threshold after34.546s (11 violations). Thus the small SKU below is a controlled validation/pilot
+candidate, not a recommended500-user production size. Approval must not imply permission to upgrade
+the SKU or exceed the monthly ceiling if it fails.
 
 Proposed isolated24-hour test:
 

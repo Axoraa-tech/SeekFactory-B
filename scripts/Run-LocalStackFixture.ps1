@@ -7,11 +7,18 @@ foreach ($name in @('MAVEN_CMD','JAVA_HOME','LOCAL_WEB_SERVER','LOCAL_NODE','FFM
 }
 $seconds = if ($env:LOCAL_TEST_SECONDS) { [int]$env:LOCAL_TEST_SECONDS } else { 180 }
 $burst = if ($env:LOCAL_TEST_BURST -eq 'true') { 'true' } else { 'false' }
+$diagnose = if ($env:LOCAL_DIAGNOSE_BURST -eq 'true') { 'true' } else { 'false' }
 $env:MAVEN_OPTS = '-Xmx192m -XX:ActiveProcessorCount=2'
 $arguments = @('-o','-q','-Dtest=LocalConcurrencyTest','-Dseekfactory.localLoad=true',
-    "-Dseekfactory.burst=$burst", "-Dseekfactory.loadSeconds=$seconds", '-Dseekfactory.sseClients=500',
+    "-Dseekfactory.burst=$burst", "-Dseekfactory.diagnoseBurst=$diagnose", "-Dseekfactory.loadSeconds=$seconds", '-Dseekfactory.sseClients=500',
     '-Dseekfactory.httpMedia=true', "-Dseekfactory.ffmpeg=$env:FFMPEG_PATH",
     "-Dseekfactory.webServer=$env:LOCAL_WEB_SERVER", "-Dseekfactory.node=$env:LOCAL_NODE",
     '-DargLine=-Xmx640m -XX:MaxMetaspaceSize=256m -XX:ActiveProcessorCount=2 -XX:+UseSerialGC','surefire:test')
+if ($diagnose) {
+    if (-not $env:LOCAL_UNDICI_MODULE -or -not (Test-Path -LiteralPath $env:LOCAL_UNDICI_MODULE)) {
+        throw 'LOCAL_UNDICI_MODULE must point to a separately installed test-only undici@6 module'
+    }
+    $arguments = @("-Dseekfactory.undici=$env:LOCAL_UNDICI_MODULE") + $arguments
+}
 & $env:MAVEN_CMD @arguments *> target/constrained-test.log
 exit $LASTEXITCODE

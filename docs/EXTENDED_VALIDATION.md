@@ -1,5 +1,10 @@
 # Extended validation (2026-11-01)
 
+Follow-up transport isolation and the actual underlying socket error are documented in
+[BURST_DIAGNOSIS.md](BURST_DIAGNOSIS.md), with preserved controls and independent-client results.
+The original failed burst rows below are retained. The diagnostic narrows the local failure to TCP
+admission at Next before HTTP routing; it does not establish an Azure production capacity result.
+
 The earlier unrestricted backend-only burst is not a production sizing result. This extension tests
 the production Next.js proxy, Spring backend, disposable PostgreSQL, ffmpeg and synthetic client together.
 See the accompanying bounded result files for actual results, including failures.
@@ -33,6 +38,22 @@ zero request errors, p95 1,763ms (41,556 HTTP200 and4,607 HTTP201). Peak job com
 bytes, about1.82 GiB. This leaves little margin against the job limit and excludes host OS memory;
 it is not proof of a2 GiB Azure server or the cheaper one-vCPU budget configuration. There were
 approximately255 completed requests/second, not500 requests/second.
+
+The final one-CPU/two-GiB gradual-arrival repeat with the corrected proxy **failed** the existing
+ten-second per-request latency threshold:500 idle SSE streams,2,248 completed HTTP requests over34.546s,
+11 latency violations, p957,272ms. All completed statuses were expected (2,013 HTTP200,235 HTTP201);
+the count is latency violations, not HTTP/transport errors. It stopped early instead of claiming a
+three-minute pass. Peak job commit was1,467,957,248 bytes; CPU94.859s over114.207s including setup.
+See `final-steady-one-cpu-results.txt` and its job file. This demonstrates inadequate performance for
+this fixture under the one-CPU cap, even with gradual arrivals; it does not prove exact Azure capacity.
+Do not approve the one-vCPU budget configuration for the requested500 workload on this evidence.
+
+The final two-CPU/two-GiB control after the proxy correction passed:500 idle SSE streams,
+44,401 requests over181.567s, zero errors/latency violations, p951,747ms (39,964 HTTP200,4,437 HTTP201).
+Peak job commit was1,913,634,816 bytes (~1.78GiB), excluding the host OS; total CPU422.516s over252.895s
+including setup and cleanup. See `final-steady-two-cpu-results.txt` and its job file. This repeat
+supports the difference between the fixture's one- and two-CPU envelopes; it still does not establish
+an Azure SKU, B-series credits, production data size or the monthly budget.
 
 SSE connections in the load fixture are open idle streams, not 500 rendered browsers. The burst uses
 authenticated feed reads and hot-reel reactions. The mixed scenario uses 75% feed, 15% sync reads,

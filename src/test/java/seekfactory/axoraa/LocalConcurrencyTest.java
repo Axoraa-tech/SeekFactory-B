@@ -154,6 +154,10 @@ class LocalConcurrencyTest {
                 assertThat(recovered.messages().getFirst().isDeleted()).isTrue();
                 assertThat(recovered.cursor()).isGreaterThan(secondPage.cursor());
                 report.append("Cursor pagination and edit/delete recovery passed.\n");
+                if(Boolean.getBoolean("seekfactory.diagnoseBurst")) {
+                    diagnoseBurst(client,base,backendBase,tokens,reel.getId(),report,temp);
+                    return;
+                }
 
                 boolean burst=Boolean.parseBoolean(System.getProperty("seekfactory.burst","true"));
                 report.append("burst_executed=").append(burst).append('\n');
@@ -292,6 +296,72 @@ class LocalConcurrencyTest {
         if(body!=null) builder.header("Content-Type","application/json").POST(HttpRequest.BodyPublishers.ofString(body));
         else builder.GET();
         return builder.build();
+    }
+
+    private static void diagnoseBurst(HttpClient client,String proxy,String backend,List<String> tokens,
+                                      String reel,StringBuilder report,Path temp) throws Exception {
+        Process baseline=new ProcessBuilder(System.getProperty("seekfactory.node","node"),
+                Path.of("scripts/local-http-baseline.cjs").toAbsolutePath().toString())
+                .redirectError(temp.resolve("baseline-errors.txt").toFile()).start();
+        try {
+            var output=new java.io.BufferedReader(new java.io.InputStreamReader(baseline.getInputStream()));
+            String ready=output.readLine();
+            int port=Integer.parseInt(ready.replaceAll(".*\\\"port\\\":(\\d+).*","$1"));
+            for(String scenario:new String[]{"node-baseline","backend-direct","next-static","next-proxy","next-proxy-fresh-client"}) {
+                String origin=scenario.equals("node-baseline") ? "http://127.0.0.1:"+port : scenario.equals("backend-direct") ? backend : scenario.equals("next-static") ? proxy.replace("/api/proxy", "") : proxy;
+                Map<String,AtomicInteger> outcomes=new ConcurrentHashMap<>();
+                List<Long> latencies=Collections.synchronizedList(new ArrayList<>());
+                List<String> samples=Collections.synchronizedList(new ArrayList<>());
+                HttpClient active=scenario.endsWith("fresh-client")
+                        ? HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).connectTimeout(Duration.ofSeconds(5)).build() : client;
+                long started=System.nanoTime();
+                try(var executor=Executors.newVirtualThreadPerTaskExecutor()) {
+                    List<Future<?>> work=new ArrayList<>();
+                    for(int i=0;i<500;i++) {
+                        final int user=i;
+                        work.add(executor.submit(() -> {
+                            for(int step=0;step<5;step++) {
+                                long before=System.nanoTime();
+                                try {
+                                    String endpoint=scenario.equals("next-static") ? "/robots.txt" : step==4 ? "/api/v1/feed/"+reel+"/like" : "/api/v1/feed?size=10";
+                                    var response=send(active,origin+endpoint,tokens.get(user),step==4&&!scenario.equals("next-static")?"":null);
+                                    outcomes.computeIfAbsent("HTTP_"+response.statusCode(),ignored -> new AtomicInteger()).incrementAndGet();
+                                } catch(Exception failure) {
+                                    Throwable root=failure; while(root.getCause()!=null) root=root.getCause();
+                                    outcomes.computeIfAbsent(root.getClass().getSimpleName()+":"+root.getMessage(),ignored -> new AtomicInteger()).incrementAndGet();
+                                    if(samples.size()<3) {
+                                        var trace=new java.io.StringWriter(); failure.printStackTrace(new java.io.PrintWriter(trace)); samples.add(trace.toString());
+                                    }
+                                }
+                                latencies.add((System.nanoTime()-before)/1_000_000);
+                            }
+                        }));
+                    }
+                    for(var task:work) task.get(90,TimeUnit.SECONDS);
+                }
+                Collections.sort(latencies);
+                report.append("diagnostic=").append(scenario).append(" requests=").append(latencies.size())
+                        .append(" p95_ms=").append(latencies.get((int)((latencies.size()-1)*.95)))
+                        .append(" elapsed_ms=").append((System.nanoTime()-started)/1_000_000)
+                        .append(" outcomes=").append(outcomes).append('\n');
+                Files.writeString(Path.of("target/burst-diagnostic-results.txt"),report);
+                Files.writeString(Path.of("target/burst-"+scenario+"-exceptions.txt"),String.join("\n",samples));
+                if(active!=client) active.close();
+            }
+            String undici=System.getProperty("seekfactory.undici", "");
+            if(!undici.isBlank()) {
+                Path input=temp.resolve("node-burst.json"), result=temp.resolve("node-burst-result.json");
+                Files.writeString(input,"{\"base\":\""+proxy+"\",\"reel\":\""+reel+"\",\"tokens\":[\""+String.join("\",\"",tokens)+"\"]}");
+                var launch=new ProcessBuilder(System.getProperty("seekfactory.node","node"),Path.of("scripts/local-node-burst.cjs").toAbsolutePath().toString(),input.toString());
+                launch.environment().put("UNDICI_MODULE",undici);
+                launch.redirectOutput(result.toFile()).redirectError(Path.of("target/node-burst-error.log").toFile());
+                Process probe=launch.start();
+                if(!probe.waitFor(180,TimeUnit.SECONDS)) {probe.destroyForcibly();throw new IllegalStateException("Independent generator exceeded timeout");}
+                assertThat(probe.exitValue()).as("Independent generator itself must complete").isZero();
+                report.append("diagnostic=independent-node-generator ").append(Files.readString(result)).append('\n');
+                Files.writeString(Path.of("target/burst-diagnostic-results.txt"),report);
+            }
+        } finally {baseline.destroy(); if(!baseline.waitFor(5,TimeUnit.SECONDS))baseline.destroyForcibly();}
     }
     private static HttpResponse<String> send(HttpClient client,String url,String token,String body) throws Exception {
         return client.send(request(url,token,body),HttpResponse.BodyHandlers.ofString());

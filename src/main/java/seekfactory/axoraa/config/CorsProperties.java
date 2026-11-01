@@ -42,13 +42,14 @@ public class CorsProperties {
      * List of allowed HTTP headers.
      */
     private List<String> allowedHeaders = List.of(
-            "Authorization", "Content-Type", "Accept", "X-Requested-With", "Origin"
+            "Authorization", "Content-Type", "Accept", "X-Requested-With", "Origin", "Range"
     );
 
     /**
      * List of exposed HTTP response headers.
      */
-    private List<String> exposedHeaders = List.of("Authorization");
+    private List<String> exposedHeaders = List.of("Authorization", "Accept-Ranges", "Content-Range",
+            "Content-Length", "ETag", "Cache-Control");
 
     /**
      * Whether credentials (cookies, auth headers) are supported.

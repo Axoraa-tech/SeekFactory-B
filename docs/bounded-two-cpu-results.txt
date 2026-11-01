@@ -1,0 +1,10 @@
+Local-only HTTP load; PostgreSQL 14; synthetic data; backend and load generator share this laptop.
+available_processors=2 max_heap_mib=618
+next_production_proxy=true
+HTTP H264 upload/compression, Range206/100 bytes, immutable cache, allowed/blocked CORS, Range preflight and full-queue429/Retry-After passed.
+20 duplicate sends => 1 message; 100 distinct concurrent sends => 101 total messages/unread.
+Cursor pagination and edit/delete recovery passed.
+concurrency=25 requests=125 errors=0 p95_ms=473 elapsed_ms=1524 heap_used_mib=129 outcomes={HTTP_200=125}
+concurrency=100 requests=500 errors=0 p95_ms=1101 elapsed_ms=4288 heap_used_mib=118 outcomes={HTTP_200=500}
+concurrency=250 requests=1250 errors=0 p95_ms=2876 elapsed_ms=7770 heap_used_mib=117 outcomes={HTTP_200=1250}
+concurrency=500 requests=2500 errors=90 p95_ms=5480 elapsed_ms=13552 heap_used_mib=195 outcomes={HTTP_200=2410, ConnectException=90}

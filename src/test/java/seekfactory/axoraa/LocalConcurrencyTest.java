@@ -28,7 +28,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /** Opt-in real HTTP/PostgreSQL test. Never reads application.yaml, .env, or environment credentials. */
 @EnabledIfSystemProperty(named = "seekfactory.localLoad", matches = "true")
+@org.junit.jupiter.api.Timeout(value=10,unit=TimeUnit.MINUTES)
 class LocalConcurrencyTest {
+    private Process webProcess;
+    @org.junit.jupiter.api.AfterEach
+    void stopWeb() throws Exception {
+        if (webProcess != null) {
+            webProcess.destroy();
+            if (!webProcess.waitFor(5,TimeUnit.SECONDS)) webProcess.destroyForcibly();
+        }
+    }
     @Test
     void isolatedHttpRampAndConcurrencyChecks(@TempDir Path temp) throws Exception {
         try (EmbeddedPostgres pg = EmbeddedPostgres.builder().setPort(0)
@@ -43,8 +52,46 @@ class LocalConcurrencyTest {
             app.setEnvironment(environment);
             try (var context = app.run("--spring.config.location=classpath:/local-load.yaml",
                     "--spring.datasource.url=" + url, "--spring.datasource.username=postgres",
-                    "--spring.datasource.password=postgres", "--app.media.storage-dir=" + temp.resolve("media"))) {
-                String base = "http://127.0.0.1:" + ((WebServerApplicationContext)context).getWebServer().getPort();
+                    "--spring.datasource.password=postgres", "--app.media.storage-dir=" + temp.resolve("media"),
+                    "--app.media.ffmpeg-path="+System.getProperty("seekfactory.ffmpeg","unavailable-for-local-http-load"))) {
+                String backendBase = "http://127.0.0.1:" + ((WebServerApplicationContext)context).getWebServer().getPort();
+                String webServer=System.getProperty("seekfactory.webServer", "");
+                String trafficBase=backendBase;
+                if(!webServer.isBlank()) {
+                    Path server=Path.of(webServer).toAbsolutePath();
+                    int webPort;
+                    try(var socket=new java.net.ServerSocket(0)) { webPort=socket.getLocalPort(); }
+                    var launch=new ProcessBuilder(System.getProperty("seekfactory.node", "node"),server.toString());
+                    launch.directory(server.getParent().toFile());
+                    launch.environment().clear();
+                    launch.environment().put("SystemRoot",System.getenv().getOrDefault("SystemRoot","C:\\Windows"));
+                    launch.environment().put("NODE_ENV","production");
+                    launch.environment().put("NEXT_TELEMETRY_DISABLED","1");
+                    launch.environment().put("NODE_OPTIONS","--max-old-space-size=384");
+                    launch.environment().put("BACKEND_URL",backendBase);
+                    launch.environment().put("HOSTNAME","127.0.0.1");
+                    launch.environment().put("PORT",String.valueOf(webPort));
+                    launch.redirectErrorStream(true).redirectOutput(Path.of("target/local-next-server.log").toFile());
+                    webProcess=launch.start();
+                    String webBase="http://127.0.0.1:"+webPort;
+                    HttpClient probe=HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).build();
+                    boolean ready=false;
+                    String readiness="no response";
+                    for(int i=0;i<100;i++) {
+                        try {
+                            int status=probe.send(HttpRequest.newBuilder(URI.create(webBase+"/robots.txt"))
+                                    .timeout(Duration.ofSeconds(2)).build(),HttpResponse.BodyHandlers.discarding()).statusCode();
+                            readiness="HTTP "+status;
+                            ready=status==200;
+                            if(ready) break;
+                        } catch(Exception warming) { readiness=warming.getClass().getSimpleName()+": "+warming.getMessage(); }
+                        if(!webProcess.isAlive()) throw new IllegalStateException("Next server exited; see local-next-server.log");
+                        Thread.sleep(200);
+                    }
+                    assertThat(ready).as("Next production server must become ready: "+readiness).isTrue();
+                    trafficBase=webBase+"/api/proxy";
+                }
+                final String base=trafficBase;
                 var users = context.getBean(UserRepository.class);
                 User supplier = users.save(User.builder().name("Synthetic supplier").email("supplier@load.invalid")
                         .role(UserRole.ROLE_SUPPLIER).authProvider(AuthProvider.LOCAL).build());
@@ -66,10 +113,16 @@ class LocalConcurrencyTest {
                 var jwt = context.getBean(JwtTokenProvider.class);
                 List<String> tokens = buyers.stream().map(u -> jwt.generateAccessToken(u.getId(), u.getEmail(), "ROLE_BUYER")).toList();
                 String buyerToken = tokens.getFirst();
-                HttpClient client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
+                HttpClient client = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1)
+                        .connectTimeout(Duration.ofSeconds(5)).build();
                 StringBuilder report = new StringBuilder("Local-only HTTP load; PostgreSQL 14; synthetic data; backend and load generator share this laptop.\n");
                 report.append("available_processors=").append(Runtime.getRuntime().availableProcessors())
                         .append(" max_heap_mib=").append(Runtime.getRuntime().maxMemory()/1048576).append('\n');
+                report.append("next_production_proxy=").append(!webServer.isBlank()).append('\n');
+                if(Boolean.getBoolean("seekfactory.httpMedia")) {
+                    String supplierToken=jwt.generateAccessToken(supplier.getId(),supplier.getEmail(),"ROLE_SUPPLIER");
+                    report.append(checkVideoHttp(context,client,backendBase,supplierToken,temp));
+                }
                 assertThat(send(client, base + "/api/v1/feed?size=10", null, null).statusCode()).isEqualTo(200);
 
                 // Same conversation, same client ID: exactly one stored send across parallel retries.
@@ -102,9 +155,12 @@ class LocalConcurrencyTest {
                 assertThat(recovered.cursor()).isGreaterThan(secondPage.cursor());
                 report.append("Cursor pagination and edit/delete recovery passed.\n");
 
-                for (int concurrency : new int[]{25,100,250,500}) {
+                boolean burst=Boolean.parseBoolean(System.getProperty("seekfactory.burst","true"));
+                report.append("burst_executed=").append(burst).append('\n');
+                for (int concurrency : burst ? new int[]{25,100,250,500} : new int[]{}) {
                     List<Long> latencies = Collections.synchronizedList(new ArrayList<>());
                     AtomicInteger errors = new AtomicInteger();
+                    Map<String,AtomicInteger> outcomes=new ConcurrentHashMap<>();
                     long started = System.nanoTime();
                     try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
                         List<Future<?>> tasks = new ArrayList<>();
@@ -117,8 +173,15 @@ class LocalConcurrencyTest {
                                         // 80% authenticated reads, 20% distinct-user reactions on one hot reel.
                                         String endpoint = step==4 ? "/api/v1/feed/"+reel.getId()+"/like" : "/api/v1/feed?size=10";
                                         var response=send(client, base+endpoint, tokens.get(index), step==4 ? "" : null);
+                                        outcomes.computeIfAbsent("HTTP_"+response.statusCode(),ignored -> new AtomicInteger()).incrementAndGet();
                                         if(response.statusCode()!=200) errors.incrementAndGet();
-                                    } catch(Exception failure) { errors.incrementAndGet(); }
+                                    } catch(Exception failure) {
+                                        Throwable root=failure;
+                                        while(root.getCause()!=null) root=root.getCause();
+                                        String category=root.getClass().getSimpleName()+":"+root.getMessage();
+                                        outcomes.computeIfAbsent(category,ignored -> new AtomicInteger()).incrementAndGet();
+                                        errors.incrementAndGet();
+                                    }
                                     latencies.add((System.nanoTime()-before)/1_000_000);
                                 }
                             }));
@@ -131,13 +194,14 @@ class LocalConcurrencyTest {
                     long heap=Runtime.getRuntime().totalMemory()-Runtime.getRuntime().freeMemory();
                     report.append("concurrency=").append(concurrency).append(" requests=").append(latencies.size())
                             .append(" errors=").append(errors).append(" p95_ms=").append(p95)
-                            .append(" elapsed_ms=").append(elapsed).append(" heap_used_mib=").append(heap/1048576).append('\n');
+                            .append(" elapsed_ms=").append(elapsed).append(" heap_used_mib=").append(heap/1048576)
+                            .append(" outcomes=").append(outcomes).append('\n');
                     Files.writeString(Path.of("target/local-load-report.txt"),report);
                     assertThat(errors.get()).as("Stop on any errors").isZero();
                     assertThat(p95).as("Stop on p95 over 10 seconds").isLessThan(10000);
                 }
                 // Earlier stages toggle the same users: 25..99 and 250..499 remain liked.
-                assertThat(context.getBean(ReelRepository.class).findById(reel.getId()).orElseThrow().getLikesCount())
+                if(burst) assertThat(context.getBean(ReelRepository.class).findById(reel.getId()).orElseThrow().getLikesCount())
                         .isEqualTo(325);
 
                 // Sustained mixed clients: 75% feed, 15% sync, 5% chat writes, 5% small image uploads.
@@ -155,7 +219,19 @@ class LocalConcurrencyTest {
                 final List<Conversation> allThreads=threads;
                 List<Long> mixedLatencies=Collections.synchronizedList(new ArrayList<>());
                 AtomicInteger mixedErrors=new AtomicInteger();
-                long mixedStart=System.nanoTime(), until=mixedStart+TimeUnit.SECONDS.toNanos(20);
+                Map<String,AtomicInteger> mixedOutcomes=new ConcurrentHashMap<>();
+                int seconds=Integer.getInteger("seekfactory.loadSeconds",20);
+                int streamCount=Integer.getInteger("seekfactory.sseClients",0);
+                List<java.io.InputStream> streams=new ArrayList<>();
+                for(int i=0;i<streamCount;i++) {
+                    var stream=client.send(request(base+"/api/v1/conversations/"+threads.get(i).getId()+"/stream",tokens.get(i),null),HttpResponse.BodyHandlers.ofInputStream());
+                    assertThat(stream.statusCode()).isEqualTo(200);
+                    assertThat(stream.headers().firstValue("Content-Type").orElse("")).startsWith("text/event-stream");
+                    streams.add(stream.body());
+                }
+                report.append("open_sse_streams=").append(streams.size()).append('\n');
+                Files.writeString(Path.of("target/local-load-report.txt"),report);
+                long mixedStart=System.nanoTime(), until=mixedStart+TimeUnit.SECONDS.toNanos(seconds);
                 try(var executor=Executors.newVirtualThreadPerTaskExecutor()) {
                     List<Future<?>> tasks=new ArrayList<>();
                     for(int i=0;i<500;i++) {
@@ -173,12 +249,19 @@ class LocalConcurrencyTest {
                                     } else if(index%20==1) {
                                         req=HttpRequest.newBuilder(URI.create(base+"/api/v1/media")).timeout(Duration.ofSeconds(20))
                                                 .header("Authorization","Bearer "+tokens.get(index))
+                                                .header("Cookie","sf-access-token="+tokens.get(index))
                                                 .header("Content-Type","multipart/form-data; boundary=local-boundary")
                                                 .POST(HttpRequest.BodyPublishers.ofByteArray(multipart)).build(); expected=201;
                                     } else if(index%20<5) req=request(base+path+"/sync?after=0",tokens.get(index),null);
                                     else req=request(base+"/api/v1/feed?size=10",tokens.get(index),null);
-                                    if(client.send(req,HttpResponse.BodyHandlers.discarding()).statusCode()!=expected) mixedErrors.incrementAndGet();
-                                } catch(Exception failure) { mixedErrors.incrementAndGet(); }
+                                    int status=client.send(req,HttpResponse.BodyHandlers.discarding()).statusCode();
+                                    mixedOutcomes.computeIfAbsent("HTTP_"+status,ignored -> new AtomicInteger()).incrementAndGet();
+                                    if(status!=expected) mixedErrors.incrementAndGet();
+                                } catch(Exception failure) {
+                                    Throwable root=failure; while(root.getCause()!=null) root=root.getCause();
+                                    mixedOutcomes.computeIfAbsent(root.getClass().getSimpleName()+":"+root.getMessage(),ignored -> new AtomicInteger()).incrementAndGet();
+                                    mixedErrors.incrementAndGet();
+                                }
                                 long latency=(System.nanoTime()-before)/1_000_000;
                                 mixedLatencies.add(latency);
                                 if(latency>10000) mixedErrors.incrementAndGet();
@@ -186,14 +269,18 @@ class LocalConcurrencyTest {
                                 try { Thread.sleep(1000); } catch(InterruptedException e) { Thread.currentThread().interrupt(); return; }
                             }
                         }));
+                        // A separate steady-state scenario ramps arrivals; the documented all-at-once burst is unchanged.
+                        if(!burst) Thread.sleep(20);
                     }
-                    for(var task:tasks) task.get(60,TimeUnit.SECONDS);
+                    for(var task:tasks) task.get(seconds+60,TimeUnit.SECONDS);
                 }
                 Collections.sort(mixedLatencies);
                 report.append("mixed_500 duration_ms=").append((System.nanoTime()-mixedStart)/1_000_000)
                         .append(" requests=").append(mixedLatencies.size()).append(" errors=").append(mixedErrors.get())
-                        .append(" p95_ms=").append(mixedLatencies.get((int)((mixedLatencies.size()-1)*.95))).append('\n');
+                        .append(" p95_ms=").append(mixedLatencies.get((int)((mixedLatencies.size()-1)*.95)))
+                        .append(" outcomes=").append(mixedOutcomes).append('\n');
                 Files.writeString(Path.of("target/local-load-report.txt"),report);
+                for(var stream:streams) stream.close();
                 assertThat(mixedErrors.get()).as("Sustained mixed load must stop on errors or >10s latency").isZero();
             }
         }
@@ -201,12 +288,59 @@ class LocalConcurrencyTest {
 
     private static HttpRequest request(String url,String token,String body) {
         var builder=HttpRequest.newBuilder(URI.create(url)).timeout(Duration.ofSeconds(30));
-        if(token!=null) builder.header("Authorization","Bearer "+token);
+        if(token!=null) builder.header("Authorization","Bearer "+token).header("Cookie","sf-access-token="+token);
         if(body!=null) builder.header("Content-Type","application/json").POST(HttpRequest.BodyPublishers.ofString(body));
         else builder.GET();
         return builder.build();
     }
     private static HttpResponse<String> send(HttpClient client,String url,String token,String body) throws Exception {
         return client.send(request(url,token,body),HttpResponse.BodyHandlers.ofString());
+    }
+
+    private static String checkVideoHttp(org.springframework.context.ConfigurableApplicationContext context,
+            HttpClient client,String base,String token,Path temp) throws Exception {
+        String ffmpeg=System.getProperty("seekfactory.ffmpeg");
+        Path clip=temp.resolve("http-synthetic.mp4");
+        Process gen=new ProcessBuilder(ffmpeg,"-hide_banner","-loglevel","error","-y","-f","lavfi","-i",
+                "testsrc2=size=1280x720:rate=30:duration=2","-c:v","libx264","-preset","ultrafast","-crf","8","-movflags","+faststart",clip.toString())
+                .redirectErrorStream(true).redirectOutput(temp.resolve("generate-video.log").toFile()).start();
+        assertThat(gen.waitFor(60,TimeUnit.SECONDS)).isTrue(); assertThat(gen.exitValue()).isZero();
+        var bytes=new java.io.ByteArrayOutputStream();
+        bytes.write(("--video-boundary\r\nContent-Disposition: form-data; name=\"kind\"\r\n\r\nvideo\r\n"
+                +"--video-boundary\r\nContent-Disposition: form-data; name=\"file\"; filename=\"synthetic.mp4\"\r\nContent-Type: video/mp4\r\n\r\n").getBytes());
+        bytes.write(Files.readAllBytes(clip)); bytes.write("\r\n--video-boundary--\r\n".getBytes());
+        byte[] body=bytes.toByteArray();
+        java.util.function.Supplier<HttpRequest> upload=() -> HttpRequest.newBuilder(URI.create(base+"/api/v1/factory/media"))
+                .timeout(Duration.ofSeconds(30)).header("Authorization","Bearer "+token)
+                .header("Content-Type","multipart/form-data; boundary=video-boundary").POST(HttpRequest.BodyPublishers.ofByteArray(body)).build();
+        var response=client.send(upload.get(),HttpResponse.BodyHandlers.ofString());
+        assertThat(response.statusCode()).isEqualTo(201);
+        var matcher=java.util.regex.Pattern.compile("\\\"url\\\":\\\"([^\\\"]+)\\\"").matcher(response.body());
+        assertThat(matcher.find()).isTrue();
+        String path=matcher.group(1), key=path.substring(path.lastIndexOf('/')+1);
+        var storage=context.getBean(seekfactory.axoraa.services.services.MediaStorageService.class);
+        long deadline=System.nanoTime()+TimeUnit.SECONDS.toNanos(60);
+        while(storage.isProcessing(key) && System.nanoTime()<deadline) Thread.sleep(100);
+        assertThat(storage.isProcessing(key)).isFalse();
+        var range=client.send(HttpRequest.newBuilder(URI.create(base+path)).header("Range","bytes=0-99")
+                .header("Origin","http://127.0.0.1:3000").build(),HttpResponse.BodyHandlers.ofByteArray());
+        assertThat(range.statusCode()).isEqualTo(206); assertThat(range.body()).hasSize(100);
+        assertThat(range.headers().firstValue("Cache-Control").orElse("")).contains("immutable");
+        assertThat(range.headers().firstValue("Content-Range").orElse("")).startsWith("bytes 0-99/");
+        assertThat(range.headers().firstValue("Access-Control-Expose-Headers").orElse("")).containsIgnoringCase("Content-Range");
+        var options=client.send(HttpRequest.newBuilder(URI.create(base+path)).method("OPTIONS",HttpRequest.BodyPublishers.noBody())
+                .header("Origin","http://127.0.0.1:3000").header("Access-Control-Request-Method","GET")
+                .header("Access-Control-Request-Headers","range").build(),HttpResponse.BodyHandlers.discarding());
+        assertThat(options.statusCode()).isEqualTo(200);
+        assertThat(client.send(HttpRequest.newBuilder(URI.create(base+path)).header("Origin","https://blocked.invalid").build(),HttpResponse.BodyHandlers.discarding()).statusCode()).isEqualTo(403);
+        var transcoder=(seekfactory.axoraa.services.media.VideoTranscoder)org.springframework.test.util.ReflectionTestUtils.getField(storage,"videoTranscoder");
+        List<seekfactory.axoraa.services.media.VideoTranscoder.Admission> held=new ArrayList<>();
+        try {
+            for(int i=0;i<8;i++) held.add(transcoder.reserve());
+            var busy=client.send(upload.get(),HttpResponse.BodyHandlers.discarding());
+            assertThat(busy.statusCode()).isEqualTo(429);
+            assertThat(busy.headers().firstValue("Retry-After").orElse("")).isEqualTo("30");
+        } finally { held.forEach(seekfactory.axoraa.services.media.VideoTranscoder.Admission::close); }
+        return "HTTP H264 upload/compression, Range206/100 bytes, immutable cache, allowed/blocked CORS, Range preflight and full-queue429/Retry-After passed.\n";
     }
 }

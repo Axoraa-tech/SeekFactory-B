@@ -111,7 +111,7 @@ public class S3MediaStorageService implements MediaStorageService {
             @Value("${app.media.video-preset:medium}") String videoPreset) {
         this(buildClient(endpoint, region, accessKey, secretKey, pathStyle),
                 buildPresigner(endpoint, region, accessKey, secretKey, pathStyle),
-                new Settings(requireBucket(bucket), publicBaseUrl, signedUrlTtl),
+                new Settings(requireBucket(bucket), safePublicBaseUrl(endpoint, publicBaseUrl), signedUrlTtl),
                 new MediaTypes.Limits(maxImageSize.toBytes(), maxVideoSize.toBytes(), maxDocumentSize.toBytes()),
                 new ImageCompressor(imageMaxDimension, imageQuality),
                 new VideoTranscoder(ffmpegPath, videoCrf, videoPreset),
@@ -488,6 +488,16 @@ public class S3MediaStorageService implements MediaStorageService {
             throw new IllegalStateException("app.media.storage=s3 needs APP_MEDIA_S3_BUCKET");
         }
         return bucket;
+    }
+
+    /** This bucket also contains private chat attachments; an R2 public domain exposes the whole bucket. */
+    static String safePublicBaseUrl(String endpoint, String publicBaseUrl) {
+        String host = endpoint.isBlank() ? "" : Optional.ofNullable(URI.create(endpoint).getHost()).orElse("");
+        if (host.toLowerCase(java.util.Locale.ROOT).endsWith(".r2.cloudflarestorage.com") && !publicBaseUrl.isBlank()) {
+            throw new IllegalStateException("Keep this R2 bucket private and APP_MEDIA_S3_PUBLIC_BASE_URL empty: "
+                    + "the same bucket contains private chat attachments. Public delivery needs a separate reviewed design.");
+        }
+        return publicBaseUrl;
     }
 
     private static String stripTrailingSlash(String url) {

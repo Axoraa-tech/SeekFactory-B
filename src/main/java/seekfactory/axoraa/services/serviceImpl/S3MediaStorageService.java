@@ -44,9 +44,12 @@ import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Stream;
 
 /**
@@ -89,6 +92,18 @@ public class S3MediaStorageService implements MediaStorageService {
     private final Path pending;
     private final Path out;
     private final java.util.Set<Path> queuedVideos = java.util.concurrent.ConcurrentHashMap.newKeySet();
+    /**
+     * Signed links to public files, reused until {@link #signedLinkReuse()} has passed. A fresh
+     * signature on every request gives each view a new URL, so browsers re-download every photo
+     * and video (each one a billed bucket download); one shared URL lets them use their cache.
+     */
+    private final ConcurrentHashMap<String, SignedLink> signedLinks = new ConcurrentHashMap<>();
+    private Clock clock = Clock.systemUTC();
+
+    private record SignedLink(String url, Instant renewAt) {}
+
+    /** Bounds {@link #signedLinks}; far above the catalogue's photo, variant and video count. */
+    private static final int MAX_SIGNED_LINKS = 50_000;
 
     @Autowired
     public S3MediaStorageService(
@@ -269,7 +284,7 @@ public class S3MediaStorageService implements MediaStorageService {
             return Optional.of(settings.publicBaseUrl() + "/" + PUBLIC_PREFIX + key);
         }
         // No CDN configured (e.g. local MinIO): hand out a signed link to the private bucket
-        return Optional.of(presign(PUBLIC_PREFIX + key, MediaTypes.contentTypeOf(key), "inline"));
+        return Optional.of(sharedPresign(PUBLIC_PREFIX + key, MediaTypes.contentTypeOf(key)));
     }
 
     @Override
@@ -337,7 +352,7 @@ public class S3MediaStorageService implements MediaStorageService {
         if (!settings.publicBaseUrl().isBlank()) {
             return Optional.of(settings.publicBaseUrl() + "/" + VARIANT_PREFIX + name);
         }
-        return Optional.of(presign(VARIANT_PREFIX + name, MediaTypes.contentTypeOf(name), "inline"));
+        return Optional.of(sharedPresign(VARIANT_PREFIX + name, MediaTypes.contentTypeOf(name)));
     }
 
     @Override
@@ -431,6 +446,38 @@ public class S3MediaStorageService implements MediaStorageService {
     /** Raw upload used by the one-time migration from local disk. */
     void putFile(String objectKey, Path file, String cacheControl) {
         put(objectKey, MediaTypes.contentTypeOf(file.getFileName().toString()), cacheControl, RequestBody.fromFile(file));
+    }
+
+    /**
+     * How long one signed link to a public file is handed out. It must still be valid for a browser
+     * that cached the redirect to it at the last moment: reuse + redirect lifetime + 30 s of clock
+     * skew stays within the signature, and at most half of it so links rotate well before expiry.
+     * Zero (a short signature) signs every request as before.
+     */
+    Duration signedLinkReuse() {
+        Duration ttl = settings.signedUrlTtl();
+        Duration fits = ttl.minusSeconds(publicRedirectMaxAgeSeconds() + 30);
+        Duration reuse = fits.compareTo(ttl.dividedBy(2)) < 0 ? fits : ttl.dividedBy(2);
+        return reuse.isNegative() ? Duration.ZERO : reuse;
+    }
+
+    /** A signed link to a public object, shared by every viewer while {@link #signedLinkReuse()} lasts. */
+    private String sharedPresign(String objectKey, String contentType) {
+        Duration reuse = signedLinkReuse();
+        if (reuse.isZero()) return presign(objectKey, contentType, "inline");
+        Instant now = clock.instant();
+        if (signedLinks.size() > MAX_SIGNED_LINKS) {
+            signedLinks.values().removeIf(link -> !now.isBefore(link.renewAt()));
+            if (signedLinks.size() > MAX_SIGNED_LINKS) signedLinks.clear();
+        }
+        return signedLinks.compute(objectKey, (k, link) -> link != null && now.isBefore(link.renewAt())
+                ? link
+                : new SignedLink(presign(objectKey, contentType, "inline"), now.plus(reuse))).url();
+    }
+
+    /** For tests: moves the reuse window without waiting. */
+    void useClock(Clock clock) {
+        this.clock = clock;
     }
 
     private String presign(String objectKey, String contentType, String disposition) {

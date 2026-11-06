@@ -116,6 +116,42 @@ class S3MediaStorageServiceTest {
         verifyNoBucketReads();
     }
 
+    @Test
+    void publicLinksStayTheSameSoBrowsersCanCacheThem() throws Exception {
+        var storage = service("", Duration.ofHours(6));
+        var now = new AtomicReference<>(java.time.Instant.parse("2026-11-06T10:00:00Z"));
+        storage.useClock(new java.time.Clock() {
+            @Override public java.time.ZoneId getZone() { return java.time.ZoneOffset.UTC; }
+            @Override public java.time.Clock withZone(java.time.ZoneId zone) { return this; }
+            @Override public java.time.Instant instant() { return now.get(); }
+        });
+        try {
+            String photo = "11111111-1111-1111-1111-111111111111.jpg";
+            String first = storage.publicUrl(photo).orElseThrow();
+            String variant = storage.variantUrl("11111111-1111-1111-1111-111111111111-w640.jpg").orElseThrow();
+            String chat = storage.privateUrl("conv-1", "22222222-2222-2222-2222-222222222222.pdf").orElseThrow();
+            // Signatures carry the signing second: wait so a re-signed link would differ
+            Thread.sleep(1100);
+
+            now.set(now.get().plus(Duration.ofHours(2)));
+            assertThat(storage.publicUrl(photo)).contains(first);
+            assertThat(storage.variantUrl("11111111-1111-1111-1111-111111111111-w640.jpg")).contains(variant);
+            // Chat attachments are never shared: each authorised request gets its own short link
+            assertThat(storage.privateUrl("conv-1", "22222222-2222-2222-2222-222222222222.pdf")).get().isNotEqualTo(chat);
+
+            now.set(now.get().plus(Duration.ofHours(1)));
+            assertThat(storage.publicUrl(photo)).get().isNotEqualTo(first);
+        } finally { storage.shutdown(); }
+    }
+
+    @Test
+    void linkReuseLeavesTheRedirectLifetimeInsideTheSignature() {
+        assertThat(service("", Duration.ofHours(6)).signedLinkReuse()).isEqualTo(Duration.ofHours(3));
+        assertThat(service("", Duration.ofMinutes(10)).signedLinkReuse()).isEqualTo(Duration.ofSeconds(270));
+        assertThat(service("", Duration.ofSeconds(90)).signedLinkReuse()).isZero();
+        assertThat(service("", Duration.ofSeconds(30)).signedLinkReuse()).isZero();
+    }
+
     private void verifyNoBucketReads() {
         verify(s3, never()).headObject(any(HeadObjectRequest.class));
         verify(s3, never()).getObject(any(software.amazon.awssdk.services.s3.model.GetObjectRequest.class));

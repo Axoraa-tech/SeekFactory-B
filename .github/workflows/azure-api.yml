@@ -37,5 +37,3 @@ jobs:
           app-name: ${{ vars.AZURE_API_APP_NAME }}
           publish-profile: ${{ secrets.AZURE_API_PUBLISH_PROFILE }}
           package: app.jar
-          type: jar
-          clean: true

@@ -31,9 +31,11 @@ jobs:
           chmod +x mvnw
           ./mvnw -B clean package -DskipTests
           cp target/axoraa-*.jar app.jar
+          # OneDeploy rejects type=jar for the Java 25 stack, so ship a zip that unpacks to wwwroot/app.jar
+          zip -q app.zip app.jar
 
       - uses: azure/webapps-deploy@v3
         with:
           app-name: ${{ vars.AZURE_API_APP_NAME }}
           publish-profile: ${{ secrets.AZURE_API_PUBLISH_PROFILE }}
-          package: app.jar
+          package: app.zip

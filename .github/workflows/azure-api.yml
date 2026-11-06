@@ -1,0 +1,41 @@
+# Builds the Spring Boot jar and deploys it to the Azure App Service web app.
+# Repo settings (Settings → Secrets and variables → Actions):
+#   Secret   AZURE_API_PUBLISH_PROFILE  contents of the API web app's downloaded publish profile
+#   Variable AZURE_API_APP_NAME         e.g. seekfactory-api
+# The web app's startup command runs /home/site/wwwroot/app.jar (see the Azure handover doc).
+name: deploy-azure-api
+
+# Manual only (Actions → deploy-azure-api → Run workflow)
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-azure-api
+  cancel-in-progress: true
+
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 25
+          cache: maven
+
+      - name: Build jar
+        run: |
+          chmod +x mvnw
+          ./mvnw -B clean package -DskipTests
+          cp target/axoraa-*.jar app.jar
+
+      - uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ vars.AZURE_API_APP_NAME }}
+          publish-profile: ${{ secrets.AZURE_API_PUBLISH_PROFILE }}
+          package: app.jar
+          type: jar
+          clean: true

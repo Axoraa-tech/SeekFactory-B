@@ -13,8 +13,9 @@ import static org.mockito.Mockito.*;
 
 class ProductLikesMapperTest {
     final ProductLikeRepository likes = mock(ProductLikeRepository.class);
+    final ViewEventRepository views = mock(ViewEventRepository.class);
     final CatalogMapper mapper = new CatalogMapper(new ModelMapperConfig().modelMapper(), mock(ReelLikeRepository.class),
-            mock(ReelSaveRepository.class), mock(ProductSaveRepository.class), likes, mock(ManufacturerFollowRepository.class));
+            mock(ReelSaveRepository.class), mock(ProductSaveRepository.class), likes, mock(ManufacturerFollowRepository.class), views);
 
     private static Product product(String id) {
         Manufacturer factory = Manufacturer.builder().name("Factory").build(); factory.setId("factory");
@@ -37,9 +38,20 @@ class ProductLikesMapperTest {
     }
 
     @Test
+    void batchesViewCountsInOneQueryAndDefaultsMissingOnesToZero() {
+        when(views.countByEntityIds(seekfactory.axoraa.enums.ViewEntityType.PRODUCT, List.of("p1", "p2")))
+                .thenReturn(java.util.Collections.singletonList(new Object[]{"p2", 28L}));
+        var products = mapper.toProducts(List.of(product("p1"), product("p2")), null);
+        assertThat(products.getFirst().getViewsCount()).isZero();
+        assertThat(products.get(1).getViewsCount()).isEqualTo(28L);
+        verify(views).countByEntityIds(seekfactory.axoraa.enums.ViewEntityType.PRODUCT, List.of("p1", "p2"));
+    }
+
+    @Test
     void guestsReceiveCountsButNoViewerLikeAndEmptyListsMakeNoQueries() {
         assertThat(mapper.toProducts(List.of(), null)).isEmpty();
         verifyNoInteractions(likes);
+        verifyNoInteractions(views);
         var guest = mapper.toProducts(List.of(product("p1")), null).getFirst();
         assertThat(guest.getLikesCount()).isZero();
         assertThat(guest.getLikedByMe()).isNull();

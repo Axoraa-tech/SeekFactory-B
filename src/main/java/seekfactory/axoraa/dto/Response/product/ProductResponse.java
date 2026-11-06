@@ -44,4 +44,6 @@ public class ProductResponse {
     private Long likesCount;
     /** Viewer's own product like; null for guests. */
     private Boolean likedByMe;
+    /** Recorded product views (deduplicated per viewer), populated by buyer catalog mapping. */
+    private Long viewsCount;
 }

@@ -14,6 +14,8 @@ import seekfactory.axoraa.entity.Reels.Reel;
 import seekfactory.axoraa.repository.ManufacturerFollowRepository;
 import seekfactory.axoraa.repository.ProductSaveRepository;
 import seekfactory.axoraa.repository.ProductLikeRepository;
+import seekfactory.axoraa.repository.ViewEventRepository;
+import seekfactory.axoraa.enums.ViewEntityType;
 import seekfactory.axoraa.repository.Reels.ReelLikeRepository;
 import seekfactory.axoraa.repository.Reels.ReelSaveRepository;
 
@@ -38,6 +40,7 @@ public class CatalogMapper {
     private final ProductSaveRepository productSaveRepository;
     private final ProductLikeRepository productLikeRepository;
     private final ManufacturerFollowRepository manufacturerFollowRepository;
+    private final ViewEventRepository viewEventRepository;
 
     public ManufacturerResponse toManufacturer(Manufacturer manufacturer) {
         ManufacturerResponse response = modelMapper.map(manufacturer, ManufacturerResponse.class);
@@ -86,7 +89,7 @@ public class CatalogMapper {
         return responses;
     }
 
-    /** One grouped count query plus one viewer query for the whole page, never per card. */
+    /** Grouped like and view count queries plus one viewer query for the whole page, never per card. */
     private void enrichProductLikes(List<ProductResponse> responses, String viewerId) {
         if (responses.isEmpty()) return;
         List<String> ids = responses.stream().map(ProductResponse::getId).distinct().toList();
@@ -94,6 +97,11 @@ public class CatalogMapper {
         for (Object[] row : productLikeRepository.countForProducts(ids)) {
             counts.put((String) row[0], ((Number) row[1]).longValue());
         }
+        Map<String, Long> views = new HashMap<>();
+        for (Object[] row : viewEventRepository.countByEntityIds(ViewEntityType.PRODUCT, ids)) {
+            views.put((String) row[0], ((Number) row[1]).longValue());
+        }
+        responses.forEach(response -> response.setViewsCount(views.getOrDefault(response.getId(), 0L)));
         Set<String> liked = viewerId == null ? Set.of() : new HashSet<>(productLikeRepository.findLikedProductIds(viewerId, ids));
         responses.forEach(response -> {
             response.setLikesCount(counts.getOrDefault(response.getId(), 0L));

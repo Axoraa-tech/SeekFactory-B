@@ -114,6 +114,10 @@ public class AdminManagementServiceImpl implements AdminManagementService {
         if (!active && userId.equals(currentAdminId)) {
             throw new BadRequestException("You cannot deactivate your own admin account.");
         }
+        // A deleted account is anonymised and must stay off: reactivating it would revive its old tokens
+        if (active && user.getDeletedAt() != null) {
+            throw new BadRequestException("This account was deleted by its owner and cannot be reactivated.");
+        }
         user.setIsActive(active);
         userRepository.save(user);
         log.info("Admin {} set user {} active={}", currentAdminId, userId, active);

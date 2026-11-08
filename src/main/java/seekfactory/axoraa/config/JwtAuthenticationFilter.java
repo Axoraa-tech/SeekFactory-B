@@ -23,7 +23,7 @@ import java.util.List;
  * Workflow:
  * 1. Extract Bearer token from Authorization header
  * 2. Validate the token (signature + expiry)
- * 3. Extract user ID and role from token claims
+ * 3. Extract user ID and role from token claims; ignore the token if the account is no longer active
  * 4. Set authentication in SecurityContext so controllers can use @AuthenticationPrincipal
  *
  * If no token is present, the request proceeds unauthenticated (anonymous).
@@ -35,6 +35,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtTokenProvider jwtTokenProvider;
     private final PresenceService presenceService;
+    private final ActiveUserCache activeUserCache;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
@@ -48,6 +49,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     || (isUploadRequest(request) && jwtTokenProvider.isValidUploadToken(token)))) {
             String userId = jwtTokenProvider.getUserIdFromToken(token);
             String role = jwtTokenProvider.getRoleFromToken(token);
+
+            // Tokens live 24h and carry no account state: a deleted or deactivated account must
+            // stop working now, not when its token expires. Cached briefly, so this stays cheap.
+            if (!activeUserCache.isActive(userId)) {
+                filterChain.doFilter(request, response);
+                return;
+            }
 
             // Create authentication object with the user's granted authority
             UsernamePasswordAuthenticationToken authentication =

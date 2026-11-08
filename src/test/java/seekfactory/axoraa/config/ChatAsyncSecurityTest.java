@@ -26,7 +26,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class ChatAsyncSecurityTest {
     @Configuration @EnableWebMvc @Import(SecurityConfig.class)
     static class Config {
-        @Bean JwtAuthenticationFilter jwtFilter() {return new JwtAuthenticationFilter(mock(JwtTokenProvider.class),mock(PresenceService.class));}
+        @Bean JwtAuthenticationFilter jwtFilter() {return new JwtAuthenticationFilter(mock(JwtTokenProvider.class),mock(PresenceService.class),new ActiveUserCache(id -> true));}
         @Bean Endpoints endpoints() {return new Endpoints();}
     }
     @RestController static class Endpoints {

@@ -91,6 +91,10 @@ public class User extends BaseEntity{
     @Column(name = "last_login_at")
     private Instant lastLoginAt;
 
+    /** Set when the owner deleted the account; the row is kept, anonymised (see AccountDeletionService). */
+    @Column(name = "deleted_at")
+    private Instant deletedAt;
+
     @Column(name = "is_totp_enabled")
     @Builder.Default
     private Boolean isTotpEnabled = false;

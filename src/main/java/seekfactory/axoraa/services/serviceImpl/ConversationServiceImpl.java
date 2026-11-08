@@ -25,6 +25,7 @@ import seekfactory.axoraa.repository.ManufacturerRepository;
 import seekfactory.axoraa.repository.Messages.ConversationRepository;
 import seekfactory.axoraa.repository.Messages.MessageRepository;
 import seekfactory.axoraa.repository.UserRepository;
+import seekfactory.axoraa.services.services.AccountDeletionService;
 import seekfactory.axoraa.services.services.ConversationService;
 import seekfactory.axoraa.services.services.NotificationService;
 import seekfactory.axoraa.services.services.SseService;
@@ -520,7 +521,9 @@ public class ConversationServiceImpl implements ConversationService {
         java.time.Instant lastSeen = presenceService.lastSeen(counterpartId);
         
         String buyerCompany = conversation.getBuyer().getCompanyName();
-        if (buyerCompany == null || buyerCompany.trim().isEmpty()) {
+        if (conversation.getBuyer().getDeletedAt() != null) {
+            buyerCompany = AccountDeletionService.DELETED_NAME;  // not the generic fallback below
+        } else if (buyerCompany == null || buyerCompany.trim().isEmpty()) {
             buyerCompany = "Global Buyer";
         }
 

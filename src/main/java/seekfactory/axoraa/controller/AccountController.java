@@ -7,10 +7,12 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import seekfactory.axoraa.dto.Request.auth.ChangePasswordRequest;
+import seekfactory.axoraa.dto.Request.auth.DeleteAccountRequest;
 import seekfactory.axoraa.dto.Request.auth.ForgotPasswordRequest;
 import seekfactory.axoraa.dto.Request.auth.ResetPasswordRequest;
 import seekfactory.axoraa.dto.Request.auth.TokenRequest;
 import seekfactory.axoraa.dto.Response.common.ApiResponse;
+import seekfactory.axoraa.services.services.AccountDeletionService;
 import seekfactory.axoraa.services.services.AccountService;
 import seekfactory.axoraa.utils.SecurityUtils;
 
@@ -26,6 +28,7 @@ import seekfactory.axoraa.utils.SecurityUtils;
 public class AccountController {
 
     private final AccountService accountService;
+    private final AccountDeletionService accountDeletionService;
 
     @PostMapping("/api/v1/account/password")
     @Operation(summary = "Change password (requires the current password)")
@@ -33,6 +36,14 @@ public class AccountController {
         accountService.changePassword(SecurityUtils.getCurrentUserId(),
                 request.getCurrentPassword(), request.getNewPassword());
         return ResponseEntity.ok(ApiResponse.ok("Password updated"));
+    }
+
+    @PostMapping("/api/v1/account/delete")
+    @Operation(summary = "Delete the signed-in account: anonymised, chats and orders stay readable for the other side")
+    public ResponseEntity<ApiResponse<Void>> deleteAccount(@Valid @RequestBody DeleteAccountRequest request) {
+        accountDeletionService.deleteAccount(SecurityUtils.getCurrentUserId(),
+                request.getPassword(), request.getConfirmation());
+        return ResponseEntity.ok(ApiResponse.ok("Your account has been deleted"));
     }
 
     @PostMapping("/api/v1/account/email/verification")

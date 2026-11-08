@@ -27,4 +27,6 @@ public class UserResponse {
     private String plan;
     /** ISO timestamp of account creation. */
     private String memberSince;
+    /** False for Google/phone accounts without a password: deleting the account then asks for "DELETE". */
+    private Boolean hasPassword;
 }

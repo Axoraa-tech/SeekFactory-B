@@ -20,4 +20,7 @@ public interface UserRepository extends JpaRepository<User, String> {
     Optional<User> findByGoogleId(String googleId);
 
     boolean existsByEmail(String email);
+
+    /** Cheap per-request check used by the JWT filter (see ActiveUserCache). */
+    boolean existsByIdAndIsActiveTrue(String id);
 }

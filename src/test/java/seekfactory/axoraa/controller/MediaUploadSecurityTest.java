@@ -43,7 +43,7 @@ class MediaUploadSecurityTest {
         @Bean MediaStorageService storage() { return mock(MediaStorageService.class); }
         @Bean JwtTokenProvider tokens() { return mock(JwtTokenProvider.class); }
         @Bean PresenceService presence() { return mock(PresenceService.class); }
-        @Bean JwtAuthenticationFilter jwtFilter(JwtTokenProvider tokens, PresenceService presence) { return new JwtAuthenticationFilter(tokens, presence); }
+        @Bean JwtAuthenticationFilter jwtFilter(JwtTokenProvider tokens, PresenceService presence) { return new JwtAuthenticationFilter(tokens, presence, new seekfactory.axoraa.config.ActiveUserCache(id -> true)); }
         @Bean MediaController controller(MediaStorageService storage, JwtTokenProvider tokens) { return new MediaController(storage, tokens, new seekfactory.axoraa.services.media.MediaVariantService(storage)); }
     }
 

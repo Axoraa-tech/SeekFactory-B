@@ -38,7 +38,7 @@ class ProductLikeSecurityTest {
         @Bean RecommendationService recommendations() { return mock(RecommendationService.class); }
         @Bean JwtTokenProvider tokens() { return mock(JwtTokenProvider.class); }
         @Bean PresenceService presence() { return mock(PresenceService.class); }
-        @Bean JwtAuthenticationFilter jwtFilter(JwtTokenProvider tokens, PresenceService presence) { return new JwtAuthenticationFilter(tokens, presence); }
+        @Bean JwtAuthenticationFilter jwtFilter(JwtTokenProvider tokens, PresenceService presence) { return new JwtAuthenticationFilter(tokens, presence, new seekfactory.axoraa.config.ActiveUserCache(id -> true)); }
         @Bean ProductController controller(ProductService products, RecommendationService recommendations) { return new ProductController(products, recommendations); }
     }
     @Autowired WebApplicationContext context;

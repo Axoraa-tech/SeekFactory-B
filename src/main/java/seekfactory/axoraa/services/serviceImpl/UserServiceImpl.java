@@ -112,6 +112,7 @@ public class UserServiceImpl implements UserService {
         });
         response.setPlan(user.getBuyerPlan() != null ? user.getBuyerPlan().name().toLowerCase() : "free");
         response.setMemberSince(user.getCreatedAt() != null ? user.getCreatedAt().toString() : null);
+        response.setHasPassword(user.getPasswordHash() != null);
         return response;
     }
 }

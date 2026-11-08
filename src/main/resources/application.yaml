@@ -37,7 +37,10 @@ spring:
       max-lifetime: 300000
       keepalive-time: 60000
       data-source-properties:
-        prepareThreshold: 0
+        # 0 = no server-side prepared statements, required behind a transaction pooler (Supabase,
+        # PgBouncer). On a direct connection (Azure Flexible Server) set DB_PREPARE_THRESHOLD=5 so
+        # repeated queries skip re-planning.
+        prepareThreshold: ${DB_PREPARE_THRESHOLD:0}
         tcpKeepAlive: true
         socketTimeout: 30
 

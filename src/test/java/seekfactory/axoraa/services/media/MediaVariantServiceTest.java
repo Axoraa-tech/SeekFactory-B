@@ -95,8 +95,15 @@ class MediaVariantServiceTest {
         MediaStorageService storage = mock(MediaStorageService.class);
         when(storage.readPublic(KEY)).thenThrow(new RuntimeException("bucket offline"));
         MediaVariantService service = new MediaVariantService(storage);
+        long[] now = {1_000_000};
+        service.clock = () -> now[0];
 
         assertThat(service.variantFor(KEY, 640)).isEmpty();
+        // Within five minutes the failure is remembered: the original is served without asking storage again
+        assertThat(service.variantFor(KEY, 640)).isEmpty();
+        verify(storage, times(1)).readPublic(KEY);
+
+        now[0] += MediaVariantService.RETRY_FAILED_AFTER_MS;
         assertThat(service.variantFor(KEY, 640)).isEmpty();
         verify(storage, times(2)).readPublic(KEY);
     }

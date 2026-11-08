@@ -39,6 +39,14 @@ public class MediaVariantService {
     private final Semaphore generating = new Semaphore(2);
     /** "<key>@<width>" -> variant name, or NO_VARIANT when the original is already as small. */
     private final Map<String, String> known = new ConcurrentHashMap<>();
+    /**
+     * Photos whose copy could not be made (original missing, storage error), with when that happened.
+     * Without it every view of such a photo re-checked storage (several blob lookups) and retried.
+     */
+    private final Map<String, Long> recentFailures = new ConcurrentHashMap<>();
+    static final long RETRY_FAILED_AFTER_MS = 5 * 60_000;
+    /** Replaceable in tests. */
+    java.util.function.LongSupplier clock = System::currentTimeMillis;
 
     public boolean supports(String key, Integer width) {
         return width != null && WIDTHS.contains(width) && key != null && SOURCE_KEY.matcher(key).matches();
@@ -55,6 +63,11 @@ public class MediaVariantService {
 
         var m = SOURCE_KEY.matcher(key);
         if (!m.matches()) return Optional.empty();
+        Long failedAt = recentFailures.get(memo);
+        if (failedAt != null) {
+            if (clock.getAsLong() - failedAt < RETRY_FAILED_AFTER_MS) return Optional.empty();
+            recentFailures.remove(memo);
+        }
         String id = m.group(1);
         String extension = m.group(2);
 
@@ -81,6 +94,8 @@ public class MediaVariantService {
         } catch (RuntimeException e) {
             // Missing original, storage hiccup: serve the original this time and try again later
             log.warn("Could not make a {}px copy of {}: {}", width, key, e.getMessage());
+            if (recentFailures.size() > 20_000) recentFailures.clear();
+            recentFailures.put(memo, clock.getAsLong());
             return Optional.empty();
         } finally {
             generating.release();

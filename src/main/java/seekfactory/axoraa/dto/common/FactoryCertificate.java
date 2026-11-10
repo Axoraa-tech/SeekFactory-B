@@ -11,6 +11,11 @@ import lombok.NoArgsConstructor;
  * A certificate document on a factory profile (stored as JSON in manufacturers.certificates).
  * Used as-is in requests and responses; `verified` is only ever set by SeekFactory, never
  * accepted from the seller.
+ *
+ * <p>{@code custom} marks a certificate the company named itself (e.g. "ISO 13485:2016") instead
+ * of picking a preset. Its document (PDF or image scan) must be a file uploaded through
+ * SeekFactory's media storage, and the issuer is optional. It is shown as company-provided,
+ * never as verified, unless SeekFactory verifies it.
  */
 @Data
 @Builder
@@ -25,7 +30,7 @@ public class FactoryCertificate {
     @Size(max = 200)
     private String title;
 
-    @NotBlank(message = "Certificate issuer is required")
+    /** Required for preset certificates; optional for custom ones (checked in the service). */
     @Size(max = 200)
     private String issuer;
 
@@ -45,4 +50,11 @@ public class FactoryCertificate {
     private String category;
 
     private boolean verified;
+
+    /** Company-entered certificate name with an uploaded document (see class docs). */
+    private boolean custom;
+
+    /** Original file name of the uploaded document, for display. */
+    @Size(max = 255)
+    private String documentName;
 }

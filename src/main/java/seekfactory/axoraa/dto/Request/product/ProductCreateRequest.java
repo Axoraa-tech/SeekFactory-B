@@ -3,6 +3,7 @@ package seekfactory.axoraa.dto.Request.product;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -30,6 +31,10 @@ public class ProductCreateRequest {
     @NotNull(message = "Price is required")
     @Positive(message = "Price must be positive")
     private BigDecimal priceInr;
+
+    /** Optional range maximum; must be >= priceInr. Omit for a single price. */
+    @PositiveOrZero(message = "Maximum price cannot be negative")
+    private BigDecimal priceMaxInr;
 
     private String unit;
     private String moq;

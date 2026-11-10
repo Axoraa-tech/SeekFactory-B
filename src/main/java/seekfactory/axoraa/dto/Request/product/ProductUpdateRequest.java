@@ -29,6 +29,13 @@ public class ProductUpdateRequest {
     @Positive(message = "Price must be positive")
     private BigDecimal priceInr;
 
+    /**
+     * Range maximum, applied whenever priceInr is sent: the two together define the price, so
+     * sending priceInr without priceMaxInr makes it a single price. Ignored without priceInr.
+     */
+    @PositiveOrZero(message = "Maximum price cannot be negative")
+    private BigDecimal priceMaxInr;
+
     private String unit;
     private String moq;
     private String categoryId;

@@ -73,7 +73,7 @@ public final class AdminManagementDtos {
     public record AdminProductRow(
             String id, String name, String slug, String imageUrl,
             String manufacturerId, String manufacturerName, String manufacturerSlug,
-            BigDecimal priceInr, String unit, boolean listed, String stockStatus, Instant createdAt) {}
+            BigDecimal priceInr, BigDecimal priceMaxInr, String unit, boolean listed, String stockStatus, Instant createdAt) {}
 
     public record PlanRow(
             String id, String name, BigDecimal priceUsd, String featuresJson,

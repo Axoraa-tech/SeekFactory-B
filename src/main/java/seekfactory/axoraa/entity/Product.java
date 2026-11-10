@@ -57,6 +57,10 @@ public class Product extends BaseEntity{
     @Builder.Default
     private BigDecimal priceInr = BigDecimal.ZERO;
 
+    /** Optional upper bound of a price range (V30); null = single price, priceInr is the minimum. */
+    @Column(name = "price_max_inr", precision = 12, scale = 2)
+    private BigDecimal priceMaxInr;
+
     @Column(name = "unit", length = 50, nullable = false)
     @Builder.Default
     private String unit = "piece";

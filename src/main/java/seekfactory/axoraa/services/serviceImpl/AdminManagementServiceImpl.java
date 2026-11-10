@@ -398,13 +398,13 @@ public class AdminManagementServiceImpl implements AdminManagementService {
 
         String from = " FROM products p JOIN manufacturers m ON m.id = p.manufacturer_id ";
         List<AdminProductRow> items = jdbcTemplate.query("""
-                SELECT p.id, p.name, p.slug, p.image_url, p.price_inr, p.unit, p.listed, p.stock_status, p.created_at,
+                SELECT p.id, p.name, p.slug, p.image_url, p.price_inr, p.price_max_inr, p.unit, p.listed, p.stock_status, p.created_at,
                        m.id AS manufacturer_id, m.name AS manufacturer_name, m.slug AS manufacturer_slug
                 """ + from + w.sql() + " ORDER BY p.created_at DESC NULLS LAST LIMIT ? OFFSET ?",
                 (rs, i) -> new AdminProductRow(
                         rs.getString("id"), rs.getString("name"), rs.getString("slug"), rs.getString("image_url"),
                         rs.getString("manufacturer_id"), rs.getString("manufacturer_name"),
-                        rs.getString("manufacturer_slug"), rs.getBigDecimal("price_inr"), rs.getString("unit"),
+                        rs.getString("manufacturer_slug"), rs.getBigDecimal("price_inr"), rs.getBigDecimal("price_max_inr"), rs.getString("unit"),
                         rs.getBoolean("listed"), rs.getString("stock_status"),
                         toInstant(rs.getTimestamp("created_at"))),
                 w.params(pageSize(size), offset(page, size)));

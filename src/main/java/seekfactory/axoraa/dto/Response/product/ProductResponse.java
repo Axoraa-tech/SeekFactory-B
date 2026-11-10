@@ -24,6 +24,8 @@ public class ProductResponse {
     private String imageUrl;
     private String description;
     private BigDecimal priceInr;
+    /** Range maximum, or null for a single price (priceInr). */
+    private BigDecimal priceMaxInr;
     private String unit;
     private String moq;
     private String categoryId;

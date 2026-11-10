@@ -56,6 +56,7 @@ import seekfactory.axoraa.services.services.ResponseMetrics;
 import seekfactory.axoraa.utils.SlugUtils;
 import seekfactory.axoraa.utils.CategoryTree;
 
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
@@ -362,6 +363,7 @@ public class FactoryServiceImpl implements FactoryService {
                 .imageUrls(new ArrayList<>(gallery))
                 .description(request.getDescription())
                 .priceInr(request.getPriceInr())
+                .priceMaxInr(priceMax(request.getPriceInr(), request.getPriceMaxInr()))
                 .unit(request.getUnit() != null ? request.getUnit() : "Set")
                 .moq(request.getMoq() != null ? request.getMoq() : "1 Set")
                 .specs(request.getSpecs() != null ? request.getSpecs() : new HashMap<>())
@@ -400,7 +402,10 @@ public class FactoryServiceImpl implements FactoryService {
             product.setImageUrls(new ArrayList<>(gallery));
         }
         if (request.getDescription() != null) product.setDescription(request.getDescription());
-        if (request.getPriceInr() != null) product.setPriceInr(request.getPriceInr());
+        if (request.getPriceInr() != null) {
+            product.setPriceInr(request.getPriceInr());
+            product.setPriceMaxInr(priceMax(request.getPriceInr(), request.getPriceMaxInr()));
+        }
         if (request.getUnit() != null && !request.getUnit().isBlank()) product.setUnit(request.getUnit().trim());
         if (request.getMoq() != null && !request.getMoq().isBlank()) product.setMoq(request.getMoq().trim());
         if (request.getCategoryId() != null) {
@@ -457,6 +462,19 @@ public class FactoryServiceImpl implements FactoryService {
     }
 
     /** Sets or (with a blank URL) clears the product's PDF datasheet. */
+    /**
+     * Validated range maximum: null for a single price (none given, or equal to the minimum);
+     * never negative or below the minimum.
+     */
+    static BigDecimal priceMax(BigDecimal min, BigDecimal max) {
+        if (max == null) return null;
+        if (max.signum() < 0) throw new BadRequestException("Maximum price cannot be negative");
+        if (min != null && max.compareTo(min) < 0) {
+            throw new BadRequestException("Maximum price cannot be less than the minimum price");
+        }
+        return min != null && max.compareTo(min) == 0 ? null : max;
+    }
+
     private static void applyDatasheet(Product product, String url, String name) {
         if (url == null || url.isBlank()) {
             product.setDatasheetUrl(null);
@@ -836,25 +854,49 @@ public class FactoryServiceImpl implements FactoryService {
         return url;
     }
 
+    /** Custom certificate documents must be our own uploads: a PDF or an image scan. */
+    private static final java.util.regex.Pattern CUSTOM_CERT_DOCUMENT = java.util.regex.Pattern.compile(
+            "(?i)^(https?://[^/\\s]+)?" + java.util.regex.Pattern.quote(seekfactory.axoraa.services.media.MediaTypes.PUBLIC_PATH)
+                    + "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\.(pdf|png|jpg|webp)$");
+
     /**
-     * Seller-supplied certificate documents: safe image URLs, ids assigned where missing,
+     * Seller-supplied certificate documents: safe document URLs, ids assigned where missing,
      * and never marked verified (only SeekFactory review may set that).
      */
-    private static List<FactoryCertificate> cleanCertificates(List<FactoryCertificate> certificates) {
+    static List<FactoryCertificate> cleanCertificates(List<FactoryCertificate> certificates) {
         List<FactoryCertificate> clean = new ArrayList<>();
         for (FactoryCertificate cert : certificates) {
             if (cert == null) continue;
-            requireMediaUrl(cert.getImageUrl(), "certificate imageUrl");
+            String title = blankToNull(cert.getTitle());
+            if (title == null || title.trim().length() < 2) {
+                throw new BadRequestException("Enter the certificate name");
+            }
+            String issuer = blankToNull(cert.getIssuer());
+            if (cert.isCustom()) {
+                if (cert.getImageUrl() == null || !CUSTOM_CERT_DOCUMENT.matcher(cert.getImageUrl().trim()).matches()) {
+                    throw new BadRequestException("Upload the certificate document (PDF, PNG, JPG or WebP)");
+                }
+            } else {
+                if (issuer == null) throw new BadRequestException("Certificate issuer is required");
+                requireMediaUrl(cert.getImageUrl(), "certificate imageUrl");
+            }
+            String documentName = blankToNull(cert.getDocumentName());
+            if (documentName != null) {
+                documentName = documentName.replaceAll("[\\\\/\\r\\n]", "_").trim();
+                if (documentName.length() > 255) documentName = documentName.substring(0, 255);
+            }
             clean.add(FactoryCertificate.builder()
                     .id(cert.getId() != null && !cert.getId().isBlank() ? cert.getId() : "cert-" + UUID.randomUUID())
-                    .title(cert.getTitle().trim())
-                    .issuer(cert.getIssuer().trim())
+                    .title(title.trim())
+                    .issuer(issuer == null ? null : issuer.trim())
                     .certNumber(blankToNull(cert.getCertNumber()))
                     .issueDate(blankToNull(cert.getIssueDate()))
                     .expiryDate(blankToNull(cert.getExpiryDate()))
-                    .imageUrl(cert.getImageUrl())
+                    .imageUrl(cert.getImageUrl().trim())
                     .category(blankToNull(cert.getCategory()))
                     .verified(false)
+                    .custom(cert.isCustom())
+                    .documentName(documentName)
                     .build());
         }
         return clean;

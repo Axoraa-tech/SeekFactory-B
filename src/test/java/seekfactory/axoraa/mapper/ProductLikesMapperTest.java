@@ -24,6 +24,17 @@ class ProductLikesMapperTest {
     }
 
     @Test
+    void productVideoSurvivesBuyerMappingAndCachedViewerCopies() {
+        Product source = product("video-product");
+        source.setVideoUrl("/api/v1/media/0b5e7d1c-2f4a-4c1e-9a3b-7d6e5f4a3b2c.mp4");
+        var mapped = mapper.toProducts(List.of(source), null);
+        assertThat(mapped.getFirst().getVideoUrl()).isEqualTo(source.getVideoUrl());
+        assertThat(mapper.copyWithViewerState(mapped, "buyer").getFirst().getVideoUrl())
+                .isEqualTo(source.getVideoUrl());
+        assertThat(mapper.toProduct(product("legacy")).getVideoUrl()).isNull();
+    }
+
+    @Test
     void batchesRealCountsAndViewerStateAndDoesNotLeakThemToAnotherViewer() {
         when(likes.countForProducts(List.of("p1", "p2"))).thenReturn(java.util.Collections.singletonList(new Object[]{"p1", 7L}));
         when(likes.findLikedProductIds("first", List.of("p1", "p2"))).thenReturn(List.of("p1"));

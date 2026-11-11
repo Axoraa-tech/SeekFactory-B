@@ -32,6 +32,9 @@ public class ProductResponse {
     private Map<String, String> specs;
     /** Gallery in display order (first = imageUrl). */
     private List<String> imageUrls;
+    /** One optional product gallery video, independent of Seeks. */
+    private String videoUrl;
+
     private String datasheetUrl;
     private String datasheetName;
     /** false when the seller has paused the listing. */

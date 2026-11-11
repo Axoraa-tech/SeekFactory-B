@@ -102,6 +102,10 @@ public class Product extends BaseEntity{
     @Builder.Default
     private List<String> imageUrls = new ArrayList<>();
 
+    /** Optional product gallery video, independent of Seeks. */
+    @Column(name = "video_url", columnDefinition = "TEXT")
+    private String videoUrl;
+
     @Column(name = "datasheet_url", columnDefinition = "TEXT")
     private String datasheetUrl;
 

@@ -48,6 +48,9 @@ public class ProductCreateRequest {
     @Size(max = 8, message = "At most 8 images per product")
     private List<String> imageUrls;
 
+    /** One optional product video; null/omitted or blank means no video. */
+    private String videoUrl;
+
     private String datasheetUrl;
     private String datasheetName;
 

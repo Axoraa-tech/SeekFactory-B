@@ -18,6 +18,7 @@ import seekfactory.axoraa.dto.Request.rfq.RfqQuoteRequest;
 import seekfactory.axoraa.dto.Response.factory.FactoryStatsResponse;
 import seekfactory.axoraa.dto.Response.manufacturer.ManufacturerResponse;
 import seekfactory.axoraa.dto.Response.product.ProductResponse;
+import seekfactory.axoraa.services.media.MediaTypes;
 import seekfactory.axoraa.dto.Response.reel.ReelResponse;
 import seekfactory.axoraa.dto.Response.rfq.RfqResponse;
 import seekfactory.axoraa.entity.Category;
@@ -371,6 +372,7 @@ public class FactoryServiceImpl implements FactoryService {
                 .listed(true)
                 .stockStatus(request.getStockStatus() != null ? request.getStockStatus() : ProductStockStatus.IN_STOCK)
                 .build();
+        product.setVideoUrl(productVideoUrl(request.getVideoUrl()));
         applyDatasheet(product, request.getDatasheetUrl(), request.getDatasheetName());
 
         Product saved = productRepository.save(product);
@@ -394,6 +396,7 @@ public class FactoryServiceImpl implements FactoryService {
     @Override
     public ProductResponse updateProduct(String userId, String productId, ProductUpdateRequest request) {
         Product product = ownedProduct(userId, productId);
+        String videoUrl = request.getVideoUrl() == null ? product.getVideoUrl() : productVideoUrl(request.getVideoUrl());
         applyProductPriceUpdate(product, request);
 
         if (request.getName() != null) product.setName(request.getName().trim());
@@ -411,6 +414,7 @@ public class FactoryServiceImpl implements FactoryService {
         }
         if (request.getSpecs() != null) product.setSpecs(new HashMap<>(request.getSpecs()));
         if (request.getStockStatus() != null) product.setStockStatus(request.getStockStatus());
+        if (request.getVideoUrl() != null) product.setVideoUrl(videoUrl);
         if (request.getDatasheetUrl() != null) {
             applyDatasheet(product, request.getDatasheetUrl(), request.getDatasheetName());
         }
@@ -480,6 +484,39 @@ public class FactoryServiceImpl implements FactoryService {
             throw new BadRequestException("Maximum price cannot be less than the minimum price");
         }
         return min != null && max.compareTo(min) == 0 ? null : max;
+    }
+
+    /** Accept uploaded video paths or direct HTTP(S) video URLs, never executable/local URIs. */
+    static String productVideoUrl(String raw) {
+        String url = blankToNull(raw);
+        if (url == null) return null;
+        try {
+            java.net.URI uri = new java.net.URI(url);
+            String path = uri.getPath();
+            boolean uploaded = !uri.isAbsolute() && uri.getRawAuthority() == null
+                    && path != null && path.startsWith(MediaTypes.PUBLIC_PATH)
+                    && MediaTypes.KEY_PATTERN.matcher(
+                            path.substring(MediaTypes.PUBLIC_PATH.length())).matches()
+                    && uri.getRawQuery() == null && uri.getRawFragment() == null;
+            boolean remote = ("https".equalsIgnoreCase(uri.getScheme()) || "http".equalsIgnoreCase(uri.getScheme()))
+                    && uri.getHost() != null && uri.getRawUserInfo() == null;
+            if ((uploaded || remote) && path != null
+                    && path.toLowerCase(Locale.ROOT).matches(".*\\.(mp4|webm|mov)$")) {
+                if (uploaded) return path; // Canonicalize encoded upload keys for shared-media retention.
+                String key = path.substring(path.lastIndexOf('/') + 1);
+                if (MediaTypes.KEY_PATTERN.matcher(key).matches()) {
+                    String rawPath = uri.getRawPath();
+                    String canonicalPath = rawPath.substring(0, rawPath.lastIndexOf('/') + 1) + key;
+                    return uri.getScheme() + "://" + uri.getRawAuthority() + canonicalPath
+                            + (uri.getRawQuery() == null ? "" : "?" + uri.getRawQuery())
+                            + (uri.getRawFragment() == null ? "" : "#" + uri.getRawFragment());
+                }
+                return url;
+            }
+        } catch (java.net.URISyntaxException ignored) {
+            // Return the same client-facing validation error for malformed and unsafe URLs.
+        }
+        throw new BadRequestException("videoUrl must be an uploaded video path or an http(s) MP4, WebM or MOV URL");
     }
 
     private static void applyDatasheet(Product product, String url, String name) {
@@ -863,7 +900,7 @@ public class FactoryServiceImpl implements FactoryService {
 
     /** Custom certificate documents must be our own uploads: a PDF or an image scan. */
     private static final java.util.regex.Pattern CUSTOM_CERT_DOCUMENT = java.util.regex.Pattern.compile(
-            "(?i)^(https?://[^/\\s]+)?" + java.util.regex.Pattern.quote(seekfactory.axoraa.services.media.MediaTypes.PUBLIC_PATH)
+            "(?i)^(https?://[^/\\s]+)?" + java.util.regex.Pattern.quote(MediaTypes.PUBLIC_PATH)
                     + "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\.(pdf|png|jpg|webp)$");
 
     /**
@@ -959,6 +996,7 @@ public class FactoryServiceImpl implements FactoryService {
         res.setManufacturerId(p.getManufacturer().getId());
         res.setCategoryId(p.getCategory() != null ? p.getCategory().getId() : null);
         res.setImageUrls(p.gallery());
+        res.setVideoUrl(p.getVideoUrl());
         res.setListed(!Boolean.FALSE.equals(p.getListed()));
         res.setStockStatus(p.getStockStatus() != null ? p.getStockStatus().name() : ProductStockStatus.IN_STOCK.name());
         return res;

@@ -58,6 +58,7 @@ public class CatalogMapper {
         response.setManufacturerId(product.getManufacturer().getId());
         response.setCategoryId(product.getCategory() != null ? product.getCategory().getId() : null);
         response.setImageUrls(product.gallery());
+        response.setVideoUrl(product.getVideoUrl());
         response.setPriceTiers(sortedTiers(product.getPriceTiers()));
         response.setStockStatus(stockStatusOf(product));
         return response;

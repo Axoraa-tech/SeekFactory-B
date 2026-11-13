@@ -72,6 +72,9 @@ public class ProductUpdateRequest {
     private String categoryId;
     private Map<String, String> specs;
 
+    /** One optional product video; update null/omitted preserves it, blank clears it. */
+    private String videoUrl;
+
     /** Uploaded PDF path; an empty string removes the datasheet. */
     private String datasheetUrl;
     private String datasheetName;

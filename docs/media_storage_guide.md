@@ -26,7 +26,7 @@ The switch is configuration only:
 - **Videos** are uploaded as-is first (`no-cache`), so the seek works immediately. ffmpeg then
   compresses a local copy in `APP_MEDIA_S3_WORK_DIR` and replaces the object with the smaller MP4
   (`immutable`). Unfinished work is resumed after a restart.
-- **Deleting a seek** removes its video from the bucket, unless another seek uses the same file.
+- **Deleting a seek** removes its video from the bucket, unless another seek or product uses the same file.
   Thumbnails are kept, since they are often product photos.
 - **Old links keep working.** `GET /api/v1/media/<key>` answers with a redirect to the CDN.
 

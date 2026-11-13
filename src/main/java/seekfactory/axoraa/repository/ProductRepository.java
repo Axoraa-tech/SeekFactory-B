@@ -16,6 +16,13 @@ import java.util.Optional;
 @Repository
 public interface ProductRepository extends JpaRepository<Product, String> {
 
+    /** Keep media referenced by any product, including a paused/soft-deleted product. */
+    boolean existsByVideoUrl(String videoUrl);
+
+    /** Conservative retention for absolute API/CDN aliases of the same uploaded media key. */
+    boolean existsByVideoUrlContaining(String mediaKey);
+
+
     /** Serialize like toggles for this product across requests before reading viewer state/counts. */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT p FROM Product p WHERE p.id = :id")

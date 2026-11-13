@@ -397,6 +397,7 @@ public class FactoryServiceImpl implements FactoryService {
     public ProductResponse updateProduct(String userId, String productId, ProductUpdateRequest request) {
         Product product = ownedProduct(userId, productId);
         String videoUrl = request.getVideoUrl() == null ? product.getVideoUrl() : productVideoUrl(request.getVideoUrl());
+        applyProductPriceUpdate(product, request);
 
         if (request.getName() != null) product.setName(request.getName().trim());
         if (request.getImageUrls() != null) {
@@ -405,10 +406,6 @@ public class FactoryServiceImpl implements FactoryService {
             product.setImageUrls(new ArrayList<>(gallery));
         }
         if (request.getDescription() != null) product.setDescription(request.getDescription());
-        if (request.getPriceInr() != null) {
-            product.setPriceInr(request.getPriceInr());
-            product.setPriceMaxInr(priceMax(request.getPriceInr(), request.getPriceMaxInr()));
-        }
         if (request.getUnit() != null && !request.getUnit().isBlank()) product.setUnit(request.getUnit().trim());
         if (request.getMoq() != null && !request.getMoq().isBlank()) product.setMoq(request.getMoq().trim());
         if (request.getCategoryId() != null) {
@@ -466,6 +463,16 @@ public class FactoryServiceImpl implements FactoryService {
     }
 
     /** Sets or (with a blank URL) clears the product's PDF datasheet. */
+    /** Resolve both bounds before mutating either, preserving ranges from older clients. */
+    static void applyProductPriceUpdate(Product product, ProductUpdateRequest request) {
+        if (request.getPriceInr() == null && !request.isPriceMaxInrPresent()) return;
+        BigDecimal min = request.getPriceInr() != null ? request.getPriceInr() : product.getPriceInr();
+        BigDecimal max = request.isPriceMaxInrPresent() ? request.getPriceMaxInr() : product.getPriceMaxInr();
+        BigDecimal validatedMax = priceMax(min, max);
+        product.setPriceInr(min);
+        product.setPriceMaxInr(validatedMax);
+    }
+
     /**
      * Validated range maximum: null for a single price (none given, or equal to the minimum);
      * never negative or below the minimum.

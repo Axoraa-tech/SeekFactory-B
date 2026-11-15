@@ -57,6 +57,19 @@ public interface ProductRepository extends JpaRepository<Product, String> {
     @Query("SELECT p FROM Product p WHERE p.isActive = true AND p.listed = true AND p.manufacturer.verified = true ORDER BY p.createdAt DESC")
     List<Product> findTrending(Pageable pageable);
 
+    interface CategoryListingCount {
+        String getCategoryId();
+        long getListingCount();
+    }
+
+    /** Same visibility predicate as the public catalogue; aggregate without loading products/media. */
+    @Query("""
+            SELECT p.category.id AS categoryId, COUNT(p) AS listingCount FROM Product p
+            WHERE p.isActive = true AND p.listed = true AND p.manufacturer.verified = true
+            GROUP BY p.category.id
+            """)
+    List<CategoryListingCount> countVisibleByCategory();
+
     /** Every buyer-visible product, newest first (the feed's complete catalogue). */
     @Query("SELECT p FROM Product p WHERE p.isActive = true AND p.listed = true AND p.manufacturer.verified = true ORDER BY p.createdAt DESC")
     List<Product> findAllVisible();

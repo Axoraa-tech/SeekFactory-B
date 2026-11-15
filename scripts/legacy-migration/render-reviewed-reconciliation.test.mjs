@@ -20,3 +20,12 @@ test('requires complete expected row input',()=>{const{plan,review}=fixture();de
 test('expected row must match ID and old category',()=>{const{plan,review}=fixture();plan.updates[0].expectedRow.category_id='wrong';assert.throws(()=>render(plan,review));});
 
 test('pins SQL literal parsing and builtin resolution',()=>{const{plan,review}=fixture();const sql=render(plan,review).apply;assert.match(sql,/SET LOCAL standard_conforming_strings=on/);assert.match(sql,/SET LOCAL search_path=pg_catalog,public/);});
+
+test('synthetic example is unapproved and explicitly holds ambiguous cases',async()=>{
+ const {plan,held,reviewTemplate}=await import('./reconciliation.synthetic-example.mjs');
+ assert.throws(()=>render(plan,reviewTemplate),/review required/);
+ assert.equal(plan.updates.length,1);
+ assert.equal(held.length,6);
+ assert.ok(held.some(x=>/Ambiguous/.test(x.reason)));
+ assert.ok(held.some(x=>/stale/.test(x.reason)));
+});

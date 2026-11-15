@@ -1,0 +1,1292 @@
+[
+  {
+    "id": "cat-agriculture",
+    "name": "Agriculture",
+    "slug": "cat-agriculture",
+    "parent_id": null
+  },
+  {
+    "id": "cat-aircraft-ground-support-equipment",
+    "name": "Aircraft & Ground Support Equipment",
+    "slug": "cat-aircraft-ground-support-equipment",
+    "parent_id": null
+  },
+  {
+    "id": "cat-boats-marine-equipment",
+    "name": "Boats & Marine Equipment",
+    "slug": "cat-boats-marine-equipment",
+    "parent_id": null
+  },
+  {
+    "id": "cat-construction",
+    "name": "Construction",
+    "slug": "cat-construction",
+    "parent_id": null
+  },
+  {
+    "id": "cat-energy",
+    "name": "Energy",
+    "slug": "cat-energy",
+    "parent_id": null
+  },
+  {
+    "id": "cat-food-beverage-processing",
+    "name": "Food & Beverage Processing",
+    "slug": "cat-food-beverage-processing",
+    "parent_id": null
+  },
+  {
+    "id": "cat-forestry",
+    "name": "Forestry",
+    "slug": "cat-forestry",
+    "parent_id": null
+  },
+  {
+    "id": "cat-healthcare-medical",
+    "name": "Healthcare / Medical",
+    "slug": "cat-healthcare-medical",
+    "parent_id": null
+  },
+  {
+    "id": "cat-industrial-automation",
+    "name": "Industrial Automation",
+    "slug": "cat-industrial-automation",
+    "parent_id": null
+  },
+  {
+    "id": "cat-machine-tools",
+    "name": "Machine Tools",
+    "slug": "cat-machine-tools",
+    "parent_id": null
+  },
+  {
+    "id": "cat-material-handling",
+    "name": "Material handling",
+    "slug": "cat-material-handling",
+    "parent_id": null
+  },
+  {
+    "id": "cat-oil-gas-mining",
+    "name": "Oil, Gas & Mining",
+    "slug": "cat-oil-gas-mining",
+    "parent_id": null
+  },
+  {
+    "id": "cat-other",
+    "name": "Other",
+    "slug": "cat-other",
+    "parent_id": null
+  },
+  {
+    "id": "cat-printing",
+    "name": "Printing",
+    "slug": "cat-printing",
+    "parent_id": null
+  },
+  {
+    "id": "cat-processing",
+    "name": "Processing",
+    "slug": "cat-processing",
+    "parent_id": null
+  },
+  {
+    "id": "cat-semiconductors",
+    "name": "Semiconductors",
+    "slug": "cat-semiconductors",
+    "parent_id": null
+  },
+  {
+    "id": "cat-test-lab-medical-equipment",
+    "name": "Test, Lab, Medical equipment",
+    "slug": "cat-test-lab-medical-equipment",
+    "parent_id": null
+  },
+  {
+    "id": "cat-textile-and-leather-manufacturing",
+    "name": "Textile and leather manufacturing",
+    "slug": "cat-textile-and-leather-manufacturing",
+    "parent_id": null
+  },
+  {
+    "id": "cat-transportation-trailers",
+    "name": "Transportation & Trailers",
+    "slug": "cat-transportation-trailers",
+    "parent_id": null
+  },
+  {
+    "id": "cat-waste-recycling",
+    "name": "Waste & Recycling",
+    "slug": "cat-waste-recycling",
+    "parent_id": null
+  },
+  {
+    "id": "cat-woodworking",
+    "name": "Woodworking",
+    "slug": "cat-woodworking",
+    "parent_id": null
+  },
+  {
+    "id": "cat-agriculture-applicators",
+    "name": "Applicators",
+    "slug": "sub-applicators",
+    "parent_id": "cat-agriculture"
+  },
+  {
+    "id": "cat-agriculture-balers",
+    "name": "Balers",
+    "slug": "sub-balers",
+    "parent_id": "cat-agriculture"
+  },
+  {
+    "id": "cat-agriculture-combines",
+    "name": "Combines",
+    "slug": "sub-combines",
+    "parent_id": "cat-agriculture"
+  },
+  {
+    "id": "cat-agriculture-fertilizer-spreaders",
+    "name": "Fertilizer Spreaders",
+    "slug": "sub-fertilizer-spreaders",
+    "parent_id": "cat-agriculture"
+  },
+  {
+    "id": "cat-agriculture-lawn-turf-equipment",
+    "name": "Lawn & Turf Equipment",
+    "slug": "sub-lawn-turf-equipment",
+    "parent_id": "cat-agriculture"
+  },
+  {
+    "id": "cat-agriculture-lawn-mowers",
+    "name": "Lawn Mowers",
+    "slug": "sub-lawn-mowers",
+    "parent_id": "cat-agriculture"
+  },
+  {
+    "id": "cat-agriculture-livestock-equipment",
+    "name": "Livestock Equipment",
+    "slug": "sub-livestock-equipment",
+    "parent_id": "cat-agriculture"
+  },
+  {
+    "id": "cat-agriculture-planting-equipment",
+    "name": "Planting Equipment",
+    "slug": "sub-planting-equipment",
+    "parent_id": "cat-agriculture"
+  },
+  {
+    "id": "cat-agriculture-tillage-equipment",
+    "name": "Tillage Equipment",
+    "slug": "sub-tillage-equipment",
+    "parent_id": "cat-agriculture"
+  },
+  {
+    "id": "cat-agriculture-tractors",
+    "name": "Tractors",
+    "slug": "sub-tractors",
+    "parent_id": "cat-agriculture"
+  },
+  {
+    "id": "cat-aircraft-ground-support-equipment-aircrafts",
+    "name": "Aircrafts",
+    "slug": "sub-aircrafts",
+    "parent_id": "cat-aircraft-ground-support-equipment"
+  },
+  {
+    "id": "cat-aircraft-ground-support-equipment-airport-ground-support-equ",
+    "name": "Airport Ground Support Equipment (GSE)",
+    "slug": "sub-airport-ground-support-equipment-gse",
+    "parent_id": "cat-aircraft-ground-support-equipment"
+  },
+  {
+    "id": "cat-aircraft-ground-support-equipment-avionics-instruments",
+    "name": "Avionics & Instruments",
+    "slug": "sub-avionics-instruments",
+    "parent_id": "cat-aircraft-ground-support-equipment"
+  },
+  {
+    "id": "cat-boats-marine-equipment-cargo-ships",
+    "name": "Cargo Ships",
+    "slug": "sub-cargo-ships",
+    "parent_id": "cat-boats-marine-equipment"
+  },
+  {
+    "id": "cat-boats-marine-equipment-dredges",
+    "name": "Dredges",
+    "slug": "sub-dredges",
+    "parent_id": "cat-boats-marine-equipment"
+  },
+  {
+    "id": "cat-boats-marine-equipment-fishing-vessels",
+    "name": "Fishing Vessels",
+    "slug": "sub-fishing-vessels",
+    "parent_id": "cat-boats-marine-equipment"
+  },
+  {
+    "id": "cat-boats-marine-equipment-marine-engines-generators",
+    "name": "Marine Engines & Generators",
+    "slug": "sub-marine-engines-generators",
+    "parent_id": "cat-boats-marine-equipment"
+  },
+  {
+    "id": "cat-boats-marine-equipment-marine-equipment",
+    "name": "Marine Equipment",
+    "slug": "sub-marine-equipment",
+    "parent_id": "cat-boats-marine-equipment"
+  },
+  {
+    "id": "cat-boats-marine-equipment-maritime-cranes-port-equipment",
+    "name": "Maritime Cranes & Port Equipment",
+    "slug": "sub-maritime-cranes-port-equipment",
+    "parent_id": "cat-boats-marine-equipment"
+  },
+  {
+    "id": "cat-boats-marine-equipment-offshore-support-vessels",
+    "name": "Offshore Support Vessels",
+    "slug": "sub-offshore-support-vessels",
+    "parent_id": "cat-boats-marine-equipment"
+  },
+  {
+    "id": "cat-boats-marine-equipment-power-boats",
+    "name": "Power Boats",
+    "slug": "sub-power-boats",
+    "parent_id": "cat-boats-marine-equipment"
+  },
+  {
+    "id": "cat-boats-marine-equipment-sail-boats",
+    "name": "Sail Boats",
+    "slug": "sub-sail-boats",
+    "parent_id": "cat-boats-marine-equipment"
+  },
+  {
+    "id": "cat-boats-marine-equipment-service-vessels",
+    "name": "Service Vessels",
+    "slug": "sub-service-vessels",
+    "parent_id": "cat-boats-marine-equipment"
+  },
+  {
+    "id": "cat-construction-block-brick-paver-making-machines",
+    "name": "Block, Brick & Paver Making Machines",
+    "slug": "sub-block-brick-paver-making-machines",
+    "parent_id": "cat-construction"
+  },
+  {
+    "id": "cat-construction-construction-industrial-engines",
+    "name": "Construction/Industrial Engines",
+    "slug": "sub-construction-industrial-engines",
+    "parent_id": "cat-construction"
+  },
+  {
+    "id": "cat-construction-cranes",
+    "name": "Cranes",
+    "slug": "sub-cranes",
+    "parent_id": "cat-construction"
+  },
+  {
+    "id": "cat-construction-dozers",
+    "name": "Dozers",
+    "slug": "sub-dozers",
+    "parent_id": "cat-construction"
+  },
+  {
+    "id": "cat-construction-drilling-rigs",
+    "name": "Drilling Rigs",
+    "slug": "sub-drilling-rigs",
+    "parent_id": "cat-construction"
+  },
+  {
+    "id": "cat-construction-earthmoving-attachments-accessories",
+    "name": "Earthmoving Attachments & Accessories",
+    "slug": "sub-earthmoving-attachments-accessories",
+    "parent_id": "cat-construction"
+  },
+  {
+    "id": "cat-construction-excavators",
+    "name": "Excavators",
+    "slug": "sub-excavators",
+    "parent_id": "cat-construction"
+  },
+  {
+    "id": "cat-construction-generator-sets",
+    "name": "Generator Sets",
+    "slug": "sub-generator-sets",
+    "parent_id": "cat-construction"
+  },
+  {
+    "id": "cat-construction-lifts",
+    "name": "Lifts",
+    "slug": "sub-lifts",
+    "parent_id": "cat-construction"
+  },
+  {
+    "id": "cat-construction-wheel-loaders",
+    "name": "Wheel Loaders",
+    "slug": "sub-wheel-loaders",
+    "parent_id": "cat-construction"
+  },
+  {
+    "id": "cat-energy-batteries-chargers",
+    "name": "Batteries & Chargers",
+    "slug": "sub-batteries-chargers",
+    "parent_id": "cat-energy"
+  },
+  {
+    "id": "cat-energy-boilers",
+    "name": "Boilers",
+    "slug": "sub-boilers",
+    "parent_id": "cat-energy"
+  },
+  {
+    "id": "cat-energy-circuit-breakers",
+    "name": "Circuit Breakers",
+    "slug": "sub-circuit-breakers",
+    "parent_id": "cat-energy"
+  },
+  {
+    "id": "cat-energy-diesel-engines-generators",
+    "name": "Diesel Engines & Generators",
+    "slug": "sub-diesel-engines-generators",
+    "parent_id": "cat-energy"
+  },
+  {
+    "id": "cat-energy-electrical-electronic-components",
+    "name": "Electrical & Electronic Components",
+    "slug": "sub-electrical-electronic-components",
+    "parent_id": "cat-energy"
+  },
+  {
+    "id": "cat-energy-power-plants",
+    "name": "Power Plants",
+    "slug": "sub-power-plants",
+    "parent_id": "cat-energy"
+  },
+  {
+    "id": "cat-energy-power-supply",
+    "name": "Power Supply",
+    "slug": "sub-power-supply",
+    "parent_id": "cat-energy"
+  },
+  {
+    "id": "cat-energy-solar-power",
+    "name": "Solar Power",
+    "slug": "sub-solar-power",
+    "parent_id": "cat-energy"
+  },
+  {
+    "id": "cat-energy-transformers",
+    "name": "Transformers",
+    "slug": "sub-transformers",
+    "parent_id": "cat-energy"
+  },
+  {
+    "id": "cat-energy-turbines",
+    "name": "Turbines",
+    "slug": "sub-turbines",
+    "parent_id": "cat-energy"
+  },
+  {
+    "id": "cat-food-beverage-processing-bottling-filling-packaging",
+    "name": "Bottling, Filling & Packaging",
+    "slug": "sub-bottling-filling-packaging",
+    "parent_id": "cat-food-beverage-processing"
+  },
+  {
+    "id": "cat-food-beverage-processing-confectionery-equipment",
+    "name": "Confectionery Equipment",
+    "slug": "sub-confectionery-equipment",
+    "parent_id": "cat-food-beverage-processing"
+  },
+  {
+    "id": "cat-food-beverage-processing-dairy-processing",
+    "name": "Dairy Processing",
+    "slug": "sub-dairy-processing",
+    "parent_id": "cat-food-beverage-processing"
+  },
+  {
+    "id": "cat-food-beverage-processing-dough-processing-heat-treatment",
+    "name": "Dough Processing & Heat Treatment",
+    "slug": "sub-dough-processing-heat-treatment",
+    "parent_id": "cat-food-beverage-processing"
+  },
+  {
+    "id": "cat-food-beverage-processing-food-refrigeration",
+    "name": "Food Refrigeration",
+    "slug": "sub-food-refrigeration",
+    "parent_id": "cat-food-beverage-processing"
+  },
+  {
+    "id": "cat-food-beverage-processing-fruit-vegetable-processing",
+    "name": "Fruit & Vegetable Processing",
+    "slug": "sub-fruit-vegetable-processing",
+    "parent_id": "cat-food-beverage-processing"
+  },
+  {
+    "id": "cat-food-beverage-processing-industrial-cooking-machines",
+    "name": "Industrial Cooking Machines",
+    "slug": "sub-industrial-cooking-machines",
+    "parent_id": "cat-food-beverage-processing"
+  },
+  {
+    "id": "cat-food-beverage-processing-kitchen-restaurant-equipment",
+    "name": "Kitchen & Restaurant Equipment",
+    "slug": "sub-kitchen-restaurant-equipment",
+    "parent_id": "cat-food-beverage-processing"
+  },
+  {
+    "id": "cat-food-beverage-processing-meat-poultry-processing",
+    "name": "Meat & Poultry Processing",
+    "slug": "sub-meat-poultry-processing",
+    "parent_id": "cat-food-beverage-processing"
+  },
+  {
+    "id": "cat-food-beverage-processing-ovens-grills",
+    "name": "Ovens & Grills",
+    "slug": "sub-ovens-grills",
+    "parent_id": "cat-food-beverage-processing"
+  },
+  {
+    "id": "cat-forestry-feller-bunchers",
+    "name": "Feller Bunchers",
+    "slug": "sub-feller-bunchers",
+    "parent_id": "cat-forestry"
+  },
+  {
+    "id": "cat-forestry-forestry-attachments",
+    "name": "Forestry Attachments",
+    "slug": "sub-forestry-attachments",
+    "parent_id": "cat-forestry"
+  },
+  {
+    "id": "cat-forestry-forestry-harvesters",
+    "name": "Forestry Harvesters",
+    "slug": "sub-forestry-harvesters",
+    "parent_id": "cat-forestry"
+  },
+  {
+    "id": "cat-forestry-forwarders",
+    "name": "Forwarders",
+    "slug": "sub-forwarders",
+    "parent_id": "cat-forestry"
+  },
+  {
+    "id": "cat-forestry-horizontal-grinders",
+    "name": "Horizontal Grinders",
+    "slug": "sub-horizontal-grinders",
+    "parent_id": "cat-forestry"
+  },
+  {
+    "id": "cat-forestry-mulchers",
+    "name": "Mulchers",
+    "slug": "sub-mulchers",
+    "parent_id": "cat-forestry"
+  },
+  {
+    "id": "cat-forestry-skidders",
+    "name": "Skidders",
+    "slug": "sub-skidders",
+    "parent_id": "cat-forestry"
+  },
+  {
+    "id": "cat-forestry-stump-grinders",
+    "name": "Stump Grinders",
+    "slug": "sub-stump-grinders",
+    "parent_id": "cat-forestry"
+  },
+  {
+    "id": "cat-forestry-tub-grinders",
+    "name": "Tub Grinders",
+    "slug": "sub-tub-grinders",
+    "parent_id": "cat-forestry"
+  },
+  {
+    "id": "cat-forestry-wood-chippers",
+    "name": "Wood Chippers",
+    "slug": "sub-wood-chippers",
+    "parent_id": "cat-forestry"
+  },
+  {
+    "id": "cat-healthcare-medical-dental",
+    "name": "Dental Equipment",
+    "slug": "sub-healthcare-dental-equipment",
+    "parent_id": "cat-healthcare-medical"
+  },
+  {
+    "id": "cat-healthcare-medical-diagnostic-imaging",
+    "name": "Diagnostic & Imaging Equipment",
+    "slug": "sub-healthcare-diagnostic-imaging-equipment",
+    "parent_id": "cat-healthcare-medical"
+  },
+  {
+    "id": "cat-healthcare-medical-hospital-furniture",
+    "name": "Hospital Furniture & Beds",
+    "slug": "sub-healthcare-hospital-furniture-beds",
+    "parent_id": "cat-healthcare-medical"
+  },
+  {
+    "id": "cat-healthcare-medical-consumables",
+    "name": "Medical Consumables & Disposables",
+    "slug": "sub-healthcare-medical-consumables-disposables",
+    "parent_id": "cat-healthcare-medical"
+  },
+  {
+    "id": "cat-healthcare-medical-devices",
+    "name": "Medical Devices & Equipment",
+    "slug": "sub-healthcare-medical-devices-equipment",
+    "parent_id": "cat-healthcare-medical"
+  },
+  {
+    "id": "cat-healthcare-medical-pharma-machinery",
+    "name": "Pharmaceutical Machinery",
+    "slug": "sub-healthcare-pharmaceutical-machinery",
+    "parent_id": "cat-healthcare-medical"
+  },
+  {
+    "id": "cat-healthcare-medical-rehab-mobility",
+    "name": "Rehabilitation & Mobility Aids",
+    "slug": "sub-healthcare-rehabilitation-mobility-aids",
+    "parent_id": "cat-healthcare-medical"
+  },
+  {
+    "id": "cat-industrial-automation-actuators",
+    "name": "Actuators",
+    "slug": "sub-actuators",
+    "parent_id": "cat-industrial-automation"
+  },
+  {
+    "id": "cat-industrial-automation-drives",
+    "name": "Drives",
+    "slug": "sub-drives",
+    "parent_id": "cat-industrial-automation"
+  },
+  {
+    "id": "cat-industrial-automation-electric-motors",
+    "name": "Electric Motors",
+    "slug": "sub-electric-motors",
+    "parent_id": "cat-industrial-automation"
+  },
+  {
+    "id": "cat-industrial-automation-feedback-devices",
+    "name": "Feedback Devices",
+    "slug": "sub-feedback-devices",
+    "parent_id": "cat-industrial-automation"
+  },
+  {
+    "id": "cat-industrial-automation-human-machine-interfaces-hmi",
+    "name": "Human Machine Interfaces (HMI)",
+    "slug": "sub-human-machine-interfaces-hmi",
+    "parent_id": "cat-industrial-automation"
+  },
+  {
+    "id": "cat-industrial-automation-industrial-robots",
+    "name": "Industrial Robots",
+    "slug": "sub-industrial-robots",
+    "parent_id": "cat-industrial-automation"
+  },
+  {
+    "id": "cat-industrial-automation-input-output-modules",
+    "name": "Input/Output Modules",
+    "slug": "sub-input-output-modules",
+    "parent_id": "cat-industrial-automation"
+  },
+  {
+    "id": "cat-industrial-automation-motion-controllers",
+    "name": "Motion Controllers",
+    "slug": "sub-motion-controllers",
+    "parent_id": "cat-industrial-automation"
+  },
+  {
+    "id": "cat-industrial-automation-programmable-logic-controllers-plc",
+    "name": "Programmable Logic Controllers (PLC)",
+    "slug": "sub-programmable-logic-controllers-plc",
+    "parent_id": "cat-industrial-automation"
+  },
+  {
+    "id": "cat-industrial-automation-sensors",
+    "name": "Sensors",
+    "slug": "sub-sensors",
+    "parent_id": "cat-industrial-automation"
+  },
+  {
+    "id": "cat-machine-tools-bending-forming",
+    "name": "Bending & Forming",
+    "slug": "sub-bending-forming",
+    "parent_id": "cat-machine-tools"
+  },
+  {
+    "id": "cat-machine-tools-cnc-lathes",
+    "name": "CNC Lathes",
+    "slug": "sub-cnc-lathes",
+    "parent_id": "cat-machine-tools"
+  },
+  {
+    "id": "cat-machine-tools-grinding-machines",
+    "name": "Grinding machines",
+    "slug": "sub-grinding-machines",
+    "parent_id": "cat-machine-tools"
+  },
+  {
+    "id": "cat-machine-tools-laser-cutters",
+    "name": "Laser Cutters",
+    "slug": "sub-laser-cutters",
+    "parent_id": "cat-machine-tools"
+  },
+  {
+    "id": "cat-machine-tools-lathes",
+    "name": "Lathes",
+    "slug": "sub-lathes",
+    "parent_id": "cat-machine-tools"
+  },
+  {
+    "id": "cat-machine-tools-machining-centers",
+    "name": "Machining Centers",
+    "slug": "sub-machining-centers",
+    "parent_id": "cat-machine-tools"
+  },
+  {
+    "id": "cat-machine-tools-milling-machines",
+    "name": "Milling Machines",
+    "slug": "sub-milling-machines",
+    "parent_id": "cat-machine-tools"
+  },
+  {
+    "id": "cat-machine-tools-presses",
+    "name": "Presses",
+    "slug": "sub-presses",
+    "parent_id": "cat-machine-tools"
+  },
+  {
+    "id": "cat-machine-tools-saws",
+    "name": "Saws",
+    "slug": "sub-saws",
+    "parent_id": "cat-machine-tools"
+  },
+  {
+    "id": "cat-machine-tools-welding-equipment",
+    "name": "Welding equipment",
+    "slug": "sub-welding-equipment",
+    "parent_id": "cat-machine-tools"
+  },
+  {
+    "id": "cat-material-handling-forklifts",
+    "name": "Forklifts",
+    "slug": "sub-forklifts",
+    "parent_id": "cat-material-handling"
+  },
+  {
+    "id": "cat-material-handling-material-handlers",
+    "name": "Material Handlers",
+    "slug": "sub-material-handlers",
+    "parent_id": "cat-material-handling"
+  },
+  {
+    "id": "cat-material-handling-order-pickers",
+    "name": "Order Pickers",
+    "slug": "sub-order-pickers",
+    "parent_id": "cat-material-handling"
+  },
+  {
+    "id": "cat-material-handling-overhead-cranes",
+    "name": "Overhead Cranes",
+    "slug": "sub-overhead-cranes",
+    "parent_id": "cat-material-handling"
+  },
+  {
+    "id": "cat-material-handling-pallet-stackers",
+    "name": "Pallet Stackers",
+    "slug": "sub-pallet-stackers",
+    "parent_id": "cat-material-handling"
+  },
+  {
+    "id": "cat-material-handling-pallet-trucks",
+    "name": "Pallet Trucks",
+    "slug": "sub-pallet-trucks",
+    "parent_id": "cat-material-handling"
+  },
+  {
+    "id": "cat-material-handling-reach-trucks",
+    "name": "Reach Trucks",
+    "slug": "sub-reach-trucks",
+    "parent_id": "cat-material-handling"
+  },
+  {
+    "id": "cat-material-handling-sideloaders",
+    "name": "Sideloaders",
+    "slug": "sub-sideloaders",
+    "parent_id": "cat-material-handling"
+  },
+  {
+    "id": "cat-material-handling-telehandlers",
+    "name": "Telehandlers",
+    "slug": "sub-telehandlers",
+    "parent_id": "cat-material-handling"
+  },
+  {
+    "id": "cat-material-handling-tow-tractors",
+    "name": "Tow Tractors",
+    "slug": "sub-tow-tractors",
+    "parent_id": "cat-material-handling"
+  },
+  {
+    "id": "cat-oil-gas-mining-articulated-haulers",
+    "name": "Articulated Haulers",
+    "slug": "sub-articulated-haulers",
+    "parent_id": "cat-oil-gas-mining"
+  },
+  {
+    "id": "cat-oil-gas-mining-crushers-and-screening-plants",
+    "name": "Crushers and Screening Plants",
+    "slug": "sub-crushers-and-screening-plants",
+    "parent_id": "cat-oil-gas-mining"
+  },
+  {
+    "id": "cat-oil-gas-mining-haul-trucks",
+    "name": "Haul Trucks",
+    "slug": "sub-haul-trucks",
+    "parent_id": "cat-oil-gas-mining"
+  },
+  {
+    "id": "cat-oil-gas-mining-lhd-mining-loaders",
+    "name": "LHD - Mining Loaders",
+    "slug": "sub-lhd-mining-loaders",
+    "parent_id": "cat-oil-gas-mining"
+  },
+  {
+    "id": "cat-oil-gas-mining-mills-mineral-processing",
+    "name": "Mills (mineral processing)",
+    "slug": "sub-mills-mineral-processing",
+    "parent_id": "cat-oil-gas-mining"
+  },
+  {
+    "id": "cat-oil-gas-mining-mineral-processing",
+    "name": "Mineral Processing",
+    "slug": "sub-mineral-processing",
+    "parent_id": "cat-oil-gas-mining"
+  },
+  {
+    "id": "cat-oil-gas-mining-mud-pumps",
+    "name": "Mud Pumps",
+    "slug": "sub-mud-pumps",
+    "parent_id": "cat-oil-gas-mining"
+  },
+  {
+    "id": "cat-oil-gas-mining-oilfield-equipment",
+    "name": "Oilfield Equipment",
+    "slug": "sub-oilfield-equipment",
+    "parent_id": "cat-oil-gas-mining"
+  },
+  {
+    "id": "cat-oil-gas-mining-tanks-vessels",
+    "name": "Tanks & Vessels",
+    "slug": "sub-tanks-vessels",
+    "parent_id": "cat-oil-gas-mining"
+  },
+  {
+    "id": "cat-oil-gas-mining-well-control",
+    "name": "Well Control",
+    "slug": "sub-well-control",
+    "parent_id": "cat-oil-gas-mining"
+  },
+  {
+    "id": "cat-other-audiovisual-broadcast",
+    "name": "Audiovisual/Broadcast",
+    "slug": "sub-audiovisual-broadcast",
+    "parent_id": "cat-other"
+  },
+  {
+    "id": "cat-other-centrifugal-pumps",
+    "name": "Centrifugal Pumps",
+    "slug": "sub-centrifugal-pumps",
+    "parent_id": "cat-other"
+  },
+  {
+    "id": "cat-other-floor-scrubbers-sweepers",
+    "name": "Floor Scrubbers & Sweepers",
+    "slug": "sub-floor-scrubbers-sweepers",
+    "parent_id": "cat-other"
+  },
+  {
+    "id": "cat-other-ice-resurfacers",
+    "name": "Ice Resurfacers",
+    "slug": "sub-ice-resurfacers",
+    "parent_id": "cat-other"
+  },
+  {
+    "id": "cat-other-positive-displacement-pumps",
+    "name": "Positive Displacement Pumps",
+    "slug": "sub-positive-displacement-pumps",
+    "parent_id": "cat-other"
+  },
+  {
+    "id": "cat-other-pressure-washers",
+    "name": "Pressure Washers",
+    "slug": "sub-pressure-washers",
+    "parent_id": "cat-other"
+  },
+  {
+    "id": "cat-other-vacuum-pumps",
+    "name": "Vacuum Pumps",
+    "slug": "sub-vacuum-pumps",
+    "parent_id": "cat-other"
+  },
+  {
+    "id": "cat-other-water-pumps",
+    "name": "Water Pumps",
+    "slug": "sub-water-pumps",
+    "parent_id": "cat-other"
+  },
+  {
+    "id": "cat-printing-die-cutters",
+    "name": "Die Cutters",
+    "slug": "sub-die-cutters",
+    "parent_id": "cat-printing"
+  },
+  {
+    "id": "cat-printing-digital-printing",
+    "name": "Digital Printing",
+    "slug": "sub-digital-printing",
+    "parent_id": "cat-printing"
+  },
+  {
+    "id": "cat-printing-flexographic-printing",
+    "name": "Flexographic printing",
+    "slug": "sub-flexographic-printing",
+    "parent_id": "cat-printing"
+  },
+  {
+    "id": "cat-printing-folders",
+    "name": "Folders",
+    "slug": "sub-folders",
+    "parent_id": "cat-printing"
+  },
+  {
+    "id": "cat-printing-guillotines",
+    "name": "Guillotines",
+    "slug": "sub-guillotines",
+    "parent_id": "cat-printing"
+  },
+  {
+    "id": "cat-printing-large-wide-format-printers",
+    "name": "Large Wide Format Printers",
+    "slug": "sub-large-wide-format-printers",
+    "parent_id": "cat-printing"
+  },
+  {
+    "id": "cat-printing-offset-press",
+    "name": "Offset press",
+    "slug": "sub-offset-press",
+    "parent_id": "cat-printing"
+  },
+  {
+    "id": "cat-printing-post-press",
+    "name": "Post-press",
+    "slug": "sub-post-press",
+    "parent_id": "cat-printing"
+  },
+  {
+    "id": "cat-printing-screen-printing-print-production",
+    "name": "Screen Printing (print production)",
+    "slug": "sub-screen-printing-print-production",
+    "parent_id": "cat-printing"
+  },
+  {
+    "id": "cat-printing-sheet-fed-press",
+    "name": "Sheet-fed press",
+    "slug": "sub-sheet-fed-press",
+    "parent_id": "cat-printing"
+  },
+  {
+    "id": "cat-processing-agitators-blenders-mixers",
+    "name": "Agitators, Blenders, Mixers",
+    "slug": "sub-agitators-blenders-mixers",
+    "parent_id": "cat-processing"
+  },
+  {
+    "id": "cat-processing-coating-laminating",
+    "name": "Coating & Laminating",
+    "slug": "sub-coating-laminating",
+    "parent_id": "cat-processing"
+  },
+  {
+    "id": "cat-processing-conveyors",
+    "name": "Conveyors",
+    "slug": "sub-conveyors",
+    "parent_id": "cat-processing"
+  },
+  {
+    "id": "cat-processing-extruders",
+    "name": "Extruders",
+    "slug": "sub-extruders",
+    "parent_id": "cat-processing"
+  },
+  {
+    "id": "cat-processing-industrial-chillers",
+    "name": "Industrial Chillers",
+    "slug": "sub-industrial-chillers",
+    "parent_id": "cat-processing"
+  },
+  {
+    "id": "cat-processing-industrial-compressors",
+    "name": "Industrial Compressors",
+    "slug": "sub-industrial-compressors",
+    "parent_id": "cat-processing"
+  },
+  {
+    "id": "cat-processing-injection-molding",
+    "name": "Injection Molding",
+    "slug": "sub-injection-molding",
+    "parent_id": "cat-processing"
+  },
+  {
+    "id": "cat-processing-packaging-machinery",
+    "name": "Packaging Machinery",
+    "slug": "sub-packaging-machinery",
+    "parent_id": "cat-processing"
+  },
+  {
+    "id": "cat-processing-plastic-rubber-processing",
+    "name": "Plastic/Rubber Processing",
+    "slug": "sub-plastic-rubber-processing",
+    "parent_id": "cat-processing"
+  },
+  {
+    "id": "cat-processing-tanks-kettles",
+    "name": "Tanks & Kettles",
+    "slug": "sub-tanks-kettles",
+    "parent_id": "cat-processing"
+  },
+  {
+    "id": "cat-semiconductors-deposition-equipment-cvd-pvd",
+    "name": "Deposition Equipment (CVD, PVD)",
+    "slug": "sub-deposition-equipment-cvd-pvd",
+    "parent_id": "cat-semiconductors"
+  },
+  {
+    "id": "cat-semiconductors-die-bonders",
+    "name": "Die Bonders",
+    "slug": "sub-die-bonders",
+    "parent_id": "cat-semiconductors"
+  },
+  {
+    "id": "cat-semiconductors-etching-systems",
+    "name": "Etching Systems",
+    "slug": "sub-etching-systems",
+    "parent_id": "cat-semiconductors"
+  },
+  {
+    "id": "cat-semiconductors-laser-marking",
+    "name": "Laser Marking",
+    "slug": "sub-laser-marking",
+    "parent_id": "cat-semiconductors"
+  },
+  {
+    "id": "cat-semiconductors-metrology-inspection-semiconductors",
+    "name": "Metrology / Inspection (semiconductors)",
+    "slug": "sub-metrology-inspection-semiconductors",
+    "parent_id": "cat-semiconductors"
+  },
+  {
+    "id": "cat-semiconductors-pcb-assembly",
+    "name": "PCB Assembly",
+    "slug": "sub-pcb-assembly",
+    "parent_id": "cat-semiconductors"
+  },
+  {
+    "id": "cat-semiconductors-soldering",
+    "name": "Soldering",
+    "slug": "sub-soldering",
+    "parent_id": "cat-semiconductors"
+  },
+  {
+    "id": "cat-semiconductors-supporting-equipment-semiconductors",
+    "name": "Supporting equipment (semiconductors)",
+    "slug": "sub-supporting-equipment-semiconductors",
+    "parent_id": "cat-semiconductors"
+  },
+  {
+    "id": "cat-semiconductors-surface-treatment-cleaning",
+    "name": "Surface Treatment / Cleaning",
+    "slug": "sub-surface-treatment-cleaning",
+    "parent_id": "cat-semiconductors"
+  },
+  {
+    "id": "cat-semiconductors-test-measurement-semiconductors",
+    "name": "Test & Measurement (semiconductors)",
+    "slug": "sub-test-measurement-semiconductors",
+    "parent_id": "cat-semiconductors"
+  },
+  {
+    "id": "cat-test-lab-medical-equipment-dental-equipment",
+    "name": "Dental Equipment",
+    "slug": "sub-dental-equipment",
+    "parent_id": "cat-test-lab-medical-equipment"
+  },
+  {
+    "id": "cat-test-lab-medical-equipment-electrical-test-instruments",
+    "name": "Electrical Test Instruments",
+    "slug": "sub-electrical-test-instruments",
+    "parent_id": "cat-test-lab-medical-equipment"
+  },
+  {
+    "id": "cat-test-lab-medical-equipment-flow-electric-gas-meters",
+    "name": "Flow, Electric & Gas Meters",
+    "slug": "sub-flow-electric-gas-meters",
+    "parent_id": "cat-test-lab-medical-equipment"
+  },
+  {
+    "id": "cat-test-lab-medical-equipment-general-analytical-equipment",
+    "name": "General Analytical Equipment",
+    "slug": "sub-general-analytical-equipment",
+    "parent_id": "cat-test-lab-medical-equipment"
+  },
+  {
+    "id": "cat-test-lab-medical-equipment-general-laboratory-equipment",
+    "name": "General Laboratory Equipment",
+    "slug": "sub-general-laboratory-equipment",
+    "parent_id": "cat-test-lab-medical-equipment"
+  },
+  {
+    "id": "cat-test-lab-medical-equipment-general-medical-equipment",
+    "name": "General Medical Equipment",
+    "slug": "sub-general-medical-equipment",
+    "parent_id": "cat-test-lab-medical-equipment"
+  },
+  {
+    "id": "cat-test-lab-medical-equipment-medical-imaging",
+    "name": "Medical Imaging",
+    "slug": "sub-medical-imaging",
+    "parent_id": "cat-test-lab-medical-equipment"
+  },
+  {
+    "id": "cat-test-lab-medical-equipment-medical-ultrasound",
+    "name": "Medical Ultrasound",
+    "slug": "sub-medical-ultrasound",
+    "parent_id": "cat-test-lab-medical-equipment"
+  },
+  {
+    "id": "cat-test-lab-medical-equipment-oscilloscopes",
+    "name": "Oscilloscopes",
+    "slug": "sub-oscilloscopes",
+    "parent_id": "cat-test-lab-medical-equipment"
+  },
+  {
+    "id": "cat-test-lab-medical-equipment-test-generators",
+    "name": "Test Generators",
+    "slug": "sub-test-generators",
+    "parent_id": "cat-test-lab-medical-equipment"
+  },
+  {
+    "id": "cat-textile-and-leather-manufacturing-dyeing-finishing",
+    "name": "Dyeing & Finishing",
+    "slug": "sub-dyeing-finishing",
+    "parent_id": "cat-textile-and-leather-manufacturing"
+  },
+  {
+    "id": "cat-textile-and-leather-manufacturing-industrial-laundry-equipme",
+    "name": "Industrial Laundry Equipment",
+    "slug": "sub-industrial-laundry-equipment",
+    "parent_id": "cat-textile-and-leather-manufacturing"
+  },
+  {
+    "id": "cat-textile-and-leather-manufacturing-knitting",
+    "name": "Knitting",
+    "slug": "sub-knitting",
+    "parent_id": "cat-textile-and-leather-manufacturing"
+  },
+  {
+    "id": "cat-textile-and-leather-manufacturing-mattress-manufacturing",
+    "name": "Mattress Manufacturing",
+    "slug": "sub-mattress-manufacturing",
+    "parent_id": "cat-textile-and-leather-manufacturing"
+  },
+  {
+    "id": "cat-textile-and-leather-manufacturing-non-woven",
+    "name": "Non Woven",
+    "slug": "sub-non-woven",
+    "parent_id": "cat-textile-and-leather-manufacturing"
+  },
+  {
+    "id": "cat-textile-and-leather-manufacturing-sewing-machines",
+    "name": "Sewing Machines",
+    "slug": "sub-sewing-machines",
+    "parent_id": "cat-textile-and-leather-manufacturing"
+  },
+  {
+    "id": "cat-textile-and-leather-manufacturing-shoe-machines",
+    "name": "Shoe Machines",
+    "slug": "sub-shoe-machines",
+    "parent_id": "cat-textile-and-leather-manufacturing"
+  },
+  {
+    "id": "cat-textile-and-leather-manufacturing-weaving",
+    "name": "Weaving",
+    "slug": "sub-weaving",
+    "parent_id": "cat-textile-and-leather-manufacturing"
+  },
+  {
+    "id": "cat-textile-and-leather-manufacturing-winders-unwinders",
+    "name": "Winders & Unwinders",
+    "slug": "sub-winders-unwinders",
+    "parent_id": "cat-textile-and-leather-manufacturing"
+  },
+  {
+    "id": "cat-textile-and-leather-manufacturing-yarn-manufacturing",
+    "name": "Yarn Manufacturing",
+    "slug": "sub-yarn-manufacturing",
+    "parent_id": "cat-textile-and-leather-manufacturing"
+  },
+  {
+    "id": "cat-transportation-trailers-atv-utv",
+    "name": "ATV & UTV",
+    "slug": "sub-atv-utv",
+    "parent_id": "cat-transportation-trailers"
+  },
+  {
+    "id": "cat-transportation-trailers-automotive-equipment",
+    "name": "Automotive Equipment",
+    "slug": "sub-automotive-equipment",
+    "parent_id": "cat-transportation-trailers"
+  },
+  {
+    "id": "cat-transportation-trailers-bucket-boom-trucks",
+    "name": "Bucket (boom) trucks",
+    "slug": "sub-bucket-boom-trucks",
+    "parent_id": "cat-transportation-trailers"
+  },
+  {
+    "id": "cat-transportation-trailers-conventional-trucks",
+    "name": "Conventional trucks",
+    "slug": "sub-conventional-trucks",
+    "parent_id": "cat-transportation-trailers"
+  },
+  {
+    "id": "cat-transportation-trailers-dump-trucks",
+    "name": "Dump Trucks",
+    "slug": "sub-dump-trucks",
+    "parent_id": "cat-transportation-trailers"
+  },
+  {
+    "id": "cat-transportation-trailers-pickup-trucks",
+    "name": "Pickup Trucks",
+    "slug": "sub-pickup-trucks",
+    "parent_id": "cat-transportation-trailers"
+  },
+  {
+    "id": "cat-transportation-trailers-rvs-campers-caravans-motorhomes",
+    "name": "RVs, Campers, Caravans, Motorhomes",
+    "slug": "sub-rvs-campers-caravans-motorhomes",
+    "parent_id": "cat-transportation-trailers"
+  },
+  {
+    "id": "cat-transportation-trailers-trailers",
+    "name": "Trailers",
+    "slug": "sub-trailers",
+    "parent_id": "cat-transportation-trailers"
+  },
+  {
+    "id": "cat-transportation-trailers-truck-engines",
+    "name": "Truck Engines",
+    "slug": "sub-truck-engines",
+    "parent_id": "cat-transportation-trailers"
+  },
+  {
+    "id": "cat-transportation-trailers-vans",
+    "name": "Vans",
+    "slug": "sub-vans",
+    "parent_id": "cat-transportation-trailers"
+  },
+  {
+    "id": "cat-waste-recycling-construction-waste-recycling",
+    "name": "Construction Waste Recycling",
+    "slug": "sub-construction-waste-recycling",
+    "parent_id": "cat-waste-recycling"
+  },
+  {
+    "id": "cat-waste-recycling-industrial-balers",
+    "name": "Industrial Balers",
+    "slug": "sub-industrial-balers",
+    "parent_id": "cat-waste-recycling"
+  },
+  {
+    "id": "cat-waste-recycling-industrial-shredders",
+    "name": "Industrial Shredders",
+    "slug": "sub-industrial-shredders",
+    "parent_id": "cat-waste-recycling"
+  },
+  {
+    "id": "cat-waste-recycling-recycling-disposal",
+    "name": "Recycling & Disposal",
+    "slug": "sub-recycling-disposal",
+    "parent_id": "cat-waste-recycling"
+  },
+  {
+    "id": "cat-waste-recycling-waste-compactors",
+    "name": "Waste Compactors",
+    "slug": "sub-waste-compactors",
+    "parent_id": "cat-waste-recycling"
+  },
+  {
+    "id": "cat-waste-recycling-wastewater-recycling",
+    "name": "Wastewater Recycling",
+    "slug": "sub-wastewater-recycling",
+    "parent_id": "cat-waste-recycling"
+  },
+  {
+    "id": "cat-woodworking-boring-dowel-inserting-gluing",
+    "name": "Boring, Dowel inserting, Gluing",
+    "slug": "sub-boring-dowel-inserting-gluing",
+    "parent_id": "cat-woodworking"
+  },
+  {
+    "id": "cat-woodworking-cnc-wood-routers",
+    "name": "CNC Wood Routers",
+    "slug": "sub-cnc-wood-routers",
+    "parent_id": "cat-woodworking"
+  },
+  {
+    "id": "cat-woodworking-edgebanders",
+    "name": "Edgebanders",
+    "slug": "sub-edgebanders",
+    "parent_id": "cat-woodworking"
+  },
+  {
+    "id": "cat-woodworking-planers-and-moulders",
+    "name": "Planers and Moulders",
+    "slug": "sub-planers-and-moulders",
+    "parent_id": "cat-woodworking"
+  },
+  {
+    "id": "cat-woodworking-sanders",
+    "name": "Sanders",
+    "slug": "sub-sanders",
+    "parent_id": "cat-woodworking"
+  },
+  {
+    "id": "cat-woodworking-veneer-machines",
+    "name": "Veneer Machines",
+    "slug": "sub-veneer-machines",
+    "parent_id": "cat-woodworking"
+  },
+  {
+    "id": "cat-woodworking-wood-finishing-equipment",
+    "name": "Wood Finishing Equipment",
+    "slug": "sub-wood-finishing-equipment",
+    "parent_id": "cat-woodworking"
+  },
+  {
+    "id": "cat-woodworking-wood-presses",
+    "name": "Wood Presses",
+    "slug": "sub-wood-presses",
+    "parent_id": "cat-woodworking"
+  },
+  {
+    "id": "cat-woodworking-wood-sawmills",
+    "name": "Wood Sawmills",
+    "slug": "sub-wood-sawmills",
+    "parent_id": "cat-woodworking"
+  },
+  {
+    "id": "cat-woodworking-wood-saws",
+    "name": "Wood Saws",
+    "slug": "sub-wood-saws",
+    "parent_id": "cat-woodworking"
+  }
+]

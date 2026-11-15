@@ -109,6 +109,73 @@ class MediaVariantServiceTest {
     }
 
     @Test
+    void rejectsUnsupportedDirectCallsWithoutTouchingStorage() {
+        MediaStorageService storage = mock(MediaStorageService.class);
+        MediaVariantService service = new MediaVariantService(storage);
+        assertThat(service.variantFor(KEY, 99999)).isEmpty();
+        assertThat(service.variantFor(null, 640)).isEmpty();
+        assertThat(service.variantFor("../secret.png", 640)).isEmpty();
+        verifyNoInteractions(storage);
+    }
+
+    @Test
+    void lookupFailuresUseFallbackAndBackoffToo() {
+        MediaStorageService storage = mock(MediaStorageService.class);
+        when(storage.variantExists(anyString())).thenThrow(new IllegalStateException("lookup unavailable"));
+        MediaVariantService service = new MediaVariantService(storage);
+        assertThat(service.variantFor(KEY, 640)).isEmpty();
+        assertThat(service.variantFor(KEY, 640)).isEmpty();
+        verify(storage, times(1)).variantExists(anyString());
+        verify(storage, never()).readPublic(anyString());
+    }
+
+    @Test
+    void interruptedRequestPreservesInterruptAndDoesNotDecode() {
+        MediaStorageService storage = mock(MediaStorageService.class);
+        MediaVariantService service = new MediaVariantService(storage);
+        try {
+            Thread.currentThread().interrupt();
+            assertThat(service.variantFor(KEY, 640)).isEmpty();
+            assertThat(Thread.currentThread().isInterrupted()).isTrue();
+            verify(storage, never()).readPublic(anyString());
+        } finally {
+            Thread.interrupted();
+        }
+    }
+
+    @Test
+    void saturatedGenerationFallsBackWithoutWaitingForTheDecoders() throws Exception {
+        MediaStorageService storage = mock(MediaStorageService.class);
+        java.util.concurrent.CountDownLatch entered = new java.util.concurrent.CountDownLatch(2);
+        java.util.concurrent.CountDownLatch release = new java.util.concurrent.CountDownLatch(1);
+        when(storage.readPublic(anyString())).thenAnswer(inv -> {
+            entered.countDown();
+            if (!release.await(5, java.util.concurrent.TimeUnit.SECONDS)) throw new AssertionError("decoder not released");
+            return new byte[]{1};
+        });
+        MediaVariantService service = new MediaVariantService(storage);
+        java.util.concurrent.ExecutorService workers = java.util.concurrent.Executors.newFixedThreadPool(3);
+        try {
+            var first = workers.submit(() -> service.variantFor(KEY, 160));
+            var second = workers.submit(() -> service.variantFor(KEY, 640));
+            assertThat(entered.await(3, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+            var third = workers.submit(() -> service.variantFor(KEY, 1280));
+            // Must finish while both decoders remain blocked, not wait for either to finish.
+            assertThat(third.get(2, java.util.concurrent.TimeUnit.SECONDS)).isEmpty();
+            verify(storage, times(2)).readPublic(anyString());
+            release.countDown();
+            first.get(2, java.util.concurrent.TimeUnit.SECONDS);
+            second.get(2, java.util.concurrent.TimeUnit.SECONDS);
+            // A timeout is not cached as a missing variant; the next request can try again.
+            service.variantFor(KEY, 1280);
+            verify(storage, times(3)).readPublic(anyString());
+        } finally {
+            release.countDown();
+            workers.shutdownNow();
+        }
+    }
+
+    @Test
     void onlyKnownWidthsAndDecodablePhotos() {
         MediaVariantService service = new MediaVariantService(mock(MediaStorageService.class));
         assertThat(service.supports(KEY, 160)).isTrue();

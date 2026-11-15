@@ -11,6 +11,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 
 /**
@@ -35,8 +36,9 @@ public class MediaVariantService {
     private static final String NO_VARIANT = "";
 
     private final MediaStorageService storage;
-    /** Decoding a large PNG holds its pixels in memory: a page of new photos waits its turn. */
+    /** Bound concurrent decodes and how long an HTTP request waits for a decode slot. */
     private final Semaphore generating = new Semaphore(2);
+    static final long GENERATION_WAIT_MS = 250;
     /** "<key>@<width>" -> variant name, or NO_VARIANT when the original is already as small. */
     private final Map<String, String> known = new ConcurrentHashMap<>();
     /**
@@ -57,6 +59,8 @@ public class MediaVariantService {
      * the original" (already small enough, not decodable, or generation failed).
      */
     public Optional<String> variantFor(String key, int width) {
+        // Validate here too: warmers and other callers need the same limits as the controller.
+        if (!supports(key, width)) return Optional.empty();
         String memo = key + "@" + width;
         String cached = known.get(memo);
         if (cached != null) return cached.isEmpty() ? Optional.empty() : Optional.of(cached);
@@ -71,17 +75,17 @@ public class MediaVariantService {
         String id = m.group(1);
         String extension = m.group(2);
 
-        Optional<String> existing = findStored(id, width);
-        if (existing.isPresent()) return remember(memo, existing.get());
+        boolean acquired = false;
+        try {
+            // Storage failures here must also use the normal original-file fallback/backoff.
+            Optional<String> existing = findStored(id, width);
+            if (existing.isPresent()) return remember(memo, existing.get());
 
-        try {
-            generating.acquire();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            return Optional.empty();
-        }
-        try {
-            // Another request may have made it while this one waited
+            acquired = generating.tryAcquire(GENERATION_WAIT_MS, TimeUnit.MILLISECONDS);
+            if (!acquired) return Optional.empty();
+            // A waiting request may now have a positive OR negative in-memory answer.
+            cached = known.get(memo);
+            if (cached != null) return cached.isEmpty() ? Optional.empty() : Optional.of(cached);
             existing = findStored(id, width);
             if (existing.isPresent()) return remember(memo, existing.get());
 
@@ -91,6 +95,9 @@ public class MediaVariantService {
             String name = variantName(id, width, result.get().extension());
             storage.storeVariant(name, result.get().bytes(), MediaTypes.contentTypeOf(name));
             return remember(memo, name);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return Optional.empty();
         } catch (RuntimeException e) {
             // Missing original, storage hiccup: serve the original this time and try again later
             log.warn("Could not make a {}px copy of {}: {}", width, key, e.getMessage());
@@ -98,7 +105,7 @@ public class MediaVariantService {
             recentFailures.put(memo, clock.getAsLong());
             return Optional.empty();
         } finally {
-            generating.release();
+            if (acquired) generating.release();
         }
     }
 

@@ -18,3 +18,5 @@ test('rejects project comment injection',()=>{const{plan,review}=fixture();plan.
 test('full-row apply and rollback guards do not rely only on updated_at',()=>{const{plan,review}=fixture();const out=render(plan,review);assert.match(out.apply,/to_jsonb\(public.products\)/);assert.match(out.rollback,/to_jsonb\(public.products\)/);assert.match(out.rollback,/Preserved name/);});
 test('requires complete expected row input',()=>{const{plan,review}=fixture();delete plan.updates[0].expectedRow;assert.throws(()=>render(plan,review));});
 test('expected row must match ID and old category',()=>{const{plan,review}=fixture();plan.updates[0].expectedRow.category_id='wrong';assert.throws(()=>render(plan,review));});
+
+test('pins SQL literal parsing and builtin resolution',()=>{const{plan,review}=fixture();const sql=render(plan,review).apply;assert.match(sql,/SET LOCAL standard_conforming_strings=on/);assert.match(sql,/SET LOCAL search_path=pg_catalog,public/);});

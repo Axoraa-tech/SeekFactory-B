@@ -1,3 +1,10 @@
+# Current PR scope
+The owner subsequently approved restoring the 164 historical labels despite the
+known stale-source risk, adding 14 children alongside existing taxonomy, and
+requested automatic execution on deployment. See AUTO_RECONCILIATION.md.
+V33 is now a separate automatic Flyway migration; the generic renderer described
+below remains offline/manual. No merge, deployment or remote DB write was done.
+
 # Manual, reviewed category reconciliation
 
 This tool is **offline only**. It writes SQL files, never connects to a database,
@@ -53,57 +60,3 @@ apart from the psql-specific `\\set` directive. Tests cover successful apply and
 rollback, stale rows without timestamp changes, category collision, incorrect
 target database and repeated apply. These are not evidence about production
 triggers, actual connection identity, backups or classification correctness.
-
-## Current delivery scope: local test only
-
-The current implementation and tests are local-only. The latest requested future
-workflow is automatic reconciliation on production deployment, but that behavior
-is NOT implemented or safe to enable yet: exact classifications, target identity,
-backup and rollback must first be independently verified. No merge, deployment
-or remote database run is authorized as part of this PR preparation.
-The historical field name `liveTargetVerified` is an operator attestation in the
-renderer, **not permission to use production**. In tests it refers only to the
-ephemeral fixture. Do not mark it true for a real target during this task.
-
-`reconciliation.synthetic-example.mjs` provides a fully invented one-product,
-one-child plan, six held/ambiguous cases and a deliberately unapproved review
-template. It is not a customer migration or evidence that historical labels are
-correct. A product ID match cannot resolve stale classification. Keep all
-unresolved cases out of `updates`; never fuzzy-match names or overwrite an
-existing child assignment.
-
-### Reproduce locally
-
-From this directory:
-```sh
-node --test render-reviewed-reconciliation.test.mjs
-# Use an already installed @electric-sql/pglite module:
-PGLITE_MODULE=file:///absolute/path/to/@electric-sql/pglite/dist/index.js \
-  node --test render-reviewed-reconciliation*.test.mjs
-```
-
-The integration suite creates only in-memory synthetic tables, derives their
-database OID/address, executes generated SQL, checks outcomes and closes them.
-It needs no database URL, service key, production export or network connection.
-Without PGLITE_MODULE the integration cases are skipped; a skipped run is not
-execution validation. The unapproved example intentionally fails rendering.
-
-For a future separately authorized non-production review, write exact reviewed
-plan bytes to a private JSON file and obtain its SHA-256 (for example
-`sha256sum plan.json`). Place that digest in the private review manifest only
-after independent classification, snapshot, identity and backup verification.
-Run the renderer command above to create SQL for inspection only. Never copy
-synthetic identity values into a real review. SQL contains COMMIT; do not submit
-it to any database under the current local-test-only instruction.
-
-### Future automatic deployment approach: blocked, not implemented
-
-Only a separately reviewed, exact and semantically validated assignment set can
-be considered for a versioned deployment migration. Ambiguous records must remain
-excluded. Do not commit customer snapshots or a real assignment dataset without
-explicit authorization. Deployment execution would need a verified pre-deploy
-backup, bounded transactional updates, row drift guards, controlled locking,
-post-deploy verification and a tested rollback procedure. Startup execution can
-block application availability or fail deployment on drift; adding a Flyway file
-is not merely shipping a tool. Never turn the synthetic example into an automatic
-seed or bypass a denied target review. This PR adds no Flyway, CI or startup hook.

@@ -205,7 +205,11 @@ public class AdminManagementServiceImpl implements AdminManagementService {
                 products, reels, quotes, m.getFollowerCount(),
                 m.getSubscriptionPlan() == null ? null : m.getSubscriptionPlan().getId(),
                 m.getSubscriptionPlan() == null ? null : m.getSubscriptionPlan().getName(),
-                m.getCreatedAt());
+                m.getCreatedAt(),
+                ProductLimitService.limitOf(m),
+                count("SELECT count(*) FROM products WHERE manufacturer_id = ? AND is_active = TRUE",
+                        new Object[]{manufacturerId}),
+                m.getProfileVideoUrl());
     }
 
     /**

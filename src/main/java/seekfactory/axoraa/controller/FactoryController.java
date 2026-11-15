@@ -11,6 +11,9 @@ import org.springframework.web.bind.annotation.*;
 import seekfactory.axoraa.dto.Request.common.ListingStatusRequest;
 import seekfactory.axoraa.dto.Request.product.ProductStockStatusRequest;
 import seekfactory.axoraa.dto.Request.manufacturer.ManufacturerUpdateRequest;
+import seekfactory.axoraa.dto.Request.plan.ProductLimitUpgradeRequest;
+import seekfactory.axoraa.dto.Response.plan.ProductLimitRequestResponse;
+import seekfactory.axoraa.dto.Response.plan.ProductUsageResponse;
 import seekfactory.axoraa.dto.Request.manufacturer.VerificationSubmitRequest;
 import seekfactory.axoraa.dto.Request.product.ProductUpdateRequest;
 import seekfactory.axoraa.dto.Request.reel.ReelUpdateRequest;
@@ -50,6 +53,22 @@ public class FactoryController {
     public ResponseEntity<ApiResponse<ManufacturerResponse>> getProfile() {
         String userId = SecurityUtils.getCurrentUserId();
         return ResponseEntity.ok(ApiResponse.of(factoryService.getProfile(userId)));
+    }
+
+    @GetMapping("/plan/usage")
+    @Operation(summary = "Live product count, product limit and latest limit request")
+    public ResponseEntity<ApiResponse<ProductUsageResponse>> getProductUsage() {
+        return ResponseEntity.ok(ApiResponse.of(factoryService.getProductUsage(SecurityUtils.getCurrentUserId())));
+    }
+
+    @PostMapping("/plan/limit-requests")
+    @Operation(summary = "Ask the admin for a higher product limit (handled manually, no payment)")
+    public ResponseEntity<ApiResponse<ProductLimitRequestResponse>> requestProductLimit(
+            @Valid @RequestBody ProductLimitUpgradeRequest request) {
+        ProductLimitRequestResponse response =
+                factoryService.requestProductLimit(SecurityUtils.getCurrentUserId(), request);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.of(response, "Request sent. The admin will review it and contact you."));
     }
 
     @PutMapping("/profile")

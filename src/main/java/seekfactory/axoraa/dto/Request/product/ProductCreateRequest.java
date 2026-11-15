@@ -45,7 +45,7 @@ public class ProductCreateRequest {
     private Map<String, String> specs;
 
     /** Optional full gallery (max 8); when set, the first entry replaces imageUrl as the cover. */
-    @Size(max = 8, message = "At most 8 images per product")
+    @Size(max = 4, message = "A product can have at most 4 photos")
     private List<String> imageUrls;
 
     /** One optional product video; null/omitted or blank means no video. */

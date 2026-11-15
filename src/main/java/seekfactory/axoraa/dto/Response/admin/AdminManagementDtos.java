@@ -55,7 +55,9 @@ public final class AdminManagementDtos {
             String ownerCountry, String ownerCompanyName, Instant ownerJoinedAt,
             // activity
             long productCount, long reelCount, long quoteCount, int followerCount,
-            String planId, String planName, Instant createdAt) {}
+            String planId, String planName, Instant createdAt,
+            // product allowance (live = not deleted) and the profile video
+            int productLimit, long liveProductCount, String profileVideoUrl) {}
 
     public record RfqRow(
             String id, String referenceNumber, String productName, String quantity, String unit,

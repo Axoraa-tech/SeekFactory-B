@@ -6,6 +6,9 @@ import org.modelmapper.ModelMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import seekfactory.axoraa.dto.Request.manufacturer.ManufacturerUpdateRequest;
+import seekfactory.axoraa.dto.Request.plan.ProductLimitUpgradeRequest;
+import seekfactory.axoraa.dto.Response.plan.ProductLimitRequestResponse;
+import seekfactory.axoraa.dto.Response.plan.ProductUsageResponse;
 import seekfactory.axoraa.dto.Request.manufacturer.VerificationSubmitRequest;
 import seekfactory.axoraa.dto.Request.product.ProductUpdateRequest;
 import seekfactory.axoraa.dto.Request.reel.ReelUpdateRequest;
@@ -90,6 +93,10 @@ public class FactoryServiceImpl implements FactoryService {
     private final ModelMapper modelMapper;
     private final CategoryTree categoryTree;
     private final ReelRemover reelRemover;
+    private final ProductLimitService productLimitService;
+
+    /** Photos per product; one optional video is held separately in {@code videoUrl}. */
+    static final int MAX_PRODUCT_IMAGES = 4;
 
     /** View KPIs cover this window; change % compares with the window before it. */
     private static final Duration STATS_PERIOD = Duration.ofDays(30);
@@ -100,6 +107,17 @@ public class FactoryServiceImpl implements FactoryService {
     /** RFQs still open for quoting. */
     private static final Set<RfqStatus> ACTIVE_RFQ_STATUSES =
             EnumSet.of(RfqStatus.SUBMITTED, RfqStatus.REVIEWING, RfqStatus.QUOTING, RfqStatus.QUOTED);
+
+    @Override
+    @Transactional(readOnly = true)
+    public ProductUsageResponse getProductUsage(String userId) {
+        return productLimitService.usage(getOrCreateManufacturer(userId));
+    }
+
+    @Override
+    public ProductLimitRequestResponse requestProductLimit(String userId, ProductLimitUpgradeRequest request) {
+        return productLimitService.requestUpgrade(getOrCreateManufacturer(userId), request);
+    }
 
     @Override
     public ManufacturerResponse getProfile(String userId) {
@@ -114,6 +132,10 @@ public class FactoryServiceImpl implements FactoryService {
         if (request.getName() != null) manufacturer.setName(request.getName());
         if (request.getLogoUrl() != null) manufacturer.setLogoUrl(request.getLogoUrl());
         if (request.getCoverUrl() != null) manufacturer.setCoverUrl(request.getCoverUrl());
+        // Blank clears the video; otherwise it must be an uploaded or http(s) MP4/WebM/MOV, like product videos.
+        if (request.getProfileVideoUrl() != null) {
+            manufacturer.setProfileVideoUrl(productVideoUrl(request.getProfileVideoUrl()));
+        }
         if (request.getLocation() != null) manufacturer.setLocation(request.getLocation());
         if (request.getFactorySize() != null) manufacturer.setFactorySize(request.getFactorySize());
         if (request.getEmployees() != null) manufacturer.setEmployees(request.getEmployees());
@@ -345,12 +367,13 @@ public class FactoryServiceImpl implements FactoryService {
     @Override
     public ProductResponse addProduct(String userId, ProductCreateRequest request) {
         Manufacturer manufacturer = getOrCreateManufacturer(userId);
+        productLimitService.requireRoomForProduct(manufacturer);
 
         Category category = categoryRepository.findById(request.getCategoryId())
                 .orElseThrow(() -> new BadRequestException("Unknown category: " + request.getCategoryId()));
         List<String> gallery = request.getImageUrls() != null && !request.getImageUrls().isEmpty()
                 ? request.getImageUrls() : List.of(request.getImageUrl());
-        gallery = validGallery(gallery);
+        gallery = validGallery(gallery, MAX_PRODUCT_IMAGES);
 
         // Random suffix: the old millisecond counter could repeat and hit the unique constraint (500)
         String uniqueSlug = SlugUtils.uniqueSlug(request.getName(), "product");
@@ -401,7 +424,9 @@ public class FactoryServiceImpl implements FactoryService {
 
         if (request.getName() != null) product.setName(request.getName().trim());
         if (request.getImageUrls() != null) {
-            List<String> gallery = validGallery(request.getImageUrls());
+            // Products saved under the old 8-photo cap keep their photos; they just cannot grow.
+            int allowed = Math.max(MAX_PRODUCT_IMAGES, product.gallery().size());
+            List<String> gallery = validGallery(request.getImageUrls(), allowed);
             product.setImageUrl(gallery.get(0));
             product.setImageUrls(new ArrayList<>(gallery));
         }
@@ -448,8 +473,8 @@ public class FactoryServiceImpl implements FactoryService {
         return product;
     }
 
-    /** 1-8 safe media URLs, de-duplicated, order kept. */
-    private static List<String> validGallery(List<String> urls) {
+    /** 1..max safe media URLs, de-duplicated, order kept. */
+    private static List<String> validGallery(List<String> urls, int max) {
         List<String> gallery = urls == null ? List.of() : urls.stream()
                 .filter(Objects::nonNull)
                 .map(String::trim)
@@ -457,7 +482,9 @@ public class FactoryServiceImpl implements FactoryService {
                 .distinct()
                 .collect(Collectors.toList());
         if (gallery.isEmpty()) throw new BadRequestException("A product needs at least one image");
-        if (gallery.size() > 8) throw new BadRequestException("At most 8 images per product");
+        if (gallery.size() > max) {
+            throw new BadRequestException("A product can have at most " + MAX_PRODUCT_IMAGES + " photos");
+        }
         gallery.forEach(u -> requireMediaUrl(u, "imageUrls"));
         return gallery;
     }

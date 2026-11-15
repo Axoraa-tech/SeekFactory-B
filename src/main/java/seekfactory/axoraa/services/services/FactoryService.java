@@ -2,6 +2,9 @@ package seekfactory.axoraa.services.services;
 
 import seekfactory.axoraa.enums.ProductStockStatus;
 import seekfactory.axoraa.dto.Request.manufacturer.ManufacturerUpdateRequest;
+import seekfactory.axoraa.dto.Request.plan.ProductLimitUpgradeRequest;
+import seekfactory.axoraa.dto.Response.plan.ProductLimitRequestResponse;
+import seekfactory.axoraa.dto.Response.plan.ProductUsageResponse;
 import seekfactory.axoraa.dto.Request.manufacturer.VerificationSubmitRequest;
 import seekfactory.axoraa.dto.Request.product.ProductUpdateRequest;
 import seekfactory.axoraa.dto.Request.reel.ReelUpdateRequest;
@@ -23,6 +26,12 @@ public interface FactoryService {
     ManufacturerResponse getProfile(String userId);
 
     ManufacturerResponse updateProfile(String userId, ManufacturerUpdateRequest request);
+
+    /** Live product count, product limit and the latest upgrade request. */
+    ProductUsageResponse getProductUsage(String userId);
+
+    /** Ask an admin for a higher product limit (handled manually, no payment). */
+    ProductLimitRequestResponse requestProductLimit(String userId, ProductLimitUpgradeRequest request);
 
     FactoryStatsResponse getStats(String userId);
 

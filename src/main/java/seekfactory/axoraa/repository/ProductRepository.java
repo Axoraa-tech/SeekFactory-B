@@ -51,6 +51,8 @@ public interface ProductRepository extends JpaRepository<Product, String> {
 
     List<Product> findByManufacturerIdAndIsActiveTrue(String manufacturerId);
 
+    long countByManufacturerIdAndIsActiveTrue(String manufacturerId);
+
     /** Buyer-facing: not deleted and not paused by the seller. */
     List<Product> findByManufacturerIdAndIsActiveTrueAndListedTrue(String manufacturerId);
 

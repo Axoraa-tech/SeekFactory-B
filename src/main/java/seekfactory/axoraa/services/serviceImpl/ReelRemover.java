@@ -6,6 +6,7 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import seekfactory.axoraa.entity.Reels.Reel;
 import seekfactory.axoraa.repository.Reels.ReelRepository;
+import seekfactory.axoraa.repository.ManufacturerRepository;
 import seekfactory.axoraa.repository.ProductRepository;
 import seekfactory.axoraa.services.media.MediaTypes;
 import seekfactory.axoraa.services.services.MediaStorageService;
@@ -15,7 +16,7 @@ import seekfactory.axoraa.services.services.MediaStorageService;
  *
  * Likes, saves, comments, hashtags and product tags go with it via ON DELETE CASCADE
  * (see V1__init_schema.sql); view_events have no FK and are left as history.
- * The uploaded video file is removed after commit unless another reel or product still uses it.
+ * The uploaded video file is removed after commit unless another reel, product or factory profile still uses it.
  */
 @Component
 @RequiredArgsConstructor
@@ -24,17 +25,20 @@ public class ReelRemover {
     private final ReelRepository reelRepository;
     private final MediaStorageService mediaStorageService;
     private final ProductRepository productRepository;
+    private final ManufacturerRepository manufacturerRepository;
 
     public void delete(Reel reel) {
         String videoUrl = reel.getVideoUrl();
         boolean shared = videoUrl == null || reelRepository.existsByVideoUrlAndIdNot(videoUrl, reel.getId())
-                || productRepository.existsByVideoUrl(videoUrl);
+                || productRepository.existsByVideoUrl(videoUrl)
+                || manufacturerRepository.existsByProfileVideoUrl(videoUrl);
         if (!shared && videoUrl.startsWith(MediaTypes.PUBLIC_PATH)) {
             String key = videoUrl.substring(MediaTypes.PUBLIC_PATH.length());
             // Products may hold an absolute API/CDN URL or URL query rather than this relative URL.
             // Retaining an extra file on a conservative match is safer than breaking product playback.
             shared = MediaTypes.KEY_PATTERN.matcher(key).matches()
-                    && productRepository.existsByVideoUrlContaining(key);
+                    && (productRepository.existsByVideoUrlContaining(key)
+                        || manufacturerRepository.existsByProfileVideoUrlContaining(key));
         }
         reelRepository.delete(reel);
         if (!shared && videoUrl.startsWith(MediaTypes.PUBLIC_PATH)) {

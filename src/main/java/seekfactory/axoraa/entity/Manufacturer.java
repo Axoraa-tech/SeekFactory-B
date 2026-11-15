@@ -33,6 +33,8 @@ import java.util.Set;
 @Builder
 public class Manufacturer extends BaseEntity{
 
+    public static final int DEFAULT_PRODUCT_LIMIT = 3;
+
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", unique = true)
     private User user;
@@ -62,6 +64,15 @@ public class Manufacturer extends BaseEntity{
     @Column(name = "premium", nullable = false)
     @Builder.Default
     private Boolean premium = false;
+
+    /** Live (not deleted) products this factory may hold; raised manually by an admin. */
+    @Column(name = "product_limit", nullable = false)
+    @Builder.Default
+    private Integer productLimit = DEFAULT_PRODUCT_LIMIT;
+
+    /** One optional factory tour / chairman video shown on the profile. */
+    @Column(name = "profile_video_url", columnDefinition = "TEXT")
+    private String profileVideoUrl;
 
     @Column(name = "years_established", nullable = false)
     @Builder.Default

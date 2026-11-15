@@ -15,7 +15,7 @@ test('binds project label to reviewed plan and emits limits',()=>{const{plan,rev
 test('rejects missing plan project label',()=>{const{plan,review}=fixture();delete plan.targetProjectRef;assert.throws(()=>render(plan,review));});
 test('rejects project comment injection',()=>{const{plan,review}=fixture();plan.targetProjectRef=review.target.projectRef='x\nCOMMIT;';assert.throws(()=>render(plan,review));});
 
-test('full-row apply and rollback guards do not rely only on updated_at',()=>{const{plan,review}=fixture();const out=render(plan,review);assert.match(out.apply,/to_jsonb\(public.products\)/);assert.match(out.rollback,/to_jsonb\(public.products\)/);assert.match(out.rollback,/Preserved name/);});
+test('full-row apply and rollback guards do not rely only on updated_at',()=>{const{plan,review}=fixture();const out=render(plan,review);assert.match(out.apply,/to_jsonb\(p\)/);assert.match(out.rollback,/to_jsonb\(p\)/);assert.match(out.rollback,/Preserved name/);});
 test('requires complete expected row input',()=>{const{plan,review}=fixture();delete plan.updates[0].expectedRow;assert.throws(()=>render(plan,review));});
 test('expected row must match ID and old category',()=>{const{plan,review}=fixture();plan.updates[0].expectedRow.category_id='wrong';assert.throws(()=>render(plan,review));});
 

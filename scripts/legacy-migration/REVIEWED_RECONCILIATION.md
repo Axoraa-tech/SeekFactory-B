@@ -56,9 +56,11 @@ triggers, actual connection identity, backups or classification correctness.
 
 ## Current delivery scope: local test only
 
-The owner has explicitly prohibited touching live/production databases. This PR
-does not authorize a remote run. Do not connect to, mutate, merge into automatic
-migration paths, or deploy against live/production as part of this work.
+The current implementation and tests are local-only. The latest requested future
+workflow is automatic reconciliation on production deployment, but that behavior
+is NOT implemented or safe to enable yet: exact classifications, target identity,
+backup and rollback must first be independently verified. No merge, deployment
+or remote database run is authorized as part of this PR preparation.
 The historical field name `liveTargetVerified` is an operator attestation in the
 renderer, **not permission to use production**. In tests it refers only to the
 ephemeral fixture. Do not mark it true for a real target during this task.
@@ -93,3 +95,15 @@ after independent classification, snapshot, identity and backup verification.
 Run the renderer command above to create SQL for inspection only. Never copy
 synthetic identity values into a real review. SQL contains COMMIT; do not submit
 it to any database under the current local-test-only instruction.
+
+### Future automatic deployment approach: blocked, not implemented
+
+Only a separately reviewed, exact and semantically validated assignment set can
+be considered for a versioned deployment migration. Ambiguous records must remain
+excluded. Do not commit customer snapshots or a real assignment dataset without
+explicit authorization. Deployment execution would need a verified pre-deploy
+backup, bounded transactional updates, row drift guards, controlled locking,
+post-deploy verification and a tested rollback procedure. Startup execution can
+block application availability or fail deployment on drift; adding a Flyway file
+is not merely shipping a tool. Never turn the synthetic example into an automatic
+seed or bypass a denied target review. This PR adds no Flyway, CI or startup hook.

@@ -39,6 +39,7 @@ class ProductVideoTest {
     @Mock ProductRepository productRepository;
     @Mock ReelRepository reelRepository;
     @Mock ModelMapper modelMapper;
+    @Mock ProductLimitService productLimitService;
     @InjectMocks FactoryServiceImpl service;
     private Product product;
     private Manufacturer manufacturer;

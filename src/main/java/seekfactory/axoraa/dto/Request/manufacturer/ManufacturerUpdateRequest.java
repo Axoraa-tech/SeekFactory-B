@@ -19,6 +19,9 @@ public class ManufacturerUpdateRequest {
     private String name;
     private String logoUrl;
     private String coverUrl;
+    /** Factory tour / chairman video; blank removes it. */
+    @Size(max = 2048)
+    private String profileVideoUrl;
     private String location;
     private String factorySize;
     private String employees;

@@ -20,6 +20,7 @@ public class ManufacturerResponse {
     private String name;
     private String logoUrl;
     private String coverUrl;
+    private String profileVideoUrl;
     private String country;
     private String location;
     private boolean verified;

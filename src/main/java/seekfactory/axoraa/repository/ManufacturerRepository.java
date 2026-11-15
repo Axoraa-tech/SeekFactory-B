@@ -31,6 +31,15 @@ public interface ManufacturerRepository extends JpaRepository<Manufacturer, Stri
 
     Optional<Manufacturer> findByUserId(String userId);
 
+    /** Row lock so concurrent product creates or limit changes for one factory are serialised. */
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT m FROM Manufacturer m WHERE m.id = :id")
+    Optional<Manufacturer> findByIdForUpdate(@Param("id") String id);
+
+    boolean existsByProfileVideoUrl(String profileVideoUrl);
+
+    boolean existsByProfileVideoUrlContaining(String key);
+
     long countByVerifiedTrue();
 
     List<Manufacturer> findByVerifiedTrueOrderByFollowerCountDesc();

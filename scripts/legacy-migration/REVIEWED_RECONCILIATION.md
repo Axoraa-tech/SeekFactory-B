@@ -44,3 +44,12 @@ No customer snapshots, IDs, credentials or generated SQL belong in Git.
 Tests: `node --test render-reviewed-reconciliation.test.mjs`.
 These are offline renderer/validation tests, not a production database rehearsal.
 A realistic isolated database apply/rollback rehearsal remains required before use.
+
+Isolated execution test: set `PGLITE_MODULE` to the installed PGlite module URL
+and run `node --test render-reviewed-reconciliation*.test.mjs`. PGlite instances
+are ephemeral and do not connect remotely. Only its socket-address builtin is
+stubbed (PGlite has no network socket); the generated SQL executes unchanged
+apart from the psql-specific `\\set` directive. Tests cover successful apply and
+rollback, stale rows without timestamp changes, category collision, incorrect
+target database and repeated apply. These are not evidence about production
+triggers, actual connection identity, backups or classification correctness.

@@ -53,3 +53,43 @@ apart from the psql-specific `\\set` directive. Tests cover successful apply and
 rollback, stale rows without timestamp changes, category collision, incorrect
 target database and repeated apply. These are not evidence about production
 triggers, actual connection identity, backups or classification correctness.
+
+## Current delivery scope: local test only
+
+The owner has explicitly prohibited touching live/production databases. This PR
+does not authorize a remote run. Do not connect to, mutate, merge into automatic
+migration paths, or deploy against live/production as part of this work.
+The historical field name `liveTargetVerified` is an operator attestation in the
+renderer, **not permission to use production**. In tests it refers only to the
+ephemeral fixture. Do not mark it true for a real target during this task.
+
+`reconciliation.synthetic-example.mjs` provides a fully invented one-product,
+one-child plan, six held/ambiguous cases and a deliberately unapproved review
+template. It is not a customer migration or evidence that historical labels are
+correct. A product ID match cannot resolve stale classification. Keep all
+unresolved cases out of `updates`; never fuzzy-match names or overwrite an
+existing child assignment.
+
+### Reproduce locally
+
+From this directory:
+```sh
+node --test render-reviewed-reconciliation.test.mjs
+# Use an already installed @electric-sql/pglite module:
+PGLITE_MODULE=file:///absolute/path/to/@electric-sql/pglite/dist/index.js \
+  node --test render-reviewed-reconciliation*.test.mjs
+```
+
+The integration suite creates only in-memory synthetic tables, derives their
+database OID/address, executes generated SQL, checks outcomes and closes them.
+It needs no database URL, service key, production export or network connection.
+Without PGLITE_MODULE the integration cases are skipped; a skipped run is not
+execution validation. The unapproved example intentionally fails rendering.
+
+For a future separately authorized non-production review, write exact reviewed
+plan bytes to a private JSON file and obtain its SHA-256 (for example
+`sha256sum plan.json`). Place that digest in the private review manifest only
+after independent classification, snapshot, identity and backup verification.
+Run the renderer command above to create SQL for inspection only. Never copy
+synthetic identity values into a real review. SQL contains COMMIT; do not submit
+it to any database under the current local-test-only instruction.

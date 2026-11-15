@@ -9,10 +9,10 @@ import seekfactory.axoraa.dto.Response.category.CategoryResponse;
 import seekfactory.axoraa.entity.Category;
 import seekfactory.axoraa.exceptions.ResourceNotFoundException;
 import seekfactory.axoraa.repository.CategoryRepository;
+import seekfactory.axoraa.repository.ProductRepository;
 import seekfactory.axoraa.services.services.CategoryService;
 
-import java.util.List;
-import java.util.stream.Collectors;
+import java.util.*;
 
 /**
  * Manages the hierarchical machinery taxonomy.
@@ -32,18 +32,19 @@ public class CategoryServiceImpl implements CategoryService {
 
     private final CategoryRepository categoryRepository;
     private final ModelMapper modelMapper;
+    private final ProductRepository productRepository;
 
     // Taxonomy may be extended outside this process. Read the small tree on each
     // request instead of retaining a stale per-instance cache after an addition.
     @Override
     public List<CategoryResponse> listAll() {
-        return categoryRepository.findAll().stream().map(this::mapToResponse).toList();
+        List<Category> categories = categoryRepository.findAll();
+        return mapResponses(categories, categories);
     }
 
     @Override
     public List<CategoryResponse> listRoots() {
-        return categoryRepository.findByParentIsNullOrderByNameAsc().stream()
-                .map(this::mapToResponse).toList();
+        return mapResponses(categoryRepository.findByParentIsNullOrderByNameAsc(), categoryRepository.findAll());
     }
 
     @Override
@@ -58,9 +59,7 @@ public class CategoryServiceImpl implements CategoryService {
         }
 
         List<Category> children = categoryRepository.findByParentIdOrderByNameAsc(parent.getId());
-        return children.stream()
-                .map(this::mapToResponse)
-                .collect(Collectors.toList());
+        return mapResponses(children, categoryRepository.findAll());
     }
 
     @Override
@@ -68,15 +67,37 @@ public class CategoryServiceImpl implements CategoryService {
         Category category = categoryRepository.findBySlug(slugOrId)
                 .or(() -> categoryRepository.findById(slugOrId))
                 .orElseThrow(() -> new ResourceNotFoundException("Category", "slug or id", slugOrId));
-        return mapToResponse(category);
+        return mapResponses(List.of(category), categoryRepository.findAll()).get(0);
     }
 
     // ─── Private Helpers ──────────────────────────────────────
 
-    private CategoryResponse mapToResponse(Category category) {
+    /**
+     * Count public products once in their own category and each ancestor, matching
+     * buyer filtering by a category and its descendants. Never use seeded listingCount.
+     * One grouped product query per response, not a query per category.
+     */
+    private List<CategoryResponse> mapResponses(List<Category> selected, List<Category> taxonomy) {
+        Map<String, Category> byId = new HashMap<>();
+        taxonomy.forEach(category -> byId.put(category.getId(), category));
+        Map<String, Long> counts = new HashMap<>();
+        for (ProductRepository.CategoryListingCount row : productRepository.countVisibleByCategory()) {
+            String id = row.getCategoryId();
+            Set<String> visited = new HashSet<>();
+            while (id != null && visited.add(id)) {
+                counts.merge(id, row.getListingCount(), Long::sum);
+                Category category = byId.get(id);
+                id = category != null && category.getParent() != null ? category.getParent().getId() : null;
+            }
+        }
+        return selected.stream().map(category -> mapToResponse(category, counts)).toList();
+    }
+
+    private CategoryResponse mapToResponse(Category category, Map<String, Long> counts) {
         CategoryResponse response = modelMapper.map(category, CategoryResponse.class);
         // Map parent relationship to simple parentId string
         response.setParentId(category.getParent() != null ? category.getParent().getId() : null);
+        response.setListingCount((int) Math.min(Integer.MAX_VALUE, counts.getOrDefault(category.getId(), 0L)));
         return response;
     }
 }

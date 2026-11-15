@@ -33,34 +33,17 @@ public class CategoryServiceImpl implements CategoryService {
     private final CategoryRepository categoryRepository;
     private final ModelMapper modelMapper;
 
-    // Categories only change through migrations, so every page load needn't pay a DB round trip
-    private static final long CACHE_TTL_MS = 10 * 60 * 1000;
-    // Publish each value together with its own timestamp. Refreshing one endpoint
-    // must never extend the lifetime of the other endpoint's stale data.
-    private record CacheEntry(List<CategoryResponse> values, long loadedAt) {}
-    private volatile CacheEntry allCache;
-    private volatile CacheEntry rootsCache;
-
+    // Taxonomy may be extended outside this process. Read the small tree on each
+    // request instead of retaining a stale per-instance cache after an addition.
     @Override
     public List<CategoryResponse> listAll() {
-        CacheEntry cached = allCache;
-        if (cached != null && System.currentTimeMillis() - cached.loadedAt() < CACHE_TTL_MS) return cached.values();
-        List<CategoryResponse> all = categoryRepository.findAll().stream()
-                .map(this::mapToResponse)
-                .toList();
-        allCache = new CacheEntry(all, System.currentTimeMillis());
-        return all;
+        return categoryRepository.findAll().stream().map(this::mapToResponse).toList();
     }
 
     @Override
     public List<CategoryResponse> listRoots() {
-        CacheEntry cached = rootsCache;
-        if (cached != null && System.currentTimeMillis() - cached.loadedAt() < CACHE_TTL_MS) return cached.values();
-        List<CategoryResponse> roots = categoryRepository.findByParentIsNullOrderByNameAsc().stream()
-                .map(this::mapToResponse)
-                .toList();
-        rootsCache = new CacheEntry(roots, System.currentTimeMillis());
-        return roots;
+        return categoryRepository.findByParentIsNullOrderByNameAsc().stream()
+                .map(this::mapToResponse).toList();
     }
 
     @Override

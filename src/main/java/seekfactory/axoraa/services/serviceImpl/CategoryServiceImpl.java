@@ -35,29 +35,31 @@ public class CategoryServiceImpl implements CategoryService {
 
     // Categories only change through migrations, so every page load needn't pay a DB round trip
     private static final long CACHE_TTL_MS = 10 * 60 * 1000;
-    private volatile List<CategoryResponse> allCache;
-    private volatile List<CategoryResponse> rootsCache;
-    private volatile long cachedAt;
+    // Publish each value together with its own timestamp. Refreshing one endpoint
+    // must never extend the lifetime of the other endpoint's stale data.
+    private record CacheEntry(List<CategoryResponse> values, long loadedAt) {}
+    private volatile CacheEntry allCache;
+    private volatile CacheEntry rootsCache;
 
     @Override
     public List<CategoryResponse> listAll() {
-        if (allCache != null && System.currentTimeMillis() - cachedAt < CACHE_TTL_MS) return allCache;
+        CacheEntry cached = allCache;
+        if (cached != null && System.currentTimeMillis() - cached.loadedAt() < CACHE_TTL_MS) return cached.values();
         List<CategoryResponse> all = categoryRepository.findAll().stream()
                 .map(this::mapToResponse)
                 .toList();
-        allCache = all;
-        cachedAt = System.currentTimeMillis();
+        allCache = new CacheEntry(all, System.currentTimeMillis());
         return all;
     }
 
     @Override
     public List<CategoryResponse> listRoots() {
-        if (rootsCache != null && System.currentTimeMillis() - cachedAt < CACHE_TTL_MS) return rootsCache;
+        CacheEntry cached = rootsCache;
+        if (cached != null && System.currentTimeMillis() - cached.loadedAt() < CACHE_TTL_MS) return cached.values();
         List<CategoryResponse> roots = categoryRepository.findByParentIsNullOrderByNameAsc().stream()
                 .map(this::mapToResponse)
                 .toList();
-        rootsCache = roots;
-        cachedAt = System.currentTimeMillis();
+        rootsCache = new CacheEntry(roots, System.currentTimeMillis());
         return roots;
     }
 

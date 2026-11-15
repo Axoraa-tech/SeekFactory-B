@@ -1,0 +1,290 @@
+[
+  {
+    "category": "Agriculture",
+    "subcategory": "Harvester Headers",
+    "cell": "F40",
+    "raw": "Harvester Headers2.8k",
+    "id": "cat-workbook-b407fa728da22bf62d983971",
+    "slug": "sub-workbook-b407fa728da22bf62d983971",
+    "parent_id": "cat-agriculture"
+  },
+  {
+    "category": "Agriculture",
+    "subcategory": "Greenhouse, Horticulture, Nursery Equipment",
+    "cell": "F41",
+    "raw": "Greenhouse, Horticulture, Nursery Equipment2.5k",
+    "id": "cat-workbook-fe9cec481a9123de3ba7537d",
+    "slug": "sub-workbook-fe9cec481a9123de3ba7537d",
+    "parent_id": "cat-agriculture"
+  },
+  {
+    "category": "Food & Beverage Processing",
+    "subcategory": "Coffee Machines",
+    "cell": "M40",
+    "raw": "Coffee Machines4.2k",
+    "id": "cat-workbook-a28439d2cfcda233755b90b2",
+    "slug": "sub-workbook-a28439d2cfcda233755b90b2",
+    "parent_id": "cat-food-beverage-processing"
+  },
+  {
+    "category": "Food & Beverage Processing",
+    "subcategory": "Dish Washing Machines",
+    "cell": "M41",
+    "raw": "Dish Washing Machines3.3k",
+    "id": "cat-workbook-39aadf06d97676df5e9b5c27",
+    "slug": "sub-workbook-39aadf06d97676df5e9b5c27",
+    "parent_id": "cat-food-beverage-processing"
+  },
+  {
+    "category": "Material handling",
+    "subcategory": "Reach Stackers & Container Handlers",
+    "cell": "U40",
+    "raw": "Reach Stackers & Container Handlers941",
+    "id": "cat-workbook-4bb71b78a35a8495f4367e57",
+    "slug": "sub-workbook-4bb71b78a35a8495f4367e57",
+    "parent_id": "cat-material-handling"
+  },
+  {
+    "category": "Material handling",
+    "subcategory": "Vacuum Lifts, Sheet Metal Lifters",
+    "cell": "U41",
+    "raw": "Vacuum Lifts, Sheet Metal Lifters905",
+    "id": "cat-workbook-2379568dfabb50573ee4592e",
+    "slug": "sub-workbook-2379568dfabb50573ee4592e",
+    "parent_id": "cat-material-handling"
+  },
+  {
+    "category": "Semiconductors",
+    "subcategory": "Wire Bonders",
+    "cell": "AA40",
+    "raw": "Wire Bonders968",
+    "id": "cat-workbook-b4c6e404cc766c67d8713b49",
+    "slug": "sub-workbook-b4c6e404cc766c67d8713b49",
+    "parent_id": "cat-semiconductors"
+  },
+  {
+    "category": "Semiconductors",
+    "subcategory": "Reflow Ovens",
+    "cell": "AA41",
+    "raw": "Reflow Ovens790",
+    "id": "cat-workbook-71e758af1d212fd8462a4f0c",
+    "slug": "sub-workbook-71e758af1d212fd8462a4f0c",
+    "parent_id": "cat-semiconductors"
+  },
+  {
+    "category": "Boats & Marine Equipment",
+    "subcategory": "Passenger Ships",
+    "cell": "F56",
+    "raw": "Passenger Ships207",
+    "id": "cat-workbook-52a8fa97716f421af9cef2bd",
+    "slug": "sub-workbook-52a8fa97716f421af9cef2bd",
+    "parent_id": "cat-boats-marine-equipment"
+  },
+  {
+    "category": "Forestry",
+    "subcategory": "Knuckleboom Loaders",
+    "cell": "M56",
+    "raw": "Knuckleboom Loaders152",
+    "id": "cat-workbook-f6f8ca3e42f6218cbb184556",
+    "slug": "sub-workbook-f6f8ca3e42f6218cbb184556",
+    "parent_id": "cat-forestry"
+  },
+  {
+    "category": "Forestry",
+    "subcategory": "Yarders",
+    "cell": "M57",
+    "raw": "Yarders20",
+    "id": "cat-workbook-6806be01e96ce86c01327260",
+    "slug": "sub-workbook-6806be01e96ce86c01327260",
+    "parent_id": "cat-forestry"
+  },
+  {
+    "category": "Oil, Gas & Mining",
+    "subcategory": "Triplex Pumps",
+    "cell": "U56",
+    "raw": "Triplex Pumps725",
+    "id": "cat-workbook-987de94ffb8370e773a59c7b",
+    "slug": "sub-workbook-987de94ffb8370e773a59c7b",
+    "parent_id": "cat-oil-gas-mining"
+  },
+  {
+    "category": "Oil, Gas & Mining",
+    "subcategory": "Stacking Conveyors",
+    "cell": "U57",
+    "raw": "Stacking Conveyors627",
+    "id": "cat-workbook-718b13842e3db2fb8202fcad",
+    "slug": "sub-workbook-718b13842e3db2fb8202fcad",
+    "parent_id": "cat-oil-gas-mining"
+  },
+  {
+    "category": "Test, Lab, Medical equipment",
+    "subcategory": "Materials Testing",
+    "cell": "AA56",
+    "raw": "Materials Testing12.2k",
+    "id": "cat-workbook-5d096daf777697846c0109b7",
+    "slug": "sub-workbook-5d096daf777697846c0109b7",
+    "parent_id": "cat-test-lab-medical-equipment"
+  },
+  {
+    "category": "Test, Lab, Medical equipment",
+    "subcategory": "Chromatography",
+    "cell": "AA57",
+    "raw": "Chromatography11.5k",
+    "id": "cat-workbook-e413cf5f1b0b815db4efcf9f",
+    "slug": "sub-workbook-e413cf5f1b0b815db4efcf9f",
+    "parent_id": "cat-test-lab-medical-equipment"
+  },
+  {
+    "category": "Woodworking",
+    "subcategory": "Mortisers and Tenoners",
+    "cell": "AI56",
+    "raw": "Mortisers and Tenoners1.1k",
+    "id": "cat-workbook-096de9fd645e9e10c221cac3",
+    "slug": "sub-workbook-096de9fd645e9e10c221cac3",
+    "parent_id": "cat-woodworking"
+  },
+  {
+    "category": "Woodworking",
+    "subcategory": "Chainsaws",
+    "cell": "AI57",
+    "raw": "Chainsaws999",
+    "id": "cat-workbook-c279514b2cd847934a4cb669",
+    "slug": "sub-workbook-c279514b2cd847934a4cb669",
+    "parent_id": "cat-woodworking"
+  },
+  {
+    "category": "Construction",
+    "subcategory": "Compactors",
+    "cell": "F72",
+    "raw": "Compactors14.8k",
+    "id": "cat-workbook-f26f06db3023a2d40a83b11c",
+    "slug": "sub-workbook-f26f06db3023a2d40a83b11c",
+    "parent_id": "cat-construction"
+  },
+  {
+    "category": "Construction",
+    "subcategory": "Concrete Batching Plants",
+    "cell": "F73",
+    "raw": "Concrete Batching Plants13.1k",
+    "id": "cat-workbook-83e4aa04fc8c848777b2380b",
+    "slug": "sub-workbook-83e4aa04fc8c848777b2380b",
+    "parent_id": "cat-construction"
+  },
+  {
+    "category": "Industrial Automation",
+    "subcategory": "IT Infrastructure",
+    "cell": "M72",
+    "raw": "IT Infrastructure8.8k",
+    "id": "cat-workbook-7c7e0b912d34456f324745ae",
+    "slug": "sub-workbook-7c7e0b912d34456f324745ae",
+    "parent_id": "cat-industrial-automation"
+  },
+  {
+    "category": "Industrial Automation",
+    "subcategory": "Temperature Controllers",
+    "cell": "M73",
+    "raw": "Temperature Controllers3.3k",
+    "id": "cat-workbook-af267fd5a12bcb94f486810b",
+    "slug": "sub-workbook-af267fd5a12bcb94f486810b",
+    "parent_id": "cat-industrial-automation"
+  },
+  {
+    "category": "Printing",
+    "subcategory": "3D Printers",
+    "cell": "U72",
+    "raw": "3D Printers1.9k",
+    "id": "cat-workbook-cae39a6a5ceee43408e514f5",
+    "slug": "sub-workbook-cae39a6a5ceee43408e514f5",
+    "parent_id": "cat-printing"
+  },
+  {
+    "category": "Printing",
+    "subcategory": "Book Binding",
+    "cell": "U73",
+    "raw": "Book Binding1.8k",
+    "id": "cat-workbook-0920e3495e068aea3e6142e7",
+    "slug": "sub-workbook-0920e3495e068aea3e6142e7",
+    "parent_id": "cat-printing"
+  },
+  {
+    "category": "Textile and leather manufacturing",
+    "subcategory": "Leather",
+    "cell": "AA72",
+    "raw": "Leather1.7k",
+    "id": "cat-workbook-dcf528b4577cd1b7e35c2d79",
+    "slug": "sub-workbook-dcf528b4577cd1b7e35c2d79",
+    "parent_id": "cat-textile-and-leather-manufacturing"
+  },
+  {
+    "category": "Textile and leather manufacturing",
+    "subcategory": "Medical Masks & Respiratory Protection Manufacturing",
+    "cell": "AA73",
+    "raw": "Medical Masks & Respiratory Protection Manufacturing1.3k",
+    "id": "cat-workbook-7c698b457ad00111c4b2ac2c",
+    "slug": "sub-workbook-7c698b457ad00111c4b2ac2c",
+    "parent_id": "cat-textile-and-leather-manufacturing"
+  },
+  {
+    "category": "Energy",
+    "subcategory": "Cogeneration Plants",
+    "cell": "F88",
+    "raw": "Cogeneration Plants235",
+    "id": "cat-workbook-d8e708dcdd733f0721ead6d9",
+    "slug": "sub-workbook-d8e708dcdd733f0721ead6d9",
+    "parent_id": "cat-energy"
+  },
+  {
+    "category": "Machine Tools",
+    "subcategory": "Press Brakes",
+    "cell": "M88",
+    "raw": "Press Brakes10.6k",
+    "id": "cat-workbook-916daf2218e0fcbc6d9f3e0b",
+    "slug": "sub-workbook-916daf2218e0fcbc6d9f3e0b",
+    "parent_id": "cat-machine-tools"
+  },
+  {
+    "category": "Machine Tools",
+    "subcategory": "Shearing Equipment",
+    "cell": "M89",
+    "raw": "Shearing Equipment8.5k",
+    "id": "cat-workbook-ee03c8e224756797245e2b9b",
+    "slug": "sub-workbook-ee03c8e224756797245e2b9b",
+    "parent_id": "cat-machine-tools"
+  },
+  {
+    "category": "Processing",
+    "subcategory": "Foundry & Casting",
+    "cell": "U88",
+    "raw": "Foundry & Casting12.6k",
+    "id": "cat-workbook-123c6bb6f8f56224ce4dfd5f",
+    "slug": "sub-workbook-123c6bb6f8f56224ce4dfd5f",
+    "parent_id": "cat-processing"
+  },
+  {
+    "category": "Processing",
+    "subcategory": "Papermaking",
+    "cell": "U89",
+    "raw": "Papermaking11.8k",
+    "id": "cat-workbook-d8d80892ea7dc07eb6986a1e",
+    "slug": "sub-workbook-d8d80892ea7dc07eb6986a1e",
+    "parent_id": "cat-processing"
+  },
+  {
+    "category": "Transportation & Trailers",
+    "subcategory": "Concrete Mixers",
+    "cell": "AA88",
+    "raw": "Concrete Mixers8.7k",
+    "id": "cat-workbook-fd934fbb0e14bc74073bbcce",
+    "slug": "sub-workbook-fd934fbb0e14bc74073bbcce",
+    "parent_id": "cat-transportation-trailers"
+  },
+  {
+    "category": "Transportation & Trailers",
+    "subcategory": "Flatbed Trucks",
+    "cell": "AA89",
+    "raw": "Flatbed Trucks7.7k",
+    "id": "cat-workbook-d932bcf17fe3ad65f257d172",
+    "slug": "sub-workbook-d932bcf17fe3ad65f257d172",
+    "parent_id": "cat-transportation-trailers"
+  }
+]

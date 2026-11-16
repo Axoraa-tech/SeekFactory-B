@@ -27,6 +27,7 @@ import seekfactory.axoraa.utils.InputUtils;
 public class UserServiceImpl implements UserService {
 
     private final UserRepository userRepository;
+    private final seekfactory.axoraa.services.PhoneNumberService phoneNumbers;
     private final ModelMapper modelMapper;
 
     @Override
@@ -54,7 +55,9 @@ public class UserServiceImpl implements UserService {
             user.setCountry(request.getCountry());
         }
         if (request.getPhone() != null) {
-            user.setPhone(request.getPhone());
+            String phone = phoneNumbers.normalize(request.getPhone(), user.getRole() == UserRole.ROLE_SUPPLIER);
+            phoneNumbers.requireAvailable(phone, user.getId());
+            user.setPhone(phone);
         }
         if (request.getAvatarUrl() != null) {
             if (!InputUtils.isSafeUrl(request.getAvatarUrl())) {
@@ -69,7 +72,7 @@ public class UserServiceImpl implements UserService {
             user.setAddress(request.getAddress().isBlank() ? null : request.getAddress().trim());
         }
 
-        User saved = userRepository.save(user);
+        User saved = userRepository.saveAndFlush(user);
         log.info("User profile updated: {}", saved.getId());
         return mapToResponse(saved);
     }

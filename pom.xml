@@ -31,6 +31,11 @@
 		<maven.compiler.release>25</maven.compiler.release>
 	</properties>
 	<dependencies>
+        <dependency>
+            <groupId>com.googlecode.libphonenumber</groupId>
+            <artifactId>libphonenumber</artifactId>
+            <version>9.0.43</version>
+        </dependency>
 
         <!-- Local-only concurrency tests use disposable PostgreSQL, never environment DB credentials. -->
         <dependency>

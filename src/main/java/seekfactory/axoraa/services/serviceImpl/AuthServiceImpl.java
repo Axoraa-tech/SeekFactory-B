@@ -44,6 +44,7 @@ import java.time.Instant;
 public class AuthServiceImpl implements AuthService {
 
     private final UserRepository userRepository;
+    private final seekfactory.axoraa.services.PhoneNumberService phoneNumbers;
     private final ManufacturerRepository manufacturerRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
@@ -66,6 +67,9 @@ public class AuthServiceImpl implements AuthService {
         // 2. Map role string to enum
         UserRole role = mapRole(request.getRole());
 
+        String phone = phoneNumbers.normalize(request.getPhone(), role == UserRole.ROLE_SUPPLIER);
+        phoneNumbers.requireAvailable(phone, null);
+
         // 3. Build user entity
         User user = User.builder()
                 .name(request.getName())
@@ -74,13 +78,13 @@ public class AuthServiceImpl implements AuthService {
                 .role(role)
                 .authProvider(AuthProvider.LOCAL)
                 .companyName(request.getCompanyName())
-                .phone(request.getPhone())
+                .phone(phone)
                 .industry(request.getIndustry())
                 .country(request.getCountry())
                 .build();
 
         // 4. Save to database
-        User savedUser = userRepository.save(user);
+        User savedUser = userRepository.saveAndFlush(user);
         log.info("New user registered: {} ({})", savedUser.getEmail(), savedUser.getRole());
 
         // 4.1 If user is a supplier/manufacturer, automatically create their manufacturer profile
@@ -149,19 +153,20 @@ public class AuthServiceImpl implements AuthService {
             throw new UnauthorizedException("Invalid OTP");
         }
 
-        // Find or create user by phone
-        User user = userRepository.findByPhone(request.getPhone())
+        // Use the same canonical identity for all phone entry points.
+        String phone = phoneNumbers.normalize(request.getPhone(), true);
+        User user = phoneNumbers.findExisting(phone)
                 .orElseGet(() -> {
                     // Auto-register on first phone login
                     User newUser = User.builder()
-                            .phone(request.getPhone())
+                            .phone(phone)
                             .name("User " + request.getPhone().substring(
                                     Math.max(0, request.getPhone().length() - 4)))
                             .role(mapRole(request.getRole()))
                             .authProvider(AuthProvider.PHONE)
                             .companyName(request.getCompanyName())
                             .build();
-                    return userRepository.save(newUser);
+                    return userRepository.saveAndFlush(newUser);
                 });
 
         requireNonAdmin(user);

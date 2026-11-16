@@ -33,6 +33,7 @@ class AuthServiceImplAdminGateTest {
 
     @Mock private UserRepository userRepository;
     @Mock private ManufacturerRepository manufacturerRepository;
+    @Mock private seekfactory.axoraa.services.PhoneNumberService phoneNumbers;
     @Mock private PasswordEncoder passwordEncoder;
     @Mock private JwtTokenProvider jwtTokenProvider;
     @Mock private JwtConfig jwtConfig;
@@ -64,7 +65,8 @@ class AuthServiceImplAdminGateTest {
     @Test
     void phoneLoginForAdminRequiresTotp() {
         ReflectionTestUtils.setField(service, "mockOtp", "123456");
-        when(userRepository.findByPhone("+919999999999")).thenReturn(Optional.of(admin()));
+        when(phoneNumbers.normalize("+919999999999", true)).thenReturn("+919999999999");
+        when(phoneNumbers.findExisting("+919999999999")).thenReturn(Optional.of(admin()));
         PhoneLoginRequest request = new PhoneLoginRequest();
         request.setPhone("+919999999999");
         request.setOtp("123456");

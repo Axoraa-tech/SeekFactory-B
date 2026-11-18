@@ -189,7 +189,10 @@ public class VideoTranscoder implements AutoCloseable {
      */
     boolean moveIndexToFront(Path source, Path target) {
         if (!available) return false;
-        Path temp = target.resolveSibling(target.getFileName() + ".part.mp4");
+        // ffmpeg infers the output container from the last extension. Preserve QuickTime
+        // for gallery MOVs instead of silently writing MP4 bytes under a .mov key.
+        String extension = target.getFileName().toString().endsWith(".mov") ? ".mov" : ".mp4";
+        Path temp = target.resolveSibling(target.getFileName() + ".part" + extension);
         try {
             Process process = new ProcessBuilder(ffmpeg, "-hide_banner", "-loglevel", "error", "-y",
                     "-i", source.toString(), "-map", "0", "-c", "copy", "-movflags", "+faststart", temp.toString())

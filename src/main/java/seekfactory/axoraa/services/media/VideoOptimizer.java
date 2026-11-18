@@ -21,7 +21,8 @@ import java.util.regex.Pattern;
  * One-off background job for seek videos already stored (e.g. imported before uploads were
  * compressed): videos whose index sits at the end (playback waits for a large part of the
  * download) get it moved to the front, losslessly; videos far above the upload bitrate are
- * re-encoded with the same settings new uploads get. Each file keeps its key, so no link changes.
+ * re-encoded with the same settings new uploads get. Each file keeps its key, so no link changes. MOV uploads are remuxed losslessly
+ * in their original container; their codecs and quality are preserved.
  * Off by default; turn on with APP_MEDIA_OPTIMIZE_VIDEOS=true for one start.
  */
 @Slf4j
@@ -31,8 +32,8 @@ public class VideoOptimizer implements ApplicationRunner {
 
     /** Above this the video is re-encoded (new uploads land at ~1-4 Mbps). */
     static final long REENCODE_ABOVE_BITS_PER_SECOND = 5_000_000;
-    private static final Pattern KEY = Pattern.compile(
-            "/api/v1/media/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\.mp4)$");
+    static final Pattern KEY = Pattern.compile(
+            "/api/v1/media/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\.(?:mp4|mov))$");
 
     private final JdbcTemplate jdbcTemplate;
     private final MediaStorageService storage;
@@ -84,14 +85,17 @@ public class VideoOptimizer implements ApplicationRunner {
         Path dir = null;
         try {
             dir = Files.createTempDirectory("video-optimize");
-            Path original = dir.resolve("original.mp4");
-            Path result = dir.resolve("result.mp4");
+            boolean quickTime = key.endsWith(".mov");
+            String extension = quickTime ? ".mov" : ".mp4";
+            Path original = dir.resolve("original" + extension);
+            Path result = dir.resolve("result" + extension);
             storage.downloadPublic(key, original);
             Mp4Layout layout = Mp4Layout.read(original);
             long size = Files.size(original);
             long bitsPerSecond = layout.durationSeconds() > 0 ? (long) (size * 8 / layout.durationSeconds()) : 0;
 
-            if (bitsPerSecond > REENCODE_ABOVE_BITS_PER_SECOND && transcoder.transcode(original, result)) {
+            // Keep MOV container/codec semantics: do not put MP4 bytes under a MOV key.
+            if (!quickTime && bitsPerSecond > REENCODE_ABOVE_BITS_PER_SECOND && transcoder.transcode(original, result)) {
                 storage.replacePublic(key, result);
                 log.info("Re-encoded {} ({} MB, {} kbps)", key, size / 1_048_576, bitsPerSecond / 1000);
                 return Outcome.REENCODED;

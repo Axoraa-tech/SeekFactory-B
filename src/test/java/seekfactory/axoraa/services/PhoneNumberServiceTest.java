@@ -43,6 +43,17 @@ class PhoneNumberServiceTest {
         }
     }
 
+    @Test void manufacturersSignUpWithChinaNumbersAndBuyersWithAnyOtherCountry() {
+        assertDoesNotThrow(() -> phones.requireSignupCountry("+8613812345678", true));
+        assertThrows(BadRequestException.class, () -> phones.requireSignupCountry("+919876543210", true));
+        assertThrows(BadRequestException.class, () -> phones.requireSignupCountry("+85291234567", true));
+
+        assertThrows(BadRequestException.class, () -> phones.requireSignupCountry("+8613812345678", false));
+        assertDoesNotThrow(() -> phones.requireSignupCountry("+919876543210", false));
+        assertDoesNotThrow(() -> phones.requireSignupCountry("+442079460018", false));
+        assertDoesNotThrow(() -> phones.requireSignupCountry("+85291234567", false));
+    }
+
     @Test void rejectsExistingNumberButAllowsSameAccount() {
         User user = User.builder().build();
         user.setId("one");

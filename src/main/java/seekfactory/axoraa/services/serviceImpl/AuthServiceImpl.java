@@ -67,7 +67,9 @@ public class AuthServiceImpl implements AuthService {
         // 2. Map role string to enum
         UserRole role = mapRole(request.getRole());
 
-        String phone = phoneNumbers.normalize(request.getPhone(), role == UserRole.ROLE_SUPPLIER);
+        // Every new account needs a phone: China (+86) for manufacturers, any other country for buyers
+        String phone = phoneNumbers.normalize(request.getPhone(), true);
+        phoneNumbers.requireSignupCountry(phone, role == UserRole.ROLE_SUPPLIER);
         phoneNumbers.requireAvailable(phone, null);
 
         // 3. Build user entity
@@ -157,12 +159,14 @@ public class AuthServiceImpl implements AuthService {
         String phone = phoneNumbers.normalize(request.getPhone(), true);
         User user = phoneNumbers.findExisting(phone)
                 .orElseGet(() -> {
-                    // Auto-register on first phone login
+                    // Auto-register on first phone login, under the same country policy as signup
+                    UserRole newRole = mapRole(request.getRole());
+                    phoneNumbers.requireSignupCountry(phone, newRole == UserRole.ROLE_SUPPLIER);
                     User newUser = User.builder()
                             .phone(phone)
                             .name("User " + request.getPhone().substring(
                                     Math.max(0, request.getPhone().length() - 4)))
-                            .role(mapRole(request.getRole()))
+                            .role(newRole)
                             .authProvider(AuthProvider.PHONE)
                             .companyName(request.getCompanyName())
                             .build();

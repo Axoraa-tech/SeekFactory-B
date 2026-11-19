@@ -19,6 +19,7 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class PhoneNumberService {
     private static final PhoneNumberUtil PHONES = PhoneNumberUtil.getInstance();
+    private static final int CHINA_COUNTRY_CODE = 86;
     private final UserRepository users;
 
     /** New writes require an explicit international prefix; never infer it from the server location. */
@@ -34,6 +35,23 @@ public class PhoneNumberService {
         String normalized = parse(value, null);
         if (normalized == null) throw new BadRequestException("Enter a valid international phone number with country code");
         return normalized;
+    }
+
+    /** Signup policy: manufacturers register with a China (+86) number, buyers with any other country's. */
+    public void requireSignupCountry(String phone, boolean manufacturer) {
+        if (phone == null) return;
+        boolean china;
+        try {
+            china = PHONES.parse(phone, null).getCountryCode() == CHINA_COUNTRY_CODE;
+        } catch (NumberParseException ex) {
+            throw new BadRequestException("Enter a valid international phone number with country code");
+        }
+        if (manufacturer && !china) {
+            throw new BadRequestException("Manufacturers must register with a China (+86) phone number");
+        }
+        if (!manufacturer && china) {
+            throw new BadRequestException("Buyers cannot register with a China (+86) phone number");
+        }
     }
 
     public void requireAvailable(String phone, String currentUserId) {

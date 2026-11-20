@@ -61,6 +61,18 @@ class MediaBrowserCacheTest {
     }
 
     @Test
+    void permanentPublicLinksMayBeCachedByAnyCacheForADay() throws Exception {
+        when(storage.publicLinksAreStable()).thenReturn(true);
+        when(storage.publicRedirectMaxAgeSeconds()).thenReturn(86_400L);
+        mvc.perform(get(PATH + KEY)).andExpect(status().isFound())
+                .andExpect(header().string("Cache-Control", "max-age=86400, public"));
+        // A video still being compressed keeps revalidating even with a permanent address
+        String video = KEY.replace("jpg", "mp4");
+        when(storage.isProcessing(video)).thenReturn(true);
+        mvc.perform(get(PATH + video)).andExpect(header().string("Cache-Control", "no-cache"));
+    }
+
+    @Test
     void storageWithoutASafeLifetimeKeepsRevalidating() throws Exception {
         when(storage.publicRedirectMaxAgeSeconds()).thenReturn(0L);
         mvc.perform(get(PATH + KEY)).andExpect(header().string("Cache-Control", "no-cache"));

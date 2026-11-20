@@ -55,6 +55,14 @@ public interface MediaStorageService {
     }
 
     /**
+     * True when {@link #publicUrl} and {@link #variantUrl} return permanent addresses (a public container
+     * or a CDN) rather than expiring signed links: the redirect to them may then be cached publicly.
+     */
+    default boolean publicLinksAreStable() {
+        return false;
+    }
+
+    /**
      * A short-lived signed link to a private file, for storage that supports it. The caller must
      * have checked the user's access first. Empty means "stream it through {@link #loadPrivate}".
      */

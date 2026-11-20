@@ -59,6 +59,18 @@ public class AzureBlobMediaStorageService implements MediaStorageService {
     private static final int MAX_SIGNED_LINKS = 50_000;
 
     private final AzureBlobClient blobs;
+    /**
+     * Separate container for chat/RFQ attachments, so the public container can allow anonymous reads.
+     * Null: attachments stay under {@code private/} in the public container (the original layout).
+     */
+    private final AzureBlobClient privateBlobs;
+    /**
+     * Stable public address of the media container (e.g. {@code https://<account>.blob.core.windows.net/media}
+     * once it allows anonymous blob reads, or a CDN in front of it). Empty: expiring signed links.
+     */
+    private final String publicBaseUrl;
+    /** A stable link never changes, so browsers may keep the redirect to it for a day. */
+    static final long STABLE_REDIRECT_MAX_AGE_SECONDS = 86_400;
     private final Duration signedUrlTtl;
     private final MediaTypes.Limits limits;
     private final ImageCompressor imageCompressor;
@@ -78,6 +90,8 @@ public class AzureBlobMediaStorageService implements MediaStorageService {
             @Value("${app.media.azure.container:media}") String container,
             @Value("${app.media.azure.endpoint:}") String endpoint,
             @Value("${app.media.azure.signed-url-ttl:1h}") Duration signedUrlTtl,
+            @Value("${app.media.azure.public-base-url:}") String publicBaseUrl,
+            @Value("${app.media.azure.private-container:}") String privateContainer,
             @Value("${app.media.azure.work-dir:media-work}") String workDir,
             @Value("${app.media.max-image-size:20MB}") DataSize maxImageSize,
             @Value("${app.media.max-video-size:100MB}") DataSize maxVideoSize,
@@ -87,19 +101,33 @@ public class AzureBlobMediaStorageService implements MediaStorageService {
             @Value("${app.media.ffmpeg-path:ffmpeg}") String ffmpegPath,
             @Value("${app.media.video-crf:23}") int videoCrf,
             @Value("${app.media.video-preset:medium}") String videoPreset) {
-        this(new AzureBlobClient(account, accountKey, container, endpoint), signedUrlTtl,
+        this(new AzureBlobClient(account, accountKey, container, endpoint),
+                privateContainer == null || privateContainer.isBlank() ? null
+                        : new AzureBlobClient(account, accountKey, privateContainer.trim(), endpoint),
+                publicBaseUrl, signedUrlTtl,
                 new MediaTypes.Limits(maxImageSize.toBytes(), maxVideoSize.toBytes(), maxDocumentSize.toBytes()),
                 new ImageCompressor(imageMaxDimension, imageQuality),
                 new VideoTranscoder(ffmpegPath, videoCrf, videoPreset),
                 Path.of(workDir));
         checkContainer();
-        log.info("Media storage: Azure Blob container '{}' in account '{}'", container, account);
+        log.info("Media storage: Azure Blob container '{}' in account '{}' (public files via {}, attachments in {})",
+                container, account,
+                this.publicBaseUrl.isEmpty() ? "signed links" : this.publicBaseUrl,
+                privateBlobs == null ? container + "/private" : privateBlobs.container());
         resumePendingVideos();
     }
 
     AzureBlobMediaStorageService(AzureBlobClient blobs, Duration signedUrlTtl, MediaTypes.Limits limits,
                                  ImageCompressor imageCompressor, VideoTranscoder videoTranscoder, Path workDir) {
+        this(blobs, null, "", signedUrlTtl, limits, imageCompressor, videoTranscoder, workDir);
+    }
+
+    AzureBlobMediaStorageService(AzureBlobClient blobs, AzureBlobClient privateBlobs, String publicBaseUrl,
+                                 Duration signedUrlTtl, MediaTypes.Limits limits,
+                                 ImageCompressor imageCompressor, VideoTranscoder videoTranscoder, Path workDir) {
         this.blobs = blobs;
+        this.privateBlobs = privateBlobs;
+        this.publicBaseUrl = stripTrailingSlash(publicBaseUrl);
         this.signedUrlTtl = signedUrlTtl;
         this.limits = limits;
         this.imageCompressor = imageCompressor;
@@ -216,19 +244,25 @@ public class AzureBlobMediaStorageService implements MediaStorageService {
     @Override
     public Optional<String> publicUrl(String key) {
         requirePublicKey(key);
-        return Optional.of(sharedLink(PUBLIC_PREFIX + key));
+        return Optional.of(publicLink(PUBLIC_PREFIX + key));
     }
 
     @Override
     public long publicRedirectMaxAgeSeconds() {
+        if (!publicBaseUrl.isEmpty()) return STABLE_REDIRECT_MAX_AGE_SECONDS;
         return Math.max(0, Math.min(300, signedUrlTtl.getSeconds() - 30));
+    }
+
+    @Override
+    public boolean publicLinksAreStable() {
+        return !publicBaseUrl.isEmpty();
     }
 
     @Override
     public Resource load(String key) {
         requirePublicKey(key);
         String blob = PUBLIC_PREFIX + key;
-        return new BlobResource(blob, blobs.head(blob).orElseThrow(() -> new ResourceNotFoundException("Media", "key", key)));
+        return new BlobResource(blobs, blob, blobs.head(blob).orElseThrow(() -> new ResourceNotFoundException("Media", "key", key)));
     }
 
     @Override
@@ -271,7 +305,7 @@ public class AzureBlobMediaStorageService implements MediaStorageService {
 
     @Override
     public Optional<String> variantUrl(String name) {
-        return Optional.of(sharedLink(VARIANT_PREFIX + name));
+        return Optional.of(publicLink(VARIANT_PREFIX + name));
     }
 
     @Override
@@ -301,12 +335,12 @@ public class AzureBlobMediaStorageService implements MediaStorageService {
             byte[] original = readAll(file);
             Optional<ImageCompressor.Result> compressed = imageCompressor.compress(original, accepted.extension());
             String key = UUID.randomUUID() + "." + compressed.map(ImageCompressor.Result::extension).orElse(accepted.extension());
-            blobs.put(privateBlob(namespace, key), MediaTypes.contentTypeOf(key), null,
+            attachmentStore().put(attachmentBlob(namespace, key), MediaTypes.contentTypeOf(key), null,
                     compressed.map(ImageCompressor.Result::bytes).orElse(original));
             return key;
         }
         String key = UUID.randomUUID() + "." + accepted.extension();
-        putStream(privateBlob(namespace, key), MediaTypes.contentTypeOf(key), null, file);
+        putStream(attachmentStore(), attachmentBlob(namespace, key), MediaTypes.contentTypeOf(key), null, file);
         return key;
     }
 
@@ -316,8 +350,9 @@ public class AzureBlobMediaStorageService implements MediaStorageService {
         if (key == null || !MediaTypes.PRIVATE_KEY_PATTERN.matcher(key).matches()) {
             throw new ResourceNotFoundException("Attachment", "key", key);
         }
-        String blob = privateBlob(namespace, key);
-        return new BlobResource(blob, blobs.head(blob).orElseThrow(() -> new ResourceNotFoundException("Attachment", "key", key)));
+        Located found = locateAttachment(namespace, key)
+                .orElseThrow(() -> new ResourceNotFoundException("Attachment", "key", key));
+        return new BlobResource(found.client(), found.blob(), found.properties());
     }
 
     @Override
@@ -329,20 +364,59 @@ public class AzureBlobMediaStorageService implements MediaStorageService {
         String contentType = MediaTypes.contentTypeOf(key);
         boolean viewable = contentType.startsWith("image/") || "application/pdf".equals(contentType);
         // Chat attachments get a short link: it is handed out only after the access check
-        return Optional.of(blobs.readUrl(privateBlob(namespace, key), Duration.ofMinutes(10), contentType,
+        Located found = locateAttachment(namespace, key)
+                .orElseThrow(() -> new ResourceNotFoundException("Attachment", "key", key));
+        return Optional.of(found.client().readUrl(found.blob(), Duration.ofMinutes(10), contentType,
                 viewable ? "inline" : "attachment"));
     }
 
     // ---- plumbing ----
 
     private void putStream(String blob, String contentType, String cacheControl, MultipartFile file) {
+        putStream(blobs, blob, contentType, cacheControl, file);
+    }
+
+    private void putStream(AzureBlobClient client, String blob, String contentType, String cacheControl, MultipartFile file) {
         try {
             InputStream in = file.getInputStream();
-            blobs.put(blob, contentType, cacheControl,
+            client.put(blob, contentType, cacheControl,
                     HttpRequest.BodyPublishers.fromPublisher(HttpRequest.BodyPublishers.ofInputStream(() -> in), file.getSize()));
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to store upload", e);
         }
+    }
+
+    /** The permanent public address when the container is public (or behind a CDN), else a signed link. */
+    private String publicLink(String blob) {
+        return publicBaseUrl.isEmpty() ? sharedLink(blob) : publicBaseUrl + "/" + AzureBlobClient.encodePath(blob);
+    }
+
+    private record Located(AzureBlobClient client, String blob, AzureBlobClient.Properties properties) {}
+
+    /** Where new attachments go: the private container when configured, else the original layout. */
+    private AzureBlobClient attachmentStore() {
+        return privateBlobs != null ? privateBlobs : blobs;
+    }
+
+    private String attachmentBlob(String namespace, String key) {
+        return privateBlobs != null ? namespace + "/" + key : privateBlob(namespace, key);
+    }
+
+    /** Attachments uploaded before the private container existed are still read from the original place. */
+    private Optional<Located> locateAttachment(String namespace, String key) {
+        if (privateBlobs != null) {
+            String blob = namespace + "/" + key;
+            Optional<AzureBlobClient.Properties> head = privateBlobs.head(blob);
+            if (head.isPresent()) return Optional.of(new Located(privateBlobs, blob, head.get()));
+        }
+        String legacy = privateBlob(namespace, key);
+        return blobs.head(legacy).map(properties -> new Located(blobs, legacy, properties));
+    }
+
+    private static String stripTrailingSlash(String url) {
+        String value = url == null ? "" : url.trim();
+        while (value.endsWith("/")) value = value.substring(0, value.length() - 1);
+        return value;
     }
 
     /** One link per file while it is fresh, so browsers and CDNs can reuse their cached copy. */
@@ -365,6 +439,10 @@ public class AzureBlobMediaStorageService implements MediaStorageService {
         try {
             blobs.put(probe, "text/plain", NO_CACHE, "ok".getBytes(java.nio.charset.StandardCharsets.UTF_8));
             blobs.head(probe).orElseThrow();
+            if (privateBlobs != null) {
+                privateBlobs.put(".startup-check", "text/plain", NO_CACHE, "ok".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                privateBlobs.head(".startup-check").orElseThrow();
+            }
         } catch (RuntimeException e) {
             throw new IllegalStateException("Azure Blob container '" + blobs.container() + "' is not reachable with "
                     + "APP_MEDIA_AZURE_ACCOUNT / APP_MEDIA_AZURE_ACCOUNT_KEY: " + e.getMessage(), e);
@@ -397,18 +475,20 @@ public class AzureBlobMediaStorageService implements MediaStorageService {
         }
     }
 
-    private final class BlobResource extends AbstractResource {
+    private static final class BlobResource extends AbstractResource {
+        private final AzureBlobClient client;
         private final String blob;
         private final AzureBlobClient.Properties properties;
 
-        BlobResource(String blob, AzureBlobClient.Properties properties) {
+        BlobResource(AzureBlobClient client, String blob, AzureBlobClient.Properties properties) {
+            this.client = client;
             this.blob = blob;
             this.properties = properties;
         }
 
         @Override
         public InputStream getInputStream() {
-            return blobs.get(blob);
+            return client.get(blob);
         }
 
         @Override
@@ -428,7 +508,7 @@ public class AzureBlobMediaStorageService implements MediaStorageService {
 
         @Override
         public String getDescription() {
-            return "azure-blob://" + blobs.container() + "/" + blob;
+            return "azure-blob://" + client.container() + "/" + blob;
         }
     }
 }

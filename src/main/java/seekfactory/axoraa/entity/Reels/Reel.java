@@ -47,6 +47,10 @@ public class Reel extends BaseEntity {
     @Column(name = "video_url", columnDefinition = "TEXT")
     private String videoUrl;
 
+    /** Adaptive-streaming copy of the video ({@code /api/v1/media/hls/<id>/master.m3u8}); null until packaged. */
+    @Column(name = "hls_url", length = 512)
+    private String hlsUrl;
+
     @Column(name = "duration_sec", nullable = false)
     @Builder.Default
     private Integer durationSec = 0;

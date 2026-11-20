@@ -301,6 +301,40 @@ public class LocalMediaStorageService implements MediaStorageService {
         }
     }
 
+    // ---- generated public files (adaptive-streaming copies): <root>/<path> ----
+
+    private Path publicFilePath(String path) {
+        Path file = root.resolve(path).normalize();
+        if (!file.startsWith(root) || file.startsWith(root.resolve("private"))) {
+            throw new ResourceNotFoundException("Media", "path", path);
+        }
+        return file;
+    }
+
+    @Override
+    public void storePublicFile(String path, Path source, String contentType, String cacheControl) {
+        Path file = publicFilePath(path);
+        try {
+            Files.createDirectories(file.getParent());
+            Path temp = Files.createTempFile(file.getParent(), "public", ".tmp");
+            Files.copy(source, temp, StandardCopyOption.REPLACE_EXISTING);
+            Files.move(temp, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    @Override
+    public boolean publicFileExists(String path) {
+        return Files.isRegularFile(publicFilePath(path));
+    }
+
+    @Override
+    public Optional<Resource> loadPublicFile(String path) {
+        Path file = publicFilePath(path);
+        return Files.isRegularFile(file) ? Optional.of(new PathResource(file)) : Optional.empty();
+    }
+
     @Override
     public Optional<Resource> loadVariant(String name) {
         Path file = variantPath(name);

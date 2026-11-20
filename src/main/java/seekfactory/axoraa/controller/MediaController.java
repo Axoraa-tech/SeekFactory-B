@@ -21,6 +21,8 @@ import seekfactory.axoraa.dto.Response.common.ApiResponse;
 import seekfactory.axoraa.dto.Response.media.MediaUploadResponse;
 import seekfactory.axoraa.exceptions.BadRequestException;
 import seekfactory.axoraa.services.services.MediaStorageService;
+import seekfactory.axoraa.exceptions.ResourceNotFoundException;
+import seekfactory.axoraa.services.media.HlsPaths;
 import seekfactory.axoraa.services.media.MediaTypes;
 import seekfactory.axoraa.services.media.MediaVariantService;
 import seekfactory.axoraa.utils.JwtTokenProvider;
@@ -118,6 +120,37 @@ public class MediaController {
                         ? CacheControl.noCache()
                         : CacheControl.maxAge(365, TimeUnit.DAYS).cachePublic().immutable())
                 .header("Content-Disposition", "inline")
+                .header("X-Content-Type-Options", "nosniff")
+                .body(resource);
+    }
+
+    /**
+     * Adaptive-streaming files of a seek video ({@code master.m3u8}, quality playlists, segments). Players
+     * resolve the playlists' relative segment names against the address they loaded, so these are only
+     * redirected to permanent links; with signed links (which a relative name would lose) they are streamed.
+     */
+    @GetMapping("/api/v1/media/hls/{id}/{file}")
+    @Operation(summary = "Adaptive-streaming (HLS) file of a seek video")
+    public ResponseEntity<Resource> getHls(@PathVariable String id, @PathVariable String file) {
+        if (!HlsPaths.isValid(id, file)) throw new ResourceNotFoundException("Media", "file", file);
+        String path = HlsPaths.path(id, file);
+        CacheControl cache = HlsPaths.isImmutable(file)
+                ? CacheControl.maxAge(365, TimeUnit.DAYS).cachePublic().immutable()
+                : CacheControl.maxAge(1, TimeUnit.HOURS).cachePublic();
+        if (mediaStorageService.publicLinksAreStable()) {
+            Optional<String> location = mediaStorageService.publicFileUrl(path);
+            if (location.isPresent()) {
+                return ResponseEntity.status(HttpStatus.FOUND)
+                        .location(URI.create(location.get()))
+                        .cacheControl(CacheControl.maxAge(1, TimeUnit.DAYS).cachePublic())
+                        .build();
+            }
+        }
+        Resource resource = mediaStorageService.loadPublicFile(path)
+                .orElseThrow(() -> new ResourceNotFoundException("Media", "file", file));
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(HlsPaths.contentTypeOf(file)))
+                .cacheControl(cache)
                 .header("X-Content-Type-Options", "nosniff")
                 .body(resource);
     }

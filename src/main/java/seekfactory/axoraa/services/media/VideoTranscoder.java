@@ -221,6 +221,71 @@ public class VideoTranscoder implements AutoCloseable {
         }
     }
 
+    /** Short side scaled to at most {@code size}, keeping the aspect ratio (seeks are often portrait). */
+    private static String shortSide(int size) {
+        return "scale=w='if(gte(iw,ih),-2,min(" + size + ",iw))':h='if(gte(iw,ih),min(" + size + ",ih),-2)'";
+    }
+
+    /**
+     * Adaptive-streaming copy of a (compressed) video: 360p (~0.7 Mbps) and 720p (~2.2 Mbps), H.264/AAC,
+     * 4-second MPEG-TS segments, written to {@code outDir} as {@code master.m3u8}, {@code stream_<n>.m3u8} and
+     * {@code stream_<n>_<seq>.ts}. A player starts on the small quality and moves up when the connection allows,
+     * so a weak link (e.g. into mainland China) still starts quickly. True when the master playlist exists.
+     */
+    public boolean packageHls(Path source, Path outDir) {
+        if (!available) return false;
+        try {
+            Files.createDirectories(outDir);
+            boolean audio = hasAudio(source);
+            java.util.List<String> command = new java.util.ArrayList<>(java.util.List.of(
+                    ffmpeg, "-hide_banner", "-loglevel", "error", "-y", "-i", source.toString(),
+                    "-filter_complex", "[0:v]split=2[small][large];[small]" + shortSide(360) + "[v0];[large]" + shortSide(720) + "[v1]",
+                    "-map", "[v0]"));
+            if (audio) command.addAll(java.util.List.of("-map", "0:a:0"));
+            command.addAll(java.util.List.of("-map", "[v1]"));
+            if (audio) command.addAll(java.util.List.of("-map", "0:a:0"));
+            command.addAll(java.util.List.of(
+                    "-c:v", "libx264", "-preset", preset, "-threads", "1", "-profile:v", "main", "-pix_fmt", "yuv420p",
+                    "-fpsmax", "30", "-force_key_frames", "expr:gte(t,n_forced*4)", "-sc_threshold", "0",
+                    "-b:v:0", "700k", "-maxrate:v:0", "800k", "-bufsize:v:0", "1400k",
+                    "-b:v:1", "2200k", "-maxrate:v:1", "2500k", "-bufsize:v:1", "4400k"));
+            if (audio) command.addAll(java.util.List.of("-c:a", "aac", "-b:a", "96k", "-ac", "2"));
+            command.addAll(java.util.List.of(
+                    "-f", "hls", "-hls_time", "4", "-hls_playlist_type", "vod", "-hls_flags", "independent_segments",
+                    "-hls_segment_filename", outDir.resolve("stream_%v_%03d.ts").toString(),
+                    "-master_pl_name", HlsPaths.MASTER,
+                    "-var_stream_map", audio ? "v:0,a:0 v:1,a:1" : "v:0 v:1",
+                    outDir.resolve("stream_%v.m3u8").toString()));
+            Process process = new ProcessBuilder(command)
+                    .redirectErrorStream(true)
+                    .redirectOutput(ProcessBuilder.Redirect.DISCARD)
+                    .start();
+            if (!process.waitFor(TIMEOUT_MINUTES, TimeUnit.MINUTES)) {
+                process.destroyForcibly();
+                return false;
+            }
+            return process.exitValue() == 0
+                    && Files.isRegularFile(outDir.resolve(HlsPaths.MASTER))
+                    && Files.isRegularFile(outDir.resolve("stream_0.m3u8"));
+        } catch (IOException e) {
+            log.warn("Could not package {} for streaming: {}", source.getFileName(), e.getMessage());
+            return false;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
+    }
+
+    /** ffmpeg lists the input's streams on stderr when given no output (it then exits with an error). */
+    private boolean hasAudio(Path source) throws IOException, InterruptedException {
+        Process p = new ProcessBuilder(ffmpeg, "-hide_banner", "-i", source.toString())
+                .redirectErrorStream(true)
+                .start();
+        String output = new String(p.getInputStream().readAllBytes());
+        p.waitFor(60, TimeUnit.SECONDS);
+        return output.contains("Audio:");
+    }
+
     private static boolean probe(String ffmpegPath) {
         try {
             Process p = new ProcessBuilder(ffmpegPath, "-hide_banner", "-encoders")

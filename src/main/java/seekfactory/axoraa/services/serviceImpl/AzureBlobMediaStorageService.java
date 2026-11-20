@@ -308,6 +308,29 @@ public class AzureBlobMediaStorageService implements MediaStorageService {
         return Optional.of(publicLink(VARIANT_PREFIX + name));
     }
 
+    // ---- generated public files (adaptive-streaming copies): <container>/media/<path> ----
+
+    @Override
+    public void storePublicFile(String path, Path file, String contentType, String cacheControl) {
+        blobs.put(PUBLIC_PREFIX + path, contentType, cacheControl, file);
+    }
+
+    @Override
+    public boolean publicFileExists(String path) {
+        return blobs.head(PUBLIC_PREFIX + path).isPresent();
+    }
+
+    @Override
+    public Optional<String> publicFileUrl(String path) {
+        return Optional.of(publicLink(PUBLIC_PREFIX + path));
+    }
+
+    @Override
+    public Optional<Resource> loadPublicFile(String path) {
+        String blob = PUBLIC_PREFIX + path;
+        return blobs.head(blob).map(properties -> new BlobResource(blobs, blob, properties));
+    }
+
     @Override
     public boolean isProcessing(String key) {
         if (key == null || !MediaTypes.KEY_PATTERN.matcher(key).matches() || !key.endsWith(".mp4")) return false;

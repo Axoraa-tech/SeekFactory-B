@@ -20,6 +20,11 @@ public class ReelResponse {
     private List<String> hashtags;
     private String posterUrl;
     private String videoUrl;
+    /**
+     * Adaptive stream (HLS master playlist) of {@code videoUrl}, when ready; players that can't use it, or
+     * get an error, play {@code videoUrl}. Omitted until the streaming copy exists.
+     */
+    private String hlsUrl;
     private int durationSec;
     private int startSec;
     private long views;

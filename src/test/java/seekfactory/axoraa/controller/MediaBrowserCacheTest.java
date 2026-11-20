@@ -73,6 +73,28 @@ class MediaBrowserCacheTest {
     }
 
     @Test
+    void streamingFilesRedirectToPermanentLinksOnly() throws Exception {
+        String id = "9c052948-f232-4104-8de5-46dad6a5bf6c";
+        when(storage.publicLinksAreStable()).thenReturn(true);
+        when(storage.publicFileUrl("hls/" + id + "/master.m3u8"))
+                .thenReturn(Optional.of("https://acct.blob.core.windows.net/media/media/hls/" + id + "/master.m3u8"));
+        mvc.perform(get(PATH + "hls/" + id + "/master.m3u8")).andExpect(status().isFound())
+                .andExpect(redirectedUrl("https://acct.blob.core.windows.net/media/media/hls/" + id + "/master.m3u8"))
+                .andExpect(header().string("Cache-Control", "max-age=86400, public"));
+
+        // Signed links would lose the playlist's relative segment names: stream instead
+        when(storage.publicLinksAreStable()).thenReturn(false);
+        when(storage.loadPublicFile("hls/" + id + "/stream_0_000.ts")).thenReturn(Optional.of(new ByteArrayResource(new byte[]{0x47})));
+        mvc.perform(get(PATH + "hls/" + id + "/stream_0_000.ts")).andExpect(status().isOk())
+                .andExpect(header().string("Content-Type", "video/mp2t"))
+                .andExpect(header().string("Cache-Control", "max-age=31536000, public, immutable"));
+        verify(storage, never()).publicFileUrl("hls/" + id + "/stream_0_000.ts");
+
+        mvc.perform(get(PATH + "hls/" + id + "/..%2F..%2Fprivate")).andExpect(status().is4xxClientError());
+        mvc.perform(get(PATH + "hls/not-a-uuid/master.m3u8")).andExpect(status().isNotFound());
+    }
+
+    @Test
     void storageWithoutASafeLifetimeKeepsRevalidating() throws Exception {
         when(storage.publicRedirectMaxAgeSeconds()).thenReturn(0L);
         mvc.perform(get(PATH + KEY)).andExpect(header().string("Cache-Control", "no-cache"));

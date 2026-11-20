@@ -54,6 +54,52 @@ class VideoTranscoderTest {
         }
     }
 
+    @Test
+    void portraitVideoIsPackagedInTwoStreamingQualities(@TempDir Path dir) throws Exception {
+        try (VideoTranscoder transcoder = new VideoTranscoder(FFMPEG, 23, "veryfast")) {
+            assumeTrue(transcoder.isAvailable(), "ffmpeg not installed");
+
+            // 10 s portrait clip (like a phone seek) with sound
+            Path source = dir.resolve("seek.mp4");
+            Process gen = new ProcessBuilder(List.of(FFMPEG, "-hide_banner", "-loglevel", "error", "-y",
+                    "-f", "lavfi", "-i", "testsrc2=size=1080x1920:rate=30:duration=10",
+                    "-f", "lavfi", "-i", "sine=frequency=440:duration=10",
+                    "-c:v", "libx264", "-preset", "ultrafast", "-c:a", "aac", source.toString()))
+                    .redirectErrorStream(true).start();
+            gen.getInputStream().readAllBytes();
+            assertThat(gen.waitFor(120, TimeUnit.SECONDS)).isTrue();
+
+            Path out = dir.resolve("hls");
+            assertThat(transcoder.packageHls(source, out)).isTrue();
+
+            String master = Files.readString(out.resolve("master.m3u8"));
+            assertThat(master).contains("stream_0.m3u8").contains("stream_1.m3u8").contains("RESOLUTION=360x640").contains("RESOLUTION=720x1280");
+            String small = Files.readString(out.resolve("stream_0.m3u8"));
+            assertThat(small).contains("#EXT-X-PLAYLIST-TYPE:VOD").contains("stream_0_000.ts").contains("#EXT-X-ENDLIST");
+            try (var files = Files.list(out)) {
+                assertThat(files.map(f -> f.getFileName().toString()).filter(n -> n.endsWith(".ts")).count()).isGreaterThanOrEqualTo(4);
+            }
+            assertThat(probe(out.resolve("stream_0_000.ts"))).contains("h264").contains("aac");
+        }
+    }
+
+    @Test
+    void silentVideoIsPackagedToo(@TempDir Path dir) throws Exception {
+        try (VideoTranscoder transcoder = new VideoTranscoder(FFMPEG, 23, "veryfast")) {
+            assumeTrue(transcoder.isAvailable(), "ffmpeg not installed");
+            Path source = dir.resolve("silent.mp4");
+            Process gen = new ProcessBuilder(List.of(FFMPEG, "-hide_banner", "-loglevel", "error", "-y",
+                    "-f", "lavfi", "-i", "testsrc2=size=1280x720:rate=30:duration=5",
+                    "-c:v", "libx264", "-preset", "ultrafast", source.toString()))
+                    .redirectErrorStream(true).start();
+            gen.getInputStream().readAllBytes();
+            assertThat(gen.waitFor(120, TimeUnit.SECONDS)).isTrue();
+
+            assertThat(transcoder.packageHls(source, dir.resolve("hls"))).isTrue();
+            assertThat(Files.readString(dir.resolve("hls").resolve("master.m3u8"))).contains("RESOLUTION=640x360");
+        }
+    }
+
     /** Stream summary via `ffmpeg -i` (ffprobe may not be installed next to ffmpeg). */
     private static String probe(Path file) throws Exception {
         Process p = new ProcessBuilder(FFMPEG, "-hide_banner", "-i", file.toString())

@@ -63,6 +63,28 @@ public interface MediaStorageService {
     }
 
     /**
+     * Stores a generated public file under {@code media/<path>} (e.g. an adaptive-streaming playlist or
+     * segment, {@code hls/<id>/0/seg_001.ts}). Callers pass paths built by {@code HlsPaths}.
+     */
+    default void storePublicFile(String path, java.nio.file.Path file, String contentType, String cacheControl) {
+        throw new UnsupportedOperationException("Generated public files are not supported by this storage");
+    }
+
+    default boolean publicFileExists(String path) {
+        return false;
+    }
+
+    /** Address of a generated public file, when this storage hands out links instead of streaming. */
+    default Optional<String> publicFileUrl(String path) {
+        return Optional.empty();
+    }
+
+    /** The file itself, for storage that streams through the API (local disk). */
+    default Optional<Resource> loadPublicFile(String path) {
+        return Optional.empty();
+    }
+
+    /**
      * A short-lived signed link to a private file, for storage that supports it. The caller must
      * have checked the user's access first. Empty means "stream it through {@link #loadPrivate}".
      */

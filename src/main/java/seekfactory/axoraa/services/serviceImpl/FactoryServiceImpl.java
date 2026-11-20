@@ -1040,6 +1040,7 @@ public class FactoryServiceImpl implements FactoryService {
                 .hashtags(new ArrayList<>(r.getHashtags()))
                 .posterUrl(r.getPosterUrl())
                 .videoUrl(r.getVideoUrl())
+                .hlsUrl(seekfactory.axoraa.services.media.HlsPaths.currentFor(r.getVideoUrl(), r.getHlsUrl()))
                 .durationSec(r.getDurationSec())
                 .startSec(r.getStartSec())
                 .views(r.getViewsCount())

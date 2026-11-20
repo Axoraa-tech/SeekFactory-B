@@ -119,6 +119,7 @@ public class CatalogMapper {
                 .hashtags(new ArrayList<>(reel.getHashtags()))
                 .posterUrl(reel.getPosterUrl())
                 .videoUrl(reel.getVideoUrl())
+                .hlsUrl(seekfactory.axoraa.services.media.HlsPaths.currentFor(reel.getVideoUrl(), reel.getHlsUrl()))
                 .durationSec(reel.getDurationSec())
                 .startSec(reel.getStartSec())
                 .views(reel.getViewsCount())

@@ -106,9 +106,7 @@ public class MediaController {
                     ? mediaStorageService.publicRedirectMaxAgeSeconds() : 0;
             return ResponseEntity.status(HttpStatus.FOUND)
                     .location(URI.create(location.get()))
-                    .cacheControl(maxAge > 0
-                            ? CacheControl.maxAge(maxAge, TimeUnit.SECONDS).cachePrivate().mustRevalidate()
-                            : CacheControl.noCache())
+                    .cacheControl(redirectCache(maxAge))
                     .build();
         }
         Resource resource = mediaStorageService.load(key);
@@ -124,6 +122,16 @@ public class MediaController {
                 .body(resource);
     }
 
+    /**
+     * Redirects to a signed link stay in the viewer's own cache only, and only for part of the link's life.
+     * A permanent address (public container or CDN) never changes, so any cache may keep the redirect.
+     */
+    private CacheControl redirectCache(long maxAge) {
+        if (maxAge <= 0) return CacheControl.noCache();
+        CacheControl cache = CacheControl.maxAge(maxAge, TimeUnit.SECONDS);
+        return mediaStorageService.publicLinksAreStable() ? cache.cachePublic() : cache.cachePrivate().mustRevalidate();
+    }
+
     /** A stored copy: redirect to the CDN when storage has one, otherwise stream it (never changes). */
     private Optional<ResponseEntity<Resource>> serveVariant(String name) {
         Optional<String> location = mediaStorageService.variantUrl(name);
@@ -131,9 +139,7 @@ public class MediaController {
             long maxAge = mediaStorageService.publicRedirectMaxAgeSeconds();
             return Optional.of(ResponseEntity.status(HttpStatus.FOUND)
                     .location(URI.create(location.get()))
-                    .cacheControl(maxAge > 0
-                            ? CacheControl.maxAge(maxAge, TimeUnit.SECONDS).cachePrivate().mustRevalidate()
-                            : CacheControl.noCache())
+                    .cacheControl(redirectCache(maxAge))
                     .build());
         }
         return mediaStorageService.loadVariant(name).map(resource -> ResponseEntity.ok()

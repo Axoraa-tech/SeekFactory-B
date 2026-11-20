@@ -221,7 +221,7 @@ public final class AzureBlobClient {
     }
 
     /** Encodes each path segment, keeping the slashes between them. */
-    static String encodePath(String blob) {
+    public static String encodePath(String blob) {
         String[] parts = blob.split("/", -1);
         StringBuilder out = new StringBuilder();
         for (int i = 0; i < parts.length; i++) {

@@ -109,6 +109,51 @@ public class MediaVariantService {
         }
     }
 
+    /**
+     * Makes sure {@code variants/<uuid>-w<width>.<original extension>} exists, so a browser can load the
+     * copy straight from public storage by a name it can work out itself, with no request to this API
+     * (each one is an extra round trip from mainland China). The file holds the smaller copy when there
+     * is one, else the original (already small, or not decodable); its content type tells the browser
+     * which. Returns false when it could not be made (the browser then falls back to the API address).
+     */
+    public boolean ensureDirectCopy(String key, int width) {
+        if (!supports(key, width)) return false;
+        var m = SOURCE_KEY.matcher(key);
+        if (!m.matches()) return false;
+        String name = variantName(m.group(1), width, m.group(2));
+        try {
+            if (storage.variantExists(name)) return true;
+            if (!generating.tryAcquire(30, TimeUnit.SECONDS)) return false;
+            try {
+                if (storage.variantExists(name)) return true;
+                byte[] original = storage.readPublic(key);
+                Optional<ImageCompressor.Result> result = new ImageCompressor(width, QUALITY).compress(original, m.group(2));
+                if (result.isPresent()) {
+                    storage.storeVariant(name, result.get().bytes(), MediaTypes.contentTypeOf("x." + result.get().extension()));
+                } else {
+                    storage.storeVariant(name, original, MediaTypes.contentTypeOf(key));
+                }
+                return true;
+            } finally {
+                generating.release();
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return false;
+        } catch (RuntimeException e) {
+            log.warn("Could not make the direct {}px copy of {}: {}", width, key, e.getMessage());
+            return false;
+        }
+    }
+
+    /** Direct copies at every width, off the request thread (after an upload). */
+    public void ensureDirectCopiesLater(String key) {
+        if (key == null || !SOURCE_KEY.matcher(key).matches()) return;
+        Thread.ofVirtual().name("direct-copies").start(() -> {
+            for (int width : WIDTHS) ensureDirectCopy(key, width);
+        });
+    }
+
     private Optional<String> findStored(String id, int width) {
         for (String extension : List.of("jpg", "png")) {
             String name = variantName(id, width, extension);

@@ -17,6 +17,7 @@ import java.util.Random;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 class MediaVariantServiceTest {
@@ -186,5 +187,41 @@ class MediaVariantServiceTest {
         assertThat(service.supports(ID + ".webp", 640)).isFalse();
         assertThat(service.supports(ID + ".mp4", 640)).isFalse();
         assertThat(service.supports("../etc/passwd.png", 640)).isFalse();
+    }
+
+    @Test
+    void directCopyKeepsTheOriginalExtensionInItsNameWhateverItHolds() throws IOException {
+        Map<String, byte[]> variants = new HashMap<>();
+        byte[] original = photoPng(1600, 1000);
+        MediaStorageService storage = storage(original, variants);
+        MediaVariantService service = new MediaVariantService(storage);
+
+        assertThat(service.ensureDirectCopy(KEY, 640)).isTrue();
+        // An opaque PNG becomes a JPEG copy, stored under the name the browser works out: .png
+        assertThat(variants).containsKey(ID + "-w640.png");
+        verify(storage).storeVariant(eq(ID + "-w640.png"), any(), eq("image/jpeg"));
+        assertThat(variants.get(ID + "-w640.png").length).isLessThan(original.length);
+
+        // Already there: nothing is made again
+        assertThat(service.ensureDirectCopy(KEY, 640)).isTrue();
+        verify(storage, times(1)).storeVariant(eq(ID + "-w640.png"), any(), anyString());
+    }
+
+    @Test
+    void aSmallPhotoGetsTheOriginalUnderTheDirectName() throws IOException {
+        Map<String, byte[]> variants = new HashMap<>();
+        byte[] original = photoPng(100, 80);
+        MediaStorageService storage = storage(original, variants);
+
+        assertThat(new MediaVariantService(storage).ensureDirectCopy(KEY, 1280)).isTrue();
+        assertThat(variants).containsKey(ID + "-w1280.png");
+    }
+
+    @Test
+    void directCopiesOnlyForResizablePhotosAndWidths() {
+        MediaVariantService service = new MediaVariantService(mock(MediaStorageService.class));
+        assertThat(service.ensureDirectCopy(KEY, 500)).isFalse();
+        assertThat(service.ensureDirectCopy("../x.png", 640)).isFalse();
+        assertThat(service.ensureDirectCopy(ID + ".mp4", 640)).isFalse();
     }
 }

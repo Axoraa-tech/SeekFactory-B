@@ -48,6 +48,7 @@ public class MediaController {
             @RequestParam("file") MultipartFile file,
             @RequestParam("kind") String kind) {
         MediaUploadResponse response = mediaStorageService.store(file, kind);
+        prepareDirectCopies(kind, response);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.of(response, "Media uploaded"));
     }
 
@@ -64,7 +65,15 @@ public class MediaController {
             throw new BadRequestException("kind must be 'image' or 'document'");
         }
         MediaUploadResponse response = mediaStorageService.store(file, kind);
+        prepareDirectCopies(kind, response);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.of(response, "File uploaded"));
+    }
+
+    /** New photos get their small copies right away, so browsers can load them straight from storage. */
+    private void prepareDirectCopies(String kind, MediaUploadResponse response) {
+        if (!"image".equals(kind) || response == null || response.getUrl() == null) return;
+        String url = response.getUrl();
+        variantService.ensureDirectCopiesLater(url.substring(url.lastIndexOf('/') + 1));
     }
 
     /**

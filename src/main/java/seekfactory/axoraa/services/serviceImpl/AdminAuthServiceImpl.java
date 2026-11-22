@@ -49,6 +49,7 @@ public class AdminAuthServiceImpl implements AdminAuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
     private final JwtConfig jwtConfig;
+    private final seekfactory.axoraa.services.services.AdminDashboardService adminDashboardService;
 
     private static final String ROOT_INVITE_TOKEN = "00000000-0000-0000-0000-000000000000";
 
@@ -149,6 +150,8 @@ public class AdminAuthServiceImpl implements AdminAuthService {
 
         // 3. Issue Token
         log.info("Admin {} successfully logged in via TOTP", admin.getEmail());
+        // The browser goes straight to the dashboard: start its numbers now
+        adminDashboardService.warmAnalytics();
         
         String accessToken = jwtTokenProvider.generateAccessToken(admin.getId().toString(), admin.getEmail(), admin.getRole().name());
         String refreshToken = jwtTokenProvider.generateRefreshToken(admin.getId().toString(), admin.getEmail(), admin.getRole().name());

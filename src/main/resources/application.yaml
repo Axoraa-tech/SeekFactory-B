@@ -124,6 +124,11 @@ management:
   endpoint:
     health:
       show-details: when_authorized
+  health:
+    # Health must answer fast for Azure's probe. The mail check opens an SMTP connection to Gmail on every
+    # call and could hang it, making the API look down; mail problems are logged when a send fails instead.
+    mail:
+      enabled: false
 
 # ─── OpenAPI / Swagger ────────────────────────────────────────
 springdoc:

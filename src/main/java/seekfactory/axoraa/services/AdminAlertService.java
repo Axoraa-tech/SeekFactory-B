@@ -54,13 +54,14 @@ public class AdminAlertService {
 
     private final JdbcTemplate jdbcTemplate;
     private final MailService mailService;
-    private final String frontendUrl;
+    private final String siteUrl;
+    static final String DEFAULT_SITE_URL = "https://www.seekfactory.com";
 
     public AdminAlertService(JdbcTemplate jdbcTemplate, MailService mailService,
                              @Value("${app.frontend-url:http://localhost:3000}") String frontendUrl) {
         this.jdbcTemplate = jdbcTemplate;
         this.mailService = mailService;
-        this.frontendUrl = frontendUrl.replaceAll("/+$", "");
+        this.siteUrl = publicSiteUrl(frontendUrl);
     }
 
     public Settings getSettings() {
@@ -105,41 +106,58 @@ public class AdminAlertService {
     public int sendTest() {
         List<String> to = getSettings().recipients();
         if (to.isEmpty()) throw new seekfactory.axoraa.exceptions.BadRequestException("Add and save at least one email address first");
-        for (String recipient : to) {
-            mailService.send(recipient, "SeekFactory admin alerts are working",
-                    "This is a test from SeekFactory Admin → Settings → Email alerts.\n\n"
-                            + "You will get an email here when there is something to review.\n\n" + frontendUrl + "/admin/dashboard");
-        }
+        String body = AlertEmail.render(
+                "Email alerts are working",
+                "This is a test message. From now on, this address gets an email whenever something on SeekFactory needs an admin.",
+                List.of(
+                        new String[]{"New manufacturer", "registered and waiting for approval"},
+                        new String[]{"New buyer", "someone signed up"},
+                        new String[]{"New content", "a product or seek was added"},
+                        new String[]{"New payment", "a plan payment is waiting for review"}),
+                "Nothing to do. You can change which alerts you get in Admin > Settings > Email alerts.",
+                "Open the admin panel", siteUrl + "/admin/dashboard",
+                Instant.now());
+        for (String recipient : to) mailService.send(recipient, "[SeekFactory] Email alerts are working", body);
         return to.size();
     }
 
     // ---- events (called by the services that create things) ----
 
     public void newUser(String name, String email, String phone, String country) {
-        notify(Event.NEW_USER, "New buyer signed up: " + display(name, email, phone),
-                "A new buyer joined SeekFactory.\n\n"
-                        + line("Name", name) + line("Email", email) + line("Phone", phone) + line("Country", country)
-                        + "\nView users: " + frontendUrl + "/admin/users");
+        notify(Event.NEW_USER, "New buyer signed up: " + display(name, email, phone), AlertEmail.render(
+                "New buyer signed up",
+                "A new buyer account was created on SeekFactory.",
+                rows("Name", name, "Email", email, "Phone", phone, "Country", country),
+                "No approval needed. Review the account if anything looks wrong.",
+                "View users", siteUrl + "/admin/users", Instant.now()));
     }
 
     public void newManufacturer(String company, String email, String phone, String country) {
-        notify(Event.NEW_MANUFACTURER, "Manufacturer waiting for approval: " + display(company, email, phone),
-                "A new manufacturer registered and is waiting for your approval.\n\n"
-                        + line("Company", company) + line("Email", email) + line("Phone", phone) + line("Country", country)
-                        + "\nReview and approve: " + frontendUrl + "/admin/manufacturers");
+        notify(Event.NEW_MANUFACTURER, "Manufacturer waiting for approval: " + display(company, email, phone), AlertEmail.render(
+                "New manufacturer waiting for approval",
+                "A manufacturer registered on SeekFactory. Their factory stays hidden from buyers until an admin approves it.",
+                rows("Company", company, "Email", email, "Phone", phone, "Country", country),
+                "Check the company details and approve or reject the factory.",
+                "Review manufacturers", siteUrl + "/admin/manufacturers", Instant.now()));
     }
 
     public void newContent(String kind, String title, String manufacturer) {
-        notify(Event.NEW_CONTENT, "New " + kind + " from " + safe(manufacturer) + ": " + safe(title),
-                safe(manufacturer) + " added a new " + kind + ".\n\n" + line("Title", title)
-                        + "\nReview content: " + frontendUrl + "/admin/content");
+        String what = "seek".equals(kind) ? "seek video" : kind;
+        notify(Event.NEW_CONTENT, "New " + what + " from " + safe(manufacturer) + ": " + safe(title), AlertEmail.render(
+                "New " + what + " added",
+                safe(manufacturer) + " published a new " + what + " on SeekFactory.",
+                rows("Manufacturer", manufacturer, "Title", title, "Type", what),
+                "Check that it follows the content rules. Take it down from Content if it does not.",
+                "Review content", siteUrl + "/admin/content", Instant.now()));
     }
 
     public void newPayment(String payer, String plan, String amount) {
-        notify(Event.NEW_PAYMENT, "Payment to review: " + safe(plan) + " from " + safe(payer),
-                "A plan payment was submitted and is waiting for review.\n\n"
-                        + line("From", payer) + line("Plan", plan) + line("Amount", amount)
-                        + "\nReview payments: " + frontendUrl + "/admin/payments");
+        notify(Event.NEW_PAYMENT, "Payment to review: " + safe(plan) + " from " + safe(payer), AlertEmail.render(
+                "New payment waiting for review",
+                "A buyer submitted a plan payment with proof of payment.",
+                rows("From", payer, "Plan", plan, "Amount", amount),
+                "Check the payment proof, then approve or reject it. The plan starts only after approval.",
+                "Review payments", siteUrl + "/admin/payments", Instant.now()));
     }
 
     private void notify(Event event, String subject, String body) {
@@ -147,8 +165,7 @@ public class AdminAlertService {
             try {
                 Settings settings = getSettings();
                 if (!settings.wants(event)) return;
-                String text = body + "\n\n—\nYou get these because of Admin → Settings → Email alerts. Turn them off there.";
-                for (String to : settings.recipients()) mailService.send(to, "[SeekFactory] " + subject, text);
+                for (String to : settings.recipients()) mailService.send(to, "[SeekFactory] " + subject, body);
             } catch (RuntimeException e) {
                 log.warn("Admin alert '{}' not sent: {}", subject, e.getMessage());
             }
@@ -164,6 +181,28 @@ public class AdminAlertService {
         } else {
             send.run();
         }
+    }
+
+    /** Label/value pairs; empty values are left out. */
+    private static List<String[]> rows(String... labelsAndValues) {
+        List<String[]> out = new java.util.ArrayList<>();
+        for (int i = 0; i + 1 < labelsAndValues.length; i += 2) {
+            String v = labelsAndValues[i + 1];
+            if (v != null && !v.isBlank()) out.add(new String[]{labelsAndValues[i], v});
+        }
+        return out;
+    }
+
+    /**
+     * The public website address for links in emails. A local address (app.frontend-url left at its
+     * development default) would be useless to the admin reading the email, so the live site is used.
+     */
+    static String publicSiteUrl(String configured) {
+        String url = configured == null ? "" : configured.trim().replaceAll("/+$", "");
+        if (url.isEmpty() || url.matches("(?i)https?://(localhost|127\\.0\\.0\\.1|0\\.0\\.0\\.0)(:\\d+)?(/.*)?")) {
+            return DEFAULT_SITE_URL;
+        }
+        return url;
     }
 
     // ---- helpers ----
@@ -195,10 +234,6 @@ public class AdminAlertService {
         String n = safe(name);
         String contact = email != null && !email.isBlank() ? email : phone;
         return contact == null || contact.isBlank() ? n : n + " (" + contact + ")";
-    }
-
-    private static String line(String label, String value) {
-        return value == null || value.isBlank() ? "" : label + ": " + value.replaceAll("[\\r\\n]+", " ") + "\n";
     }
 
     /** One line, bounded: user-entered names go into email subjects. */

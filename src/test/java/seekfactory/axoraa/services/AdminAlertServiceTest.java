@@ -73,4 +73,30 @@ class AdminAlertServiceTest {
         doThrow(new RuntimeException("smtp down")).when(mail).send(anyString(), anyString(), anyString());
         service.newPayment("Bob", "Pro", "INR 999");   // no exception
     }
+
+    @Test
+    void linksNeverPointAtALocalAddress() {
+        assertThat(AdminAlertService.publicSiteUrl("http://localhost:3000")).isEqualTo("https://www.seekfactory.com");
+        assertThat(AdminAlertService.publicSiteUrl("http://127.0.0.1:3000/")).isEqualTo("https://www.seekfactory.com");
+        assertThat(AdminAlertService.publicSiteUrl(null)).isEqualTo("https://www.seekfactory.com");
+        assertThat(AdminAlertService.publicSiteUrl("https://www.seekfactory.com/")).isEqualTo("https://www.seekfactory.com");
+
+        AdminAlertService local = new AdminAlertService(jdbc, mail, "http://localhost:3000");
+        saved(settings(true, List.of("a@x.com"), true, true));
+        local.newUser("Bob", "bob@example.com", null, "India");
+        verify(mail).send(eq("a@x.com"), anyString(), argThat(body -> !body.contains("localhost")
+                && body.contains("https://www.seekfactory.com/admin/users")));
+    }
+
+    @Test
+    void plainTextTemplateWithDetailsAndNextStep() {
+        saved(settings(true, List.of("a@x.com"), true, true));
+        service.newManufacturer("Acme Machines", "sales@acme.cn", "+86 138 0000 0000", "China");
+        verify(mail).send(eq("a@x.com"), eq("[SeekFactory] Manufacturer waiting for approval: Acme Machines (sales@acme.cn)"),
+                argThat(body -> body.startsWith("SEEKFACTORY ADMIN ALERT")
+                        && body.contains("DETAILS") && body.contains("Company : Acme Machines")
+                        && body.contains("Phone   : +86 138 0000 0000")
+                        && body.contains("WHAT TO DO") && body.contains("approve or reject")
+                        && !body.contains("<") && !body.contains("localhost")));
+    }
 }

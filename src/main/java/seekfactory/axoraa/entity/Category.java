@@ -48,6 +48,10 @@ public class Category extends BaseEntity{
     @Builder.Default
     private List<Category> children = new ArrayList<>();
 
+    /** Admin-chosen position among siblings (0 = first); null follows the placed ones. */
+    @Column(name = "display_order")
+    private Integer displayOrder;
+
     @Column(name = "listing_count", nullable = false)
     @Builder.Default
     private Integer listingCount = 0;

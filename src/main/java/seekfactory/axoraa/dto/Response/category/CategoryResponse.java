@@ -17,4 +17,6 @@ public class CategoryResponse {
     private int listingCount;
     private String parentId;     // null for root categories
     private String icon;
+    /** Admin-chosen position among siblings (0 = first); null when not placed. */
+    private Integer displayOrder;
 }

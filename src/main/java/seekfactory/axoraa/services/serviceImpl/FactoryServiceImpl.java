@@ -78,6 +78,10 @@ import java.util.stream.Collectors;
 @Transactional
 public class FactoryServiceImpl implements FactoryService {
 
+    /** Emails admins about new sign-ups, content and payments (optional: absent in unit tests). */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private seekfactory.axoraa.services.AdminAlertService adminAlerts;
+
     private final ManufacturerRepository manufacturerRepository;
     private final ProductRepository productRepository;
     private final ReelRepository reelRepository;
@@ -399,6 +403,7 @@ public class FactoryServiceImpl implements FactoryService {
         applyDatasheet(product, request.getDatasheetUrl(), request.getDatasheetName());
 
         Product saved = productRepository.save(product);
+        if (adminAlerts != null) adminAlerts.newContent("product", saved.getName(), manufacturer.getName());
         return mapToProductResponse(saved);
     }
 
@@ -633,6 +638,7 @@ public class FactoryServiceImpl implements FactoryService {
                 .build();
 
         Reel saved = reelRepository.save(reel);
+        if (adminAlerts != null) adminAlerts.newContent("seek", saved.getTitle(), saved.getManufacturer() != null ? saved.getManufacturer().getName() : null);
         return withRealEngagement(saved);
     }
 

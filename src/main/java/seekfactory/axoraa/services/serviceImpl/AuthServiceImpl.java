@@ -43,6 +43,10 @@ import java.time.Instant;
 @Transactional
 public class AuthServiceImpl implements AuthService {
 
+    /** Emails admins about new sign-ups, content and payments (optional: absent in unit tests). */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private seekfactory.axoraa.services.AdminAlertService adminAlerts;
+
     private final UserRepository userRepository;
     private final seekfactory.axoraa.services.PhoneNumberService phoneNumbers;
     private final ManufacturerRepository manufacturerRepository;
@@ -111,9 +115,13 @@ public class AuthServiceImpl implements AuthService {
 
             manufacturerRepository.save(m);
             log.info("Registered manufacturer {} as PENDING admin review", savedUser.getEmail());
+            if (adminAlerts != null) adminAlerts.newManufacturer(company, savedUser.getEmail(), savedUser.getPhone(), savedUser.getCountry());
         }
 
         // 4.2 Confirm the address (best effort: signup never fails on email delivery)
+        if (adminAlerts != null && savedUser.getRole() == UserRole.ROLE_BUYER) {
+            adminAlerts.newUser(savedUser.getName(), savedUser.getEmail(), savedUser.getPhone(), savedUser.getCountry());
+        }
         accountService.sendEmailVerification(savedUser);
 
         // 5. Generate JWT tokens and return
@@ -170,7 +178,12 @@ public class AuthServiceImpl implements AuthService {
                             .authProvider(AuthProvider.PHONE)
                             .companyName(request.getCompanyName())
                             .build();
-                    return userRepository.saveAndFlush(newUser);
+                    User saved = userRepository.saveAndFlush(newUser);
+                    if (adminAlerts != null) {
+                        if (newRole == UserRole.ROLE_SUPPLIER) adminAlerts.newManufacturer(saved.getCompanyName() != null ? saved.getCompanyName() : saved.getName(), null, saved.getPhone(), saved.getCountry());
+                        else adminAlerts.newUser(saved.getName(), null, saved.getPhone(), saved.getCountry());
+                    }
+                    return saved;
                 });
 
         requireNonAdmin(user);
@@ -224,6 +237,7 @@ public class AuthServiceImpl implements AuthService {
                             .emailVerified(true)
                             .build());
                     log.info("New buyer registered via Google: {}", created.getEmail());
+                    if (adminAlerts != null) adminAlerts.newUser(created.getName(), created.getEmail(), null, created.getCountry());
                     return created;
                 });
 

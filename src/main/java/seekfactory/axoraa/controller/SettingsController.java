@@ -22,6 +22,7 @@ import java.util.concurrent.TimeUnit;
 public class SettingsController {
 
     private final PlatformSettingsService platformSettingsService;
+    private final seekfactory.axoraa.services.AdminAlertService adminAlertService;
 
     @GetMapping("/api/v1/settings/feed-showcase")
     @Operation(summary = "Public: how the website home feed showcases seeks")
@@ -55,5 +56,31 @@ public class SettingsController {
     public ResponseEntity<ApiResponse<FeedShowcaseSettings>> updateFeedShowcase(@Valid @RequestBody FeedShowcaseSettings request) {
         FeedShowcaseSettings saved = platformSettingsService.updateFeedShowcase(request, SecurityUtils.getCurrentUserId());
         return ResponseEntity.ok(ApiResponse.of(saved, "Feed showcase published"));
+    }
+
+    // ---- Email alerts to admins (new sign-ups, content, payments) ----
+
+    @GetMapping("/api/v1/admin/settings/alerts")
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
+    @Operation(summary = "Admin: email alert settings")
+    public ResponseEntity<ApiResponse<seekfactory.axoraa.services.AdminAlertService.Settings>> getAlerts() {
+        return ResponseEntity.ok(ApiResponse.of(adminAlertService.getSettings()));
+    }
+
+    @PutMapping("/api/v1/admin/settings/alerts")
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
+    @Operation(summary = "Admin: turn email alerts on/off, set recipients and events")
+    public ResponseEntity<ApiResponse<seekfactory.axoraa.services.AdminAlertService.Settings>> updateAlerts(
+            @RequestBody seekfactory.axoraa.services.AdminAlertService.Settings request) {
+        return ResponseEntity.ok(ApiResponse.of(
+                adminAlertService.updateSettings(request, SecurityUtils.getCurrentUserId()), "Email alerts saved"));
+    }
+
+    @org.springframework.web.bind.annotation.PostMapping("/api/v1/admin/settings/alerts/test")
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
+    @Operation(summary = "Admin: send a test alert to the saved recipients")
+    public ResponseEntity<ApiResponse<java.util.Map<String, Integer>>> testAlerts() {
+        int sent = adminAlertService.sendTest();
+        return ResponseEntity.ok(ApiResponse.of(java.util.Map.of("sent", sent), "Test email sent"));
     }
 }

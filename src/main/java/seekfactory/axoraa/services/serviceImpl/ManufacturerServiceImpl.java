@@ -110,7 +110,21 @@ public class ManufacturerServiceImpl implements ManufacturerService {
                 // loading every manufacturer into memory.
                 manufacturerRepository.findByVerifiedTrue().stream()
                         .map(catalogMapper::toManufacturer)
+                        .map(ManufacturerServiceImpl::forList)
                         .collect(Collectors.toList())));
+    }
+
+    /** Characters of a factory description kept in the all-factories list (cards show four lines at most). */
+    static final int LIST_DESCRIPTION_CHARS = 400;
+
+    /**
+     * The all-factories list is downloaded on every first visit. Certificate images and full descriptions
+     * were ~75% of its ~0.5 MB and are only shown on a factory's own page, which loads them itself.
+     */
+    static ManufacturerResponse forList(ManufacturerResponse m) {
+        m.setCertificates(List.of());
+        m.setDescription(ProductServiceImpl.summary(m.getDescription(), LIST_DESCRIPTION_CHARS));
+        return m;
     }
 
     private final seekfactory.axoraa.utils.RefreshingCache<String, List<ManufacturerResponse>> allCache =

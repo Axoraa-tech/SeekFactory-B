@@ -72,14 +72,19 @@ class VideoTranscoderTest {
             Path out = dir.resolve("hls");
             assertThat(transcoder.packageHls(source, out)).isTrue();
 
-            String master = Files.readString(out.resolve("master.m3u8"));
-            assertThat(master).contains("stream_0.m3u8").contains("stream_1.m3u8").contains("RESOLUTION=360x640").contains("RESOLUTION=720x1280");
-            String small = Files.readString(out.resolve("stream_0.m3u8"));
-            assertThat(small).contains("#EXT-X-PLAYLIST-TYPE:VOD").contains("stream_0_000.ts").contains("#EXT-X-ENDLIST");
+            // HD portrait source: light 240p first rung, 360p and 720p, 2-second segments
+            String master = Files.readString(out.resolve("index.m3u8"));
+            assertThat(master).contains("v2_0.m3u8").contains("v2_1.m3u8").contains("v2_2.m3u8")
+                    .contains("RESOLUTION=240x426").contains("RESOLUTION=360x640").contains("RESOLUTION=720x1280");
+            String small = Files.readString(out.resolve("v2_0.m3u8"));
+            assertThat(small).contains("#EXT-X-PLAYLIST-TYPE:VOD").contains("v2_0_000.ts").contains("#EXT-X-ENDLIST")
+                    .contains("#EXT-X-TARGETDURATION:2");
             try (var files = Files.list(out)) {
-                assertThat(files.map(f -> f.getFileName().toString()).filter(n -> n.endsWith(".ts")).count()).isGreaterThanOrEqualTo(4);
+                // 10 s in 2 s pieces, three qualities
+                assertThat(files.map(f -> f.getFileName().toString()).filter(n -> n.endsWith(".ts")).count()).isGreaterThanOrEqualTo(15);
             }
-            assertThat(probe(out.resolve("stream_0_000.ts"))).contains("h264").contains("aac");
+            assertThat(Files.size(out.resolve("v2_0_000.ts"))).isLessThan(200_000);
+            assertThat(probe(out.resolve("v2_0_000.ts"))).contains("h264").contains("aac");
         }
     }
 
@@ -96,7 +101,8 @@ class VideoTranscoderTest {
             assertThat(gen.waitFor(120, TimeUnit.SECONDS)).isTrue();
 
             assertThat(transcoder.packageHls(source, dir.resolve("hls"))).isTrue();
-            assertThat(Files.readString(dir.resolve("hls").resolve("master.m3u8"))).contains("RESOLUTION=640x360");
+            String master = Files.readString(dir.resolve("hls").resolve("index.m3u8"));
+            assertThat(master).contains("RESOLUTION=426x240").contains("RESOLUTION=640x360").contains("RESOLUTION=1280x720");
         }
     }
 
@@ -107,5 +113,15 @@ class VideoTranscoderTest {
         String out = new String(p.getInputStream().readAllBytes());
         p.waitFor(30, TimeUnit.SECONDS);
         return out;
+    }
+
+    @Test
+    void ladderSkipsAnUpscaleAndReadsTheSourceSize() {
+        assertThat(VideoTranscoder.ladder(480)).extracting(VideoTranscoder.Rung::shortSide).containsExactly(240, 360);
+        assertThat(VideoTranscoder.ladder(1080)).extracting(VideoTranscoder.Rung::shortSide).containsExactly(240, 360, 720);
+        String out = "  Stream #0:0[0x1](und): Video: h264 (High) (avc1 / 0x31637661), yuv420p(tv), 480x640, 1200 kb/s, 30 fps\n"
+                + "  Stream #0:1[0x2](und): Audio: aac (LC), 44100 Hz, stereo, fltp, 128 kb/s";
+        assertThat(VideoTranscoder.parseSourceInfo(out)).isEqualTo(new VideoTranscoder.SourceInfo(true, 480));
+        assertThat(VideoTranscoder.parseSourceInfo("no streams")).isEqualTo(new VideoTranscoder.SourceInfo(false, 0));
     }
 }

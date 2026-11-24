@@ -226,36 +226,77 @@ public class VideoTranscoder implements AutoCloseable {
         return "scale=w='if(gte(iw,ih),-2,min(" + size + ",iw))':h='if(gte(iw,ih),min(" + size + ",ih),-2)'";
     }
 
+    /** One quality of the streaming ladder. */
+    record Rung(int shortSide, String videoBitrate, String maxRate, String bufSize, String audioBitrate) {}
+
     /**
-     * Adaptive-streaming copy of a (compressed) video: 360p (~0.7 Mbps) and 720p (~2.2 Mbps), H.264/AAC,
-     * 4-second MPEG-TS segments, written to {@code outDir} as {@code master.m3u8}, {@code stream_<n>.m3u8} and
-     * {@code stream_<n>_<seq>.ts}. A player starts on the small quality and moves up when the connection allows,
-     * so a weak link (e.g. into mainland China) still starts quickly. True when the master playlist exists.
+     * The quality ladder for a source whose shorter side is {@code sourceShortSide} px. The first rung is light
+     * on purpose: a phone in mainland China starts on ~0.35 Mbps (a 2-second piece is ~90 KB) and steps up as
+     * soon as the link allows. 720p is only made from HD sources (an upscale would only cost bytes).
+     */
+    static java.util.List<Rung> ladder(int sourceShortSide) {
+        java.util.List<Rung> rungs = new java.util.ArrayList<>(java.util.List.of(
+                new Rung(240, "300k", "360k", "600k", "64k"),
+                new Rung(360, "700k", "820k", "1400k", "96k")));
+        if (sourceShortSide >= 600) rungs.add(new Rung(720, "1800k", "2100k", "3600k", "96k"));
+        return rungs;
+    }
+
+    /** Seconds per segment: short pieces so the first frame needs only a small download. */
+    static final int SEGMENT_SECONDS = 2;
+
+    /**
+     * Adaptive-streaming copy of a (compressed) video (layout v2, see {@link HlsPaths}): the {@link #ladder}
+     * qualities as H.264/AAC in {@value #SEGMENT_SECONDS}-second MPEG-TS segments with aligned keyframes, written
+     * to {@code outDir} as {@code index.m3u8}, {@code v2_<n>.m3u8} and {@code v2_<n>_<seq>.ts}. Runs at low CPU
+     * priority so the API keeps answering while it works. True when the master and first playlist exist.
      */
     public boolean packageHls(Path source, Path outDir) {
         if (!available) return false;
         try {
             Files.createDirectories(outDir);
-            boolean audio = hasAudio(source);
-            java.util.List<String> command = new java.util.ArrayList<>(java.util.List.of(
-                    ffmpeg, "-hide_banner", "-loglevel", "error", "-y", "-i", source.toString(),
-                    "-filter_complex", "[0:v]split=2[small][large];[small]" + shortSide(360) + "[v0];[large]" + shortSide(720) + "[v1]",
-                    "-map", "[v0]"));
-            if (audio) command.addAll(java.util.List.of("-map", "0:a:0"));
-            command.addAll(java.util.List.of("-map", "[v1]"));
-            if (audio) command.addAll(java.util.List.of("-map", "0:a:0"));
+            SourceInfo info = probeSource(source);
+            java.util.List<Rung> rungs = ladder(info.shortSide());
+            int n = rungs.size();
+
+            StringBuilder graph = new StringBuilder("[0:v]split=" + n);
+            for (int i = 0; i < n; i++) graph.append("[s").append(i).append(']');
+            graph.append(';');
+            for (int i = 0; i < n; i++) {
+                graph.append("[s").append(i).append(']').append(shortSide(rungs.get(i).shortSide())).append("[v").append(i).append(']');
+                if (i < n - 1) graph.append(';');
+            }
+
+            java.util.List<String> command = new java.util.ArrayList<>(lowPriority());
+            command.addAll(java.util.List.of(ffmpeg, "-hide_banner", "-loglevel", "error", "-y", "-i", source.toString(),
+                    "-filter_complex", graph.toString()));
+            StringBuilder streamMap = new StringBuilder();
+            for (int i = 0; i < n; i++) {
+                command.addAll(java.util.List.of("-map", "[v" + i + "]"));
+                if (info.audio()) command.addAll(java.util.List.of("-map", "0:a:0"));
+                if (i > 0) streamMap.append(' ');
+                streamMap.append("v:").append(i).append(info.audio() ? ",a:" + i : "");
+            }
             command.addAll(java.util.List.of(
                     "-c:v", "libx264", "-preset", preset, "-threads", "1", "-profile:v", "main", "-pix_fmt", "yuv420p",
-                    "-fpsmax", "30", "-force_key_frames", "expr:gte(t,n_forced*4)", "-sc_threshold", "0",
-                    "-b:v:0", "700k", "-maxrate:v:0", "800k", "-bufsize:v:0", "1400k",
-                    "-b:v:1", "2200k", "-maxrate:v:1", "2500k", "-bufsize:v:1", "4400k"));
-            if (audio) command.addAll(java.util.List.of("-c:a", "aac", "-b:a", "96k", "-ac", "2"));
+                    "-fpsmax", "30", "-sc_threshold", "0",
+                    "-force_key_frames", "expr:gte(t,n_forced*" + SEGMENT_SECONDS + ")"));
+            for (int i = 0; i < n; i++) {
+                Rung r = rungs.get(i);
+                command.addAll(java.util.List.of("-b:v:" + i, r.videoBitrate(), "-maxrate:v:" + i, r.maxRate(), "-bufsize:v:" + i, r.bufSize()));
+            }
+            if (info.audio()) {
+                command.addAll(java.util.List.of("-c:a", "aac", "-ac", "2"));
+                for (int i = 0; i < n; i++) command.addAll(java.util.List.of("-b:a:" + i, rungs.get(i).audioBitrate()));
+            }
             command.addAll(java.util.List.of(
-                    "-f", "hls", "-hls_time", "4", "-hls_playlist_type", "vod", "-hls_flags", "independent_segments",
-                    "-hls_segment_filename", outDir.resolve("stream_%v_%03d.ts").toString(),
+                    "-f", "hls", "-hls_time", String.valueOf(SEGMENT_SECONDS), "-hls_playlist_type", "vod",
+                    "-hls_flags", "independent_segments",
+                    "-hls_segment_filename", outDir.resolve("v2_%v_%03d.ts").toString(),
                     "-master_pl_name", HlsPaths.MASTER,
-                    "-var_stream_map", audio ? "v:0,a:0 v:1,a:1" : "v:0 v:1",
-                    outDir.resolve("stream_%v.m3u8").toString()));
+                    "-var_stream_map", streamMap.toString(),
+                    outDir.resolve("v2_%v.m3u8").toString()));
+
             Process process = new ProcessBuilder(command)
                     .redirectErrorStream(true)
                     .redirectOutput(ProcessBuilder.Redirect.DISCARD)
@@ -266,7 +307,7 @@ public class VideoTranscoder implements AutoCloseable {
             }
             return process.exitValue() == 0
                     && Files.isRegularFile(outDir.resolve(HlsPaths.MASTER))
-                    && Files.isRegularFile(outDir.resolve("stream_0.m3u8"));
+                    && Files.isRegularFile(outDir.resolve("v2_0.m3u8"));
         } catch (IOException e) {
             log.warn("Could not package {} for streaming: {}", source.getFileName(), e.getMessage());
             return false;
@@ -276,14 +317,34 @@ public class VideoTranscoder implements AutoCloseable {
         }
     }
 
+    /** Whether the source has sound, and its shorter side in px (0 when unknown). */
+    record SourceInfo(boolean audio, int shortSide) {}
+
+    private static final java.util.regex.Pattern VIDEO_SIZE =
+            java.util.regex.Pattern.compile("Video:.*?\\b(\\d{2,5})x(\\d{2,5})\\b");
+
     /** ffmpeg lists the input's streams on stderr when given no output (it then exits with an error). */
-    private boolean hasAudio(Path source) throws IOException, InterruptedException {
+    private SourceInfo probeSource(Path source) throws IOException, InterruptedException {
         Process p = new ProcessBuilder(ffmpeg, "-hide_banner", "-i", source.toString())
                 .redirectErrorStream(true)
                 .start();
         String output = new String(p.getInputStream().readAllBytes());
         p.waitFor(60, TimeUnit.SECONDS);
-        return output.contains("Audio:");
+        return parseSourceInfo(output);
+    }
+
+    static SourceInfo parseSourceInfo(String ffmpegOutput) {
+        java.util.regex.Matcher m = VIDEO_SIZE.matcher(ffmpegOutput);
+        int shortSide = m.find() ? Math.min(Integer.parseInt(m.group(1)), Integer.parseInt(m.group(2))) : 0;
+        return new SourceInfo(ffmpegOutput.contains("Audio:"), shortSide);
+    }
+
+    /** {@code nice -n 19} when the system has it: encoding yields the CPU to the API's requests. */
+    private static java.util.List<String> lowPriority() {
+        for (String nice : new String[]{"/usr/bin/nice", "/bin/nice"}) {
+            if (Files.isExecutable(Path.of(nice))) return java.util.List.of(nice, "-n", "19");
+        }
+        return java.util.List.of();
     }
 
     private static boolean probe(String ffmpegPath) {

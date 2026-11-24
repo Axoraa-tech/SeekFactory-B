@@ -55,7 +55,7 @@ class HlsPublisherTest {
         when(transcoder.packageHls(any(), any())).thenAnswer(inv -> {
             Path out = inv.getArgument(1);
             Files.createDirectories(out);
-            for (String f : new String[]{"master.m3u8", "stream_0.m3u8", "stream_1.m3u8", "stream_0_000.ts", "stream_1_000.ts", "junk.txt"}) {
+            for (String f : new String[]{"index.m3u8", "v2_0.m3u8", "v2_1.m3u8", "v2_0_000.ts", "v2_1_000.ts", "junk.txt"}) {
                 Files.writeString(out.resolve(f), f);
             }
             return true;
@@ -73,29 +73,29 @@ class HlsPublisherTest {
         publisher.publishPending();
 
         assertThat(uploaded).containsExactly(
-                "hls/" + A + "/stream_0_000.ts", "hls/" + A + "/stream_1_000.ts",
-                "hls/" + A + "/stream_0.m3u8", "hls/" + A + "/stream_1.m3u8",
-                "hls/" + A + "/master.m3u8");
-        verify(storage).storePublicFile(eq("hls/" + A + "/stream_0_000.ts"), any(), eq("video/mp2t"), eq(HlsPublisher.SEGMENT_CACHE));
-        verify(storage).storePublicFile(eq("hls/" + A + "/master.m3u8"), any(), eq("application/vnd.apple.mpegurl"), eq(HlsPublisher.PLAYLIST_CACHE));
-        verify(jdbc).update(anyString(), eq("/api/v1/media/hls/" + A + "/master.m3u8"), eq("r1"), eq("/api/v1/media/" + A + ".mp4"));
+                "hls/" + A + "/v2_0_000.ts", "hls/" + A + "/v2_1_000.ts",
+                "hls/" + A + "/v2_0.m3u8", "hls/" + A + "/v2_1.m3u8",
+                "hls/" + A + "/index.m3u8");
+        verify(storage).storePublicFile(eq("hls/" + A + "/v2_0_000.ts"), any(), eq("video/mp2t"), eq(HlsPublisher.SEGMENT_CACHE));
+        verify(storage).storePublicFile(eq("hls/" + A + "/index.m3u8"), any(), eq("application/vnd.apple.mpegurl"), eq(HlsPublisher.PLAYLIST_CACHE));
+        verify(jdbc).update(anyString(), eq("/api/v1/media/hls/" + A + "/index.m3u8"), eq("r1"), eq("/api/v1/media/" + A + ".mp4"));
     }
 
     @Test
     void readyCopiesAreLinkedWithoutRepackaging() {
         reels(Map.of("id", "r1", "video_url", "/api/v1/media/" + A + ".mov"));
-        when(storage.publicFileExists("hls/" + A + "/master.m3u8")).thenReturn(true);
+        when(storage.publicFileExists("hls/" + A + "/index.m3u8")).thenReturn(true);
 
         publisher.publishPending();
 
         verify(transcoder, never()).packageHls(any(), any());
-        verify(jdbc).update(anyString(), eq("/api/v1/media/hls/" + A + "/master.m3u8"), eq("r1"), anyString());
+        verify(jdbc).update(anyString(), eq("/api/v1/media/hls/" + A + "/index.m3u8"), eq("r1"), anyString());
     }
 
     @Test
     void skipsLinkedProcessingAndForeignVideos() {
         java.util.HashMap<String, Object> linked = new java.util.HashMap<>(Map.of("id", "r1", "video_url", "/api/v1/media/" + A + ".mp4"));
-        linked.put("hls_url", "/api/v1/media/hls/" + A + "/master.m3u8");
+        linked.put("hls_url", "/api/v1/media/hls/" + A + "/index.m3u8");
         reels(linked,
                 Map.of("id", "r2", "video_url", "/api/v1/media/" + B + ".mp4"),
                 Map.of("id", "r3", "video_url", "https://example.com/clip.mp4"));
@@ -131,5 +131,17 @@ class HlsPublisherTest {
         publisher.publishPending();
 
         verify(transcoder, times(HlsPublisher.VIDEOS_PER_RUN)).packageHls(any(), any());
+    }
+
+    @Test
+    void aSeekOnTheOldLayoutIsRepackagedForFasterStarts() {
+        java.util.HashMap<String, Object> v1 = new java.util.HashMap<>(Map.of("id", "r1", "video_url", "/api/v1/media/" + A + ".mp4"));
+        v1.put("hls_url", "/api/v1/media/hls/" + A + "/master.m3u8");
+        reels(v1);
+
+        publisher.publishPending();
+
+        verify(transcoder).packageHls(any(), any());
+        verify(jdbc).update(anyString(), eq("/api/v1/media/hls/" + A + "/index.m3u8"), eq("r1"), anyString());
     }
 }

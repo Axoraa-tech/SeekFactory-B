@@ -26,10 +26,23 @@ jobs:
           java-version: 25
           cache: maven
 
+      # The Maven wrapper downloads Maven itself on first use; keep it between runs
+      - uses: actions/cache@v4
+        with:
+          path: ~/.m2/wrapper
+          key: maven-wrapper-${{ hashFiles('.mvn/wrapper/maven-wrapper.properties') }}
+
       - name: Build jar
         run: |
           chmod +x mvnw
-          ./mvnw -B clean package -DskipTests
+          # Maven Central sometimes drops a download; retry, then fall back to the runner's own Maven
+          MVN=./mvnw
+          for attempt in 1 2 3; do
+            if ./mvnw -B -q --version > /dev/null; then break; fi
+            if [ "$attempt" = 3 ]; then echo "Wrapper download failed 3 times; using the runner's Maven"; MVN=mvn; break; fi
+            echo "Maven download failed (attempt $attempt), retrying in 20 s"; sleep 20
+          done
+          $MVN -B clean package -DskipTests
           cp target/axoraa-*.jar app.jar
           # OneDeploy rejects type=jar for the Java 25 stack, so ship a zip that unpacks to wwwroot/app.jar
           zip -q app.zip app.jar

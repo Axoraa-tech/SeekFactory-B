@@ -5,7 +5,10 @@
 # Required environment variables:
 #   PROD_DB_URL, PROD_DB_USERNAME, PROD_DB_PASSWORD  (or DB_URL / DB_USERNAME / DB_PASSWORD)
 #   JWT_SECRET               at least 32 random bytes, unique to this environment
-#   CORS_ALLOWED_ORIGINS     comma-separated, e.g. https://seekfactory.com,https://www.seekfactory.com
+#   APP_MEDIA_AZURE_ACCOUNT_KEY                        Blob storage key
+#   SPRING_MAIL_USERNAME, SPRING_MAIL_PASSWORD         Gmail address and its app password
+#   APP_MAIL_FROM            e.g. "SeekFactory <alerts@gmail.com>" (must be that Gmail address)
+# Everything else the live site needs is set below ("Production settings kept in code").
 
 spring:
   datasource:
@@ -15,6 +18,11 @@ spring:
 
   jpa:
     show-sql: false
+
+  # Gmail SMTP (address and app password come from Azure: SPRING_MAIL_USERNAME / SPRING_MAIL_PASSWORD)
+  mail:
+    host: smtp.gmail.com
+    port: 587
 
   # A migration that no longer matches its checksum must stop the deploy, not be silently repaired
   flyway:
@@ -26,10 +34,32 @@ app:
     # No mock OTP in production: phone sign-in needs a real SMS provider
     mock-otp: ""
   cors:
-    allowed-origin-patterns: ${CORS_ALLOWED_ORIGINS}
+    allowed-origin-patterns: ${CORS_ALLOWED_ORIGINS:https://seekfactory.com,https://*.seekfactory.com,https://seekfactory-web-*.azurewebsites.net}
   logging:
     # Request/response bodies carry names, phones, addresses and chats: never log them in prod
     request-bodies: ${APP_LOGGING_REQUEST_BODIES:false}
+
+  # ── Production settings kept in code ──────────────────────────────────────────────────────
+  # Fixed, non-secret values for the live site, so the Azure App Service needs no setting for them.
+  # An environment variable with the matching name (e.g. APP_MEDIA_HLS_ENABLED=false) still wins,
+  # which is the quick way to switch something off without a deploy. Secrets (DB password, JWT secret,
+  # storage key, mail password) stay in Azure only.
+  frontend-url: https://www.seekfactory.com
+  google:
+    client-id: ${GOOGLE_CLIENT_ID:755855438157-ed0cikqv3srof2rgv6oe77jtaul9pcpf.apps.googleusercontent.com}
+  media:
+    storage: azure
+    azure:
+      account: seekfactorymedia
+      container: media
+      private-container: private
+      public-base-url: https://seekfactorymedia.blob.core.windows.net/media
+    ffmpeg-path: /home/bin/ffmpeg
+    video-preset: veryfast
+    hls:
+      enabled: true
+    # Photo copies for direct loading: made once by themselves (see MediaVariantWarmer)
+    warm-variants: auto
 
 # API docs are for development only
 springdoc:

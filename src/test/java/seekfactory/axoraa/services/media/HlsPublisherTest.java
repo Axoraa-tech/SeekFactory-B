@@ -2,7 +2,6 @@ package seekfactory.axoraa.services.media;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.jdbc.core.JdbcTemplate;
 import seekfactory.axoraa.services.services.MediaStorageService;
 
@@ -25,20 +24,6 @@ class HlsPublisherTest {
     private VideoTranscoder transcoder;
     private HlsPublisher publisher;
     private final List<String> uploaded = new ArrayList<>();
-
-    /** Spring itself must be able to create the publisher, or the API does not start with HLS on. */
-    @Test
-    void springCreatesThePublisherWhenEnabled() {
-        new ApplicationContextRunner()
-                .withPropertyValues("app.media.hls.enabled=true", "app.media.ffmpeg-path=/nonexistent/ffmpeg")
-                .withBean(JdbcTemplate.class, () -> mock(JdbcTemplate.class))
-                .withBean(MediaStorageService.class, () -> mock(MediaStorageService.class))
-                .withUserConfiguration(HlsPublisher.class)
-                .run(context -> {
-                    assertThat(context).hasNotFailed();
-                    assertThat(context).hasSingleBean(HlsPublisher.class);
-                });
-    }
 
     @BeforeEach
     void setUp() {

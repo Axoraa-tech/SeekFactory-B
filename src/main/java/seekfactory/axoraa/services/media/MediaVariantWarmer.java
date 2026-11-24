@@ -28,6 +28,8 @@ public class MediaVariantWarmer implements ApplicationRunner {
     private static final Pattern KEY = Pattern.compile(
             "/api/v1/media/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\.(?:png|jpg))$");
 
+    static final long PAUSE_BETWEEN_PHOTOS_MS = 300;
+
     private final JdbcTemplate jdbcTemplate;
     private final MediaVariantService variants;
 
@@ -57,6 +59,13 @@ public class MediaVariantWarmer implements ApplicationRunner {
         for (String key : keys) {
             for (int width : MediaVariantService.WIDTHS) variants.ensureDirectCopy(key, width);
             if (++done % 200 == 0) log.info("Photo copies: {}/{}", done, keys.size());
+            // Decoding a large photo takes the server's only CPU core: leave room for visitors' requests
+            try {
+                Thread.sleep(PAUSE_BETWEEN_PHOTOS_MS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return;
+            }
         }
         log.info("Photo copies ready for {} images in {} s", keys.size(), (System.currentTimeMillis() - started) / 1000);
     }

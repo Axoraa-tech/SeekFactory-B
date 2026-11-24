@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import seekfactory.axoraa.dto.Response.category.CategoryResponse;
 import seekfactory.axoraa.entity.Category;
+import seekfactory.axoraa.exceptions.BadRequestException;
 import seekfactory.axoraa.exceptions.ResourceNotFoundException;
 import seekfactory.axoraa.repository.CategoryRepository;
 import seekfactory.axoraa.repository.ProductRepository;
@@ -68,6 +69,36 @@ public class CategoryServiceImpl implements CategoryService {
                 .or(() -> categoryRepository.findById(slugOrId))
                 .orElseThrow(() -> new ResourceNotFoundException("Category", "slug or id", slugOrId));
         return mapResponses(List.of(category), categoryRepository.findAll()).get(0);
+    }
+
+    @Override
+    @Transactional
+    public List<CategoryResponse> reorder(List<String> orderedIds) {
+        if (orderedIds == null || orderedIds.isEmpty()) throw new BadRequestException("No categories to order");
+        if (new HashSet<>(orderedIds).size() != orderedIds.size()) throw new BadRequestException("A category is listed twice");
+        Map<String, Category> byId = new HashMap<>();
+        categoryRepository.findAllById(orderedIds).forEach(c -> byId.put(c.getId(), c));
+        if (byId.size() != orderedIds.size()) throw new BadRequestException("Unknown category in the order");
+
+        String parentId = parentIdOf(byId.get(orderedIds.get(0)));
+        for (Category c : byId.values()) {
+            if (!Objects.equals(parentIdOf(c), parentId)) {
+                throw new BadRequestException("Only categories of the same level can be ordered together");
+            }
+        }
+        // Siblings left out of the list lose their old position, so the saved order is exactly what was sent
+        List<Category> all = categoryRepository.findAll();
+        for (Category c : all) {
+            if (Objects.equals(parentIdOf(c), parentId) && !byId.containsKey(c.getId())) c.setDisplayOrder(null);
+        }
+        for (int i = 0; i < orderedIds.size(); i++) byId.get(orderedIds.get(i)).setDisplayOrder(i);
+        categoryRepository.saveAll(all);
+        log.info("Category order updated ({} categories under {})", orderedIds.size(), parentId == null ? "root" : parentId);
+        return mapResponses(orderedIds.stream().map(byId::get).toList(), all);
+    }
+
+    private static String parentIdOf(Category c) {
+        return c.getParent() == null ? null : c.getParent().getId();
     }
 
     // ─── Private Helpers ──────────────────────────────────────

@@ -15,7 +15,8 @@ import java.util.regex.Pattern;
 
 /**
  * One-off background job: makes the small photo copies for every product, factory logo/cover and
- * seek poster already in the database, so no buyer waits for the first copy. Off by default;
+ * seek poster already in the database, under the names browsers load directly from storage
+ * (see MediaVariantService#ensureDirectCopy), so no buyer waits for the first copy. Off by default;
  * turn on with APP_MEDIA_WARM_VARIANTS=true for one start (e.g. after a deploy or import).
  */
 @Slf4j
@@ -54,7 +55,7 @@ public class MediaVariantWarmer implements ApplicationRunner {
         int done = 0;
         long started = System.currentTimeMillis();
         for (String key : keys) {
-            for (int width : MediaVariantService.WIDTHS) variants.variantFor(key, width);
+            for (int width : MediaVariantService.WIDTHS) variants.ensureDirectCopy(key, width);
             if (++done % 200 == 0) log.info("Photo copies: {}/{}", done, keys.size());
         }
         log.info("Photo copies ready for {} images in {} s", keys.size(), (System.currentTimeMillis() - started) / 1000);

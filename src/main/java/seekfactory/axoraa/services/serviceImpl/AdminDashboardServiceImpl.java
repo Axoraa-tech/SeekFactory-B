@@ -61,6 +61,12 @@ public class AdminDashboardServiceImpl implements AdminDashboardService {
     /** Cheap virtual threads; concurrency is bounded by the Hikari pool, not by this executor. */
     private final ExecutorService queryExecutor = Executors.newVirtualThreadPerTaskExecutor();
 
+    static final long ANALYTICS_TTL_MS = 60_000;
+    private record CachedAnalytics(long at, CompletableFuture<AdminAnalyticsResponse> value) {}
+    private final Map<Integer, CachedAnalytics> analyticsCache = new java.util.concurrent.ConcurrentHashMap<>();
+    /** Replaceable in tests. */
+    java.util.function.LongSupplier clock = System::currentTimeMillis;
+
     @Override
     public AdminDashboardStatsResponse getDashboardStats() {
         long totalUsers = userRepository.count();
@@ -83,6 +89,35 @@ public class AdminDashboardServiceImpl implements AdminDashboardService {
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public AdminAnalyticsResponse getAnalytics(int days) {
         int period = ALLOWED_PERIODS.contains(days) ? days : 30;
+        long now = clock.getAsLong();
+        // One computation per period at a time, reused for a minute: the dashboard refreshes every minute,
+        // several admins (or tabs) share it, and login starts it early (see warmAnalytics)
+        CachedAnalytics cached = analyticsCache.compute(period, (k, old) ->
+                old != null && now - old.at() < ANALYTICS_TTL_MS && !old.value().isCompletedExceptionally()
+                        ? old
+                        : new CachedAnalytics(now, CompletableFuture.supplyAsync(() -> computeAnalytics(period), queryExecutor)));
+        try {
+            return cached.value().join();
+        } catch (java.util.concurrent.CompletionException e) {
+            analyticsCache.remove(period, cached);
+            if (e.getCause() instanceof RuntimeException re) throw re;
+            throw e;
+        }
+    }
+
+    /** Starts the default (30-day) dashboard in the background, e.g. right after an admin signs in. */
+    @Override
+    public void warmAnalytics() {
+        queryExecutor.execute(() -> {
+            try {
+                getAnalytics(30);
+            } catch (RuntimeException e) {
+                log.warn("Could not prepare the admin dashboard: {}", e.getMessage());
+            }
+        });
+    }
+
+    private AdminAnalyticsResponse computeAnalytics(int period) {
         // Whitelisted, never user-supplied text, so it is safe to inline into date_trunc / interval
         String bucket = period <= 31 ? "day" : period <= 90 ? "week" : "month";
 

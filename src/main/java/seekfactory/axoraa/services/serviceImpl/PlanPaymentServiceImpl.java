@@ -41,6 +41,10 @@ import java.util.UUID;
 @Transactional
 public class PlanPaymentServiceImpl implements PlanPaymentService {
 
+    /** Emails admins about new sign-ups, content and payments (optional: absent in unit tests). */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private seekfactory.axoraa.services.AdminAlertService adminAlerts;
+
     private static final long MAX_PROOF_BYTES = 5L * 1024 * 1024;
     private static final int MAX_PAGE_SIZE = 100;
 
@@ -91,6 +95,11 @@ public class PlanPaymentServiceImpl implements PlanPaymentService {
             throw new BadRequestException("You already have a payment waiting for review. Please wait for the decision.");
         }
         log.info("Payment {} submitted by user {} for plan {}", id, userId, buyerPlan);
+        if (adminAlerts != null) {
+            String payer = user.getCompanyName() != null && !user.getCompanyName().isBlank()
+                    ? user.getName() + " (" + user.getCompanyName() + ")" : user.getName();
+            adminAlerts.newPayment(payer, (String) priced.get("name"), currency + " " + amount);
+        }
         return jdbcTemplate.queryForObject(MY_SELECT + " WHERE id = ?", MY_MAPPER, id);
     }
 

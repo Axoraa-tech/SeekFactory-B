@@ -106,8 +106,30 @@ public class ProductServiceImpl implements ProductService {
     @Override
     public List<ProductResponse> listCatalog(String viewerId) {
         List<ProductResponse> base = catalogCache.get("all", () -> inReadOnlyTx(() ->
-                productRepository.findAllVisible().stream().map(catalogMapper::toProduct).toList()));
+                productRepository.findAllVisible().stream().map(catalogMapper::toProduct)
+                        .map(ProductServiceImpl::forList).toList()));
         return catalogMapper.copyWithViewerState(base, viewerId);
+    }
+
+    /** Characters of a product description kept in the whole-catalogue list. */
+    static final int LIST_DESCRIPTION_CHARS = 240;
+
+    /**
+     * The catalogue feeds cards and search on every first visit, where a description is at most a two-line
+     * preview. Full descriptions were ~60% of its ~1.4 MB; the product page loads the full text by itself.
+     */
+    static ProductResponse forList(ProductResponse p) {
+        p.setDescription(summary(p.getDescription(), LIST_DESCRIPTION_CHARS));
+        return p;
+    }
+
+    /** At most {@code max} characters, cut at a word boundary, with an ellipsis when shortened. */
+    static String summary(String text, int max) {
+        if (text == null) return null;
+        String one = text.replaceAll("\\s+", " ").trim();
+        if (one.length() <= max) return one;
+        int cut = one.lastIndexOf(' ', max);
+        return one.substring(0, cut > max / 2 ? cut : max).trim() + "…";
     }
 
     private final seekfactory.axoraa.utils.RefreshingCache<String, List<ProductResponse>> catalogCache =

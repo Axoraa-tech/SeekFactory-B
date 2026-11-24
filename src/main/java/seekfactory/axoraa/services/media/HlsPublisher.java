@@ -2,6 +2,7 @@ package seekfactory.axoraa.services.media;
 
 import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -51,6 +52,9 @@ public class HlsPublisher {
     private final AtomicBoolean running = new AtomicBoolean();
     private final Set<String> failed = ConcurrentHashMap.newKeySet();
 
+    // Two constructors (the other is for tests): without this Spring finds no constructor and the
+    // whole API fails to start whenever APP_MEDIA_HLS_ENABLED=true
+    @Autowired
     public HlsPublisher(JdbcTemplate jdbcTemplate, MediaStorageService storage,
                         @Value("${app.media.ffmpeg-path:ffmpeg}") String ffmpegPath,
                         @Value("${app.media.video-crf:23}") int videoCrf,

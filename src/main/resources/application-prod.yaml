@@ -30,6 +30,9 @@ app:
   logging:
     # Request/response bodies carry names, phones, addresses and chats: never log them in prod
     request-bodies: ${APP_LOGGING_REQUEST_BODIES:false}
+  # Links in emails (password reset, verification, admin alerts) point at the live site.
+  # Set here so no APP_FRONTEND_URL setting is needed; one in Azure still overrides it.
+  frontend-url: https://www.seekfactory.com
 
 # API docs are for development only
 springdoc:

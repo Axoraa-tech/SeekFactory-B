@@ -5,4 +5,6 @@ package seekfactory.axoraa.dto.Response.plan;
  * request (null if none was ever made).
  */
 public record ProductUsageResponse(
-        int productCount, int productLimit, boolean canAddProduct, ProductLimitRequestResponse latestRequest) {}
+        int productCount, int productLimit, boolean canAddProduct, ProductLimitRequestResponse latestRequest,
+        /** Membership plan code, lower case: basic, premium, vip or strategic. */
+        String membershipPlan) {}

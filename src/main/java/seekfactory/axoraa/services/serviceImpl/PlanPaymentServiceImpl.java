@@ -14,12 +14,15 @@ import seekfactory.axoraa.dto.Response.payment.PaymentDtos.MyPayment;
 import seekfactory.axoraa.dto.Response.payment.PaymentDtos.PaymentDetail;
 import seekfactory.axoraa.dto.Response.payment.PaymentDtos.PaymentRow;
 import seekfactory.axoraa.dto.Response.payment.PaymentDtos.Proof;
+import seekfactory.axoraa.entity.Manufacturer;
 import seekfactory.axoraa.entity.User;
 import seekfactory.axoraa.enums.BuyerPlan;
+import seekfactory.axoraa.enums.ManufacturerPlan;
 import seekfactory.axoraa.enums.NotificationType;
 import seekfactory.axoraa.enums.UserRole;
 import seekfactory.axoraa.exceptions.BadRequestException;
 import seekfactory.axoraa.exceptions.ResourceNotFoundException;
+import seekfactory.axoraa.repository.ManufacturerRepository;
 import seekfactory.axoraa.repository.UserRepository;
 import seekfactory.axoraa.services.services.NotificationService;
 import seekfactory.axoraa.services.services.PlanPaymentService;
@@ -51,6 +54,7 @@ public class PlanPaymentServiceImpl implements PlanPaymentService {
     private final JdbcTemplate jdbcTemplate;
     private final UserRepository userRepository;
     private final NotificationService notificationService;
+    private final ManufacturerRepository manufacturerRepository;
 
     /* ─────────────────────────── Payer side ─────────────────────────── */
 
@@ -58,8 +62,11 @@ public class PlanPaymentServiceImpl implements PlanPaymentService {
     public MyPayment submit(String userId, String plan, String region, String reference, MultipartFile proof) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
+        if (user.getRole() == UserRole.ROLE_SUPPLIER) {
+            return submitManufacturer(user, plan, region, reference, proof);
+        }
         if (user.getRole() != UserRole.ROLE_BUYER) {
-            throw new BadRequestException("Plan payments are available to buyer accounts only for now");
+            throw new BadRequestException("Plan payments are available to buyer and manufacturer accounts only");
         }
 
         BuyerPlan buyerPlan = parsePaidPlan(plan);
@@ -99,6 +106,50 @@ public class PlanPaymentServiceImpl implements PlanPaymentService {
             String payer = user.getCompanyName() != null && !user.getCompanyName().isBlank()
                     ? user.getName() + " (" + user.getCompanyName() + ")" : user.getName();
             adminAlerts.newPayment(payer, (String) priced.get("name"), currency + " " + amount);
+        }
+        return jdbcTemplate.queryForObject(MY_SELECT + " WHERE id = ?", MY_MAPPER, id);
+    }
+
+    /** A factory paying for a membership plan: priced in USD from {@link ManufacturerPlan}. */
+    private MyPayment submitManufacturer(User user, String plan, String region, String reference, MultipartFile proof) {
+        Manufacturer manufacturer = manufacturerRepository.findByUserId(user.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Manufacturer", "userId", user.getId()));
+        ManufacturerPlan target = ManufacturerPlan.parse(plan)
+                .orElseThrow(() -> new BadRequestException("Unknown plan: " + plan));
+        if (target == ManufacturerPlan.BASIC) {
+            throw new BadRequestException("The basic listing does not need a payment");
+        }
+        ManufacturerPlan current = ManufacturerPlan.of(manufacturer.getMembershipPlan());
+        if (current == target) {
+            throw new BadRequestException("You are already on the " + target.displayName() + " plan");
+        }
+        if (current.compareTo(target) > 0) {
+            throw new BadRequestException("You are already on a higher plan (" + current.displayName() + ")");
+        }
+        boolean india = parseRegion(region);
+
+        byte[] bytes = readProof(proof);
+        String contentType = sniffContentType(bytes);
+
+        String id = UUID.randomUUID().toString();
+        try {
+            jdbcTemplate.update("""
+                    INSERT INTO plan_payments (id, user_id, account_type, manufacturer_id, manufacturer_plan, plan_name, region,
+                        currency, amount, payer_reference, payer_name, payer_email, payer_phone, payer_company, payer_country,
+                        payer_address, proof_data, proof_content_type, proof_filename, proof_size)
+                    VALUES (?, ?, 'MANUFACTURER', ?, ?, ?, ?, 'USD', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    id, user.getId(), manufacturer.getId(), target.name(), target.displayName(), india ? "india" : "china",
+                    target.priceUsd(), blankToNull(reference, 120), user.getName(), user.getEmail(), user.getPhone(),
+                    manufacturer.getName(), manufacturer.getCountry(), user.getAddress(),
+                    bytes, contentType, safeFilename(proof.getOriginalFilename()), bytes.length);
+        } catch (DuplicateKeyException e) {
+            throw new BadRequestException("You already have a payment waiting for review. Please wait for the decision.");
+        }
+        log.info("Payment {} submitted by manufacturer {} for plan {}", id, manufacturer.getId(), target);
+        if (adminAlerts != null) {
+            adminAlerts.newPayment(user.getName() + " (" + manufacturer.getName() + ")", target.displayName(),
+                    "USD " + target.priceUsd());
         }
         return jdbcTemplate.queryForObject(MY_SELECT + " WHERE id = ?", MY_MAPPER, id);
     }
@@ -166,7 +217,7 @@ public class PlanPaymentServiceImpl implements PlanPaymentService {
     public PaymentDetail get(String paymentId) {
         try {
             return jdbcTemplate.queryForObject("""
-                    SELECT p.id, p.account_type, p.plan_name, p.buyer_plan, p.region, p.currency, p.amount,
+                    SELECT p.id, p.account_type, p.plan_name, COALESCE(p.buyer_plan, p.manufacturer_plan) AS buyer_plan, p.region, p.currency, p.amount,
                            p.payer_reference, p.status, p.user_id, p.payer_name, p.payer_email, p.payer_phone,
                            p.payer_company, p.payer_country, p.payer_address, p.manufacturer_id, m.name AS manufacturer_name,
                            p.proof_content_type, p.proof_filename, p.proof_size,
@@ -210,7 +261,18 @@ public class PlanPaymentServiceImpl implements PlanPaymentService {
             BuyerPlan plan = BuyerPlan.valueOf((String) row.get("buyer_plan"));
             jdbcTemplate.update("UPDATE users SET buyer_plan = ? WHERE id = ?", plan.name(), userId);
         } else {
-            throw new BadRequestException("Manufacturer plan payments are not supported yet");
+            ManufacturerPlan plan = ManufacturerPlan.parse((String) row.get("manufacturer_plan"))
+                    .orElseThrow(() -> new BadRequestException("This payment has no factory plan"));
+            String manufacturerId = (String) row.get("manufacturer_id");
+            if (manufacturerId == null) {
+                throw new BadRequestException("The factory for this payment no longer exists");
+            }
+            // Never lowers a limit an admin already raised by hand
+            int updated = jdbcTemplate.update("""
+                    UPDATE manufacturers SET membership_plan = ?, premium = true,
+                        product_limit = GREATEST(product_limit, ?), updated_at = now()
+                    WHERE id = ?""", plan.name(), plan.productLimit(), manufacturerId);
+            if (updated == 0) throw new BadRequestException("The factory for this payment no longer exists");
         }
 
         jdbcTemplate.update(
@@ -235,7 +297,8 @@ public class PlanPaymentServiceImpl implements PlanPaymentService {
     /* ─────────────────────────── helpers ─────────────────────────── */
 
     private static final String MY_SELECT = """
-            SELECT id, plan_name, buyer_plan, currency, amount, status, rejection_reason, created_at, reviewed_at
+            SELECT id, plan_name, COALESCE(buyer_plan, manufacturer_plan) AS buyer_plan, currency, amount, status,
+                   rejection_reason, created_at, reviewed_at
             FROM plan_payments""";
 
     private static final RowMapper<MyPayment> MY_MAPPER = (rs, i) -> new MyPayment(
@@ -246,7 +309,7 @@ public class PlanPaymentServiceImpl implements PlanPaymentService {
     /** Locks the row so two admins cannot decide the same payment, and requires it to still be pending. */
     private Map<String, Object> lockPending(String paymentId) {
         List<Map<String, Object>> rows = jdbcTemplate.queryForList(
-                "SELECT user_id, account_type, buyer_plan, plan_name, status FROM plan_payments WHERE id = ? FOR UPDATE",
+                "SELECT user_id, account_type, buyer_plan, manufacturer_plan, manufacturer_id, plan_name, status FROM plan_payments WHERE id = ? FOR UPDATE",
                 paymentId);
         if (rows.isEmpty()) {
             throw new ResourceNotFoundException("Payment", "id", paymentId);

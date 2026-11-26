@@ -73,7 +73,8 @@ public class ProductLimitService {
         ProductLimitRequestResponse latest = requestRepository
                 .findFirstByManufacturerIdOrderByCreatedAtDesc(manufacturer.getId())
                 .map(ProductLimitService::toResponse).orElse(null);
-        return new ProductUsageResponse(count, limit, count < limit, latest);
+        return new ProductUsageResponse(count, limit, count < limit, latest,
+                seekfactory.axoraa.enums.ManufacturerPlan.of(manufacturer.getMembershipPlan()).name().toLowerCase(java.util.Locale.ROOT));
     }
 
     public ProductLimitRequestResponse requestUpgrade(Manufacturer manufacturer, ProductLimitUpgradeRequest body) {

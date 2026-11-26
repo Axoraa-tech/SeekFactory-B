@@ -65,6 +65,11 @@ public class Manufacturer extends BaseEntity{
     @Builder.Default
     private Boolean premium = false;
 
+    /** Membership plan (see ManufacturerPlan), set when an admin approves the factory's plan payment. */
+    @Column(name = "membership_plan", nullable = false, length = 32)
+    @Builder.Default
+    private String membershipPlan = "BASIC";
+
     /** Live (not deleted) products this factory may hold; raised manually by an admin. */
     @Column(name = "product_limit", nullable = false)
     @Builder.Default

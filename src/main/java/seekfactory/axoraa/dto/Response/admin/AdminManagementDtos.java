@@ -57,7 +57,11 @@ public final class AdminManagementDtos {
             long productCount, long reelCount, long quoteCount, int followerCount,
             String planId, String planName, Instant createdAt,
             // product allowance (live = not deleted) and the profile video
-            int productLimit, long liveProductCount, String profileVideoUrl) {}
+            int productLimit, long liveProductCount, String profileVideoUrl,
+            // certificate documents the factory uploaded (title, issuer, number, dates, document)
+            List<seekfactory.axoraa.dto.common.FactoryCertificate> certificateDocuments,
+            // membership plan code (basic, premium, vip, strategic)
+            String membershipPlan) {}
 
     public record RfqRow(
             String id, String referenceNumber, String productName, String quantity, String unit,

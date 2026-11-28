@@ -1,5 +1,6 @@
 package seekfactory.axoraa.dto.Request.product;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonSetter;
 import com.fasterxml.jackson.annotation.Nulls;
@@ -19,7 +20,10 @@ import java.util.Map;
 /** Partial update: omitted fields are unchanged; an explicit null maximum clears the range. */
 @Data
 @Builder
-@NoArgsConstructor
+// Read JSON through the no-args constructor and setters (see setPriceMaxInr): Jackson 3 would otherwise
+// use the all-args constructor, skipping the setters and failing on the internal boolean, so every
+// product update was rejected as a malformed request.
+@NoArgsConstructor(onConstructor_ = @JsonCreator)
 @AllArgsConstructor
 public class ProductUpdateRequest {
 

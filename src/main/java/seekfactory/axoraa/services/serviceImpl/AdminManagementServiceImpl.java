@@ -19,6 +19,7 @@ import seekfactory.axoraa.entity.Manufacturer;
 import seekfactory.axoraa.entity.SubscriptionPlan;
 import seekfactory.axoraa.entity.User;
 import seekfactory.axoraa.entity.Rfqs.Rfq;
+import seekfactory.axoraa.enums.ManufacturerPlan;
 import seekfactory.axoraa.enums.RfqStatus;
 import seekfactory.axoraa.enums.UserRole;
 import seekfactory.axoraa.enums.VerificationStatus;
@@ -204,12 +205,15 @@ public class AdminManagementServiceImpl implements AdminManagementService {
                 owner == null ? null : owner.getCreatedAt(),
                 products, reels, quotes, m.getFollowerCount(),
                 m.getSubscriptionPlan() == null ? null : m.getSubscriptionPlan().getId(),
-                m.getSubscriptionPlan() == null ? null : m.getSubscriptionPlan().getName(),
+                // The membership plan factories buy (plan payments), not the unused subscription table
+                ManufacturerPlan.of(m.getMembershipPlan()).displayName(),
                 m.getCreatedAt(),
                 ProductLimitService.limitOf(m),
                 count("SELECT count(*) FROM products WHERE manufacturer_id = ? AND is_active = TRUE",
                         new Object[]{manufacturerId}),
-                m.getProfileVideoUrl());
+                m.getProfileVideoUrl(),
+                m.getCertificates() == null ? List.of() : List.copyOf(m.getCertificates()),
+                ManufacturerPlan.of(m.getMembershipPlan()).name().toLowerCase(java.util.Locale.ROOT));
     }
 
     /**

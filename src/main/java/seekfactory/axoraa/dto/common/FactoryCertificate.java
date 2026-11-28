@@ -1,5 +1,8 @@
 package seekfactory.axoraa.dto.common;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonSetter;
+import com.fasterxml.jackson.annotation.Nulls;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
@@ -19,7 +22,10 @@ import lombok.NoArgsConstructor;
  */
 @Data
 @Builder
-@NoArgsConstructor
+// Read JSON through the no-args constructor and setters: Jackson 3 would otherwise use the all-args
+// constructor, where an omitted "custom" or "verified" arrives as null and fails for a boolean, so every
+// standard (non-custom) certificate save was rejected as a malformed request.
+@NoArgsConstructor(onConstructor_ = @JsonCreator)
 @AllArgsConstructor
 public class FactoryCertificate {
 
@@ -49,9 +55,11 @@ public class FactoryCertificate {
     @Size(max = 40)
     private String category;
 
+    @JsonSetter(nulls = Nulls.SKIP)
     private boolean verified;
 
     /** Company-entered certificate name with an uploaded document (see class docs). */
+    @JsonSetter(nulls = Nulls.SKIP)
     private boolean custom;
 
     /** Original file name of the uploaded document, for display. */

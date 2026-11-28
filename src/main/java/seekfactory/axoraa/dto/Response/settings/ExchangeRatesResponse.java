@@ -17,4 +17,6 @@ import java.util.Map;
 public class ExchangeRatesResponse {
     private String base;
     private Map<String, Double> rates;
+    /** When the rates were last refreshed from the market (null for the original fixed rates). */
+    private String updatedAt;
 }

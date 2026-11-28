@@ -76,11 +76,12 @@ public class PlatformSettingsServiceImpl implements PlatformSettingsService {
                 """, rs -> {
             rates.put(rs.getString("code"), rs.getDouble("rate"));
         }, EXCHANGE_RATES);
-        String base = jdbcTemplate.query("SELECT value->>'base' FROM platform_settings WHERE key = ?",
-                rs -> rs.next() ? rs.getString(1) : null, EXCHANGE_RATES);
+        String[] meta = jdbcTemplate.query("SELECT value->>'base', value->>'updatedAt' FROM platform_settings WHERE key = ?",
+                rs -> rs.next() ? new String[]{rs.getString(1), rs.getString(2)} : new String[]{null, null}, EXCHANGE_RATES);
         return ExchangeRatesResponse.builder()
-                .base(base != null ? base : "INR")
+                .base(meta[0] != null ? meta[0] : "INR")
                 .rates(rates)
+                .updatedAt(meta[1])
                 .build();
     }
 }
